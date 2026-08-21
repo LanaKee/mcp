@@ -1,0 +1,68 @@
+[
+  {
+    "recordId": "demo-council-2020",
+    "regionId": "47",
+    "regionName": "경상북도",
+    "council": "경상북도의회",
+    "meetingDate": "2020-11-12",
+    "session": "제320회",
+    "title": "지방소멸 위험지역 기초생활 기반 논의(데모 샘플)",
+    "content": "인구 감소 지역의 교통과 의료 접근성을 우선 보강해야 한다는 취지의 가상 요약이다.",
+    "sourceId": "demo-council-source-2026",
+    "locator": "demo:2020:1",
+    "dataStatus": "demo_sample"
+  },
+  {
+    "recordId": "demo-council-2021",
+    "regionId": "47",
+    "regionName": "경상북도",
+    "council": "경상북도의회",
+    "meetingDate": "2021-09-03",
+    "session": "제326회",
+    "title": "청년 정착과 지방소멸 대응 논의(데모 샘플)",
+    "content": "청년 일자리와 주거를 연계해야 인구 유출을 완화할 수 있다는 취지의 가상 요약이다.",
+    "sourceId": "demo-council-source-2026",
+    "locator": "demo:2021:1",
+    "dataStatus": "demo_sample"
+  },
+  {
+    "recordId": "demo-council-2022",
+    "regionId": "47",
+    "regionName": "경상북도",
+    "council": "경상북도의회",
+    "meetingDate": "2022-10-20",
+    "session": "제335회",
+    "title": "지방소멸대응기금 사업 성과관리(데모 샘플)",
+    "content": "기금 투입액보다 생활인구와 사업 지속성을 성과지표로 관리해야 한다는 취지의 가상 요약이다.",
+    "sourceId": "demo-council-source-2026",
+    "locator": "demo:2022:1",
+    "dataStatus": "demo_sample"
+  },
+  {
+    "recordId": "demo-council-2023",
+    "regionId": "47",
+    "regionName": "경상북도",
+    "council": "경상북도의회",
+    "meetingDate": "2023-12-01",
+    "session": "제343회",
+    "title": "생활인구와 지역산업 연계 논의(데모 샘플)",
+    "content": "정주인구만이 아니라 체류인구와 지역 산업 참여를 함께 측정하자는 취지의 가상 요약이다.",
+    "sourceId": "demo-council-source-2026",
+    "locator": "demo:2023:1",
+    "dataStatus": "demo_sample"
+  },
+  {
+    "recordId": "demo-council-2024",
+    "regionId": "47",
+    "regionName": "경상북도",
+    "council": "경상북도의회",
+    "meetingDate": "2024-09-19",
+    "session": "제350회",
+    "title": "스마트농업 기반 청년 유입 정책(데모 샘플)",
+    "content": "스마트팜 교육, 창업 공간, 정착 지원을 묶어 청년 유입을 촉진하자는 취지의 가상 요약이다.",
+    "sourceId": "demo-council-source-2026",
+    "locator": "demo:2024:1",
+    "dataStatus": "demo_sample"
+  }
+]
+

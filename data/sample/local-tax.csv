@@ -1,0 +1,14 @@
+region_id,region_name,fiscal_year,tax_category,revenue_amount_won,accounting_basis,data_status,source_id,collected_at
+47110,포항시,2022,합계,812000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47110,포항시,2023,합계,846000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47110,포항시,2024,합계,879000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47250,상주시,2022,합계,142000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47250,상주시,2023,합계,148000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47250,상주시,2024,합계,153000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47150,김천시,2022,합계,236000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47150,김천시,2023,합계,231000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47150,김천시,2024,합계,229000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47190,구미시,2022,합계,765000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47190,구미시,2023,합계,801000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+47190,구미시,2024,합계,838000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
+

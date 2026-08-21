@@ -1,0 +1,14 @@
+region_id,region_name,year,population_total,data_status,source_id,collected_at
+47110,포항시,2022,496650,demo_sample,demo-population-2026,2026-08-22
+47110,포항시,2023,493033,demo_sample,demo-population-2026,2026-08-22
+47110,포항시,2024,489720,demo_sample,demo-population-2026,2026-08-22
+47250,상주시,2022,95310,demo_sample,demo-population-2026,2026-08-22
+47250,상주시,2023,94180,demo_sample,demo-population-2026,2026-08-22
+47250,상주시,2024,92970,demo_sample,demo-population-2026,2026-08-22
+47150,김천시,2022,139050,demo_sample,demo-population-2026,2026-08-22
+47150,김천시,2023,137560,demo_sample,demo-population-2026,2026-08-22
+47150,김천시,2024,136410,demo_sample,demo-population-2026,2026-08-22
+47190,구미시,2022,408110,demo_sample,demo-population-2026,2026-08-22
+47190,구미시,2023,406330,demo_sample,demo-population-2026,2026-08-22
+47190,구미시,2024,405840,demo_sample,demo-population-2026,2026-08-22
+

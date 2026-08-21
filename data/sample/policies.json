@@ -1,0 +1,48 @@
+[
+  {
+    "policyId": "demo-policy-sangju-smartfarm-incubation",
+    "title": "상주 청년 스마트팜 창업 보육(데모 샘플)",
+    "regionId": "47250",
+    "regionName": "상주시",
+    "ageMin": 18,
+    "ageMax": 39,
+    "industries": ["스마트팜", "농업"],
+    "stages": ["예비창업", "초기창업"],
+    "eligibilityText": "상주에서 스마트팜 창업을 준비하는 만 18~39세 청년을 가정한 예시 조건",
+    "support": "기초 교육, 실습장, 사업계획 멘토링을 제공한다고 가정한 데모",
+    "applicationPeriod": "데모 데이터: 실제 공고에서 반드시 재확인",
+    "sourceId": "demo-policy-source-2026",
+    "dataStatus": "demo_sample"
+  },
+  {
+    "policyId": "demo-policy-gb-young-farmer",
+    "title": "경북 청년후계농 정착 지원(데모 샘플)",
+    "regionId": "47",
+    "regionName": "경상북도",
+    "ageMin": 18,
+    "ageMax": 39,
+    "industries": ["농업", "스마트팜"],
+    "stages": ["예비창업", "초기창업"],
+    "eligibilityText": "경상북도 내 영농 예정 또는 초기 영농 청년을 가정한 예시 조건",
+    "support": "정착 상담 및 영농 교육을 제공한다고 가정한 데모",
+    "applicationPeriod": "데모 데이터: 실제 공고에서 반드시 재확인",
+    "sourceId": "demo-policy-source-2026",
+    "dataStatus": "demo_sample"
+  },
+  {
+    "policyId": "demo-policy-sangju-facility",
+    "title": "상주 스마트농업 시설 연계 지원(데모 샘플)",
+    "regionId": "47250",
+    "regionName": "상주시",
+    "ageMin": null,
+    "ageMax": null,
+    "industries": ["스마트팜"],
+    "stages": ["성장"],
+    "eligibilityText": "상주시 소재 기존 농업 경영체를 가정한 예시 조건",
+    "support": "시설 고도화 컨설팅을 제공한다고 가정한 데모",
+    "applicationPeriod": "데모 데이터: 실제 공고에서 반드시 재확인",
+    "sourceId": "demo-policy-source-2026",
+    "dataStatus": "demo_sample"
+  }
+]
+

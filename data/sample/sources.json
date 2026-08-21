@@ -1,0 +1,46 @@
+[
+  {
+    "sourceId": "demo-population-2026",
+    "title": "시군별 연도 인구 데모 샘플",
+    "provider": "gyeongbuk-public-ai 프로젝트",
+    "sourceUrl": null,
+    "collectedAt": "2026-08-22",
+    "dataStatus": "demo_sample",
+    "isOfficial": false,
+    "locator": "data/sample/population.csv",
+    "note": "기능 검증용 재배포 가능 예시값이며 공식 통계가 아님"
+  },
+  {
+    "sourceId": "demo-local-tax-2026",
+    "title": "시군별 지방세 결산 데모 샘플",
+    "provider": "gyeongbuk-public-ai 프로젝트",
+    "sourceUrl": null,
+    "collectedAt": "2026-08-22",
+    "dataStatus": "demo_sample",
+    "isOfficial": false,
+    "locator": "data/sample/local-tax.csv",
+    "note": "기능 검증용 가상 예시값이며 공식 지방세 통계가 아님"
+  },
+  {
+    "sourceId": "demo-policy-source-2026",
+    "title": "상주 스마트팜 정책 데모 샘플",
+    "provider": "gyeongbuk-public-ai 프로젝트",
+    "sourceUrl": null,
+    "collectedAt": "2026-08-22",
+    "dataStatus": "demo_sample",
+    "isOfficial": false,
+    "locator": "data/sample/policies.json",
+    "note": "자격 판정 데모용 가상 공고. 실제 신청 전 공식 공고 확인 필수"
+  },
+  {
+    "sourceId": "demo-council-source-2026",
+    "title": "도의회 지방소멸 논의 데모 샘플",
+    "provider": "gyeongbuk-public-ai 프로젝트",
+    "sourceUrl": null,
+    "collectedAt": "2026-08-22",
+    "dataStatus": "demo_sample",
+    "isOfficial": false,
+    "locator": "data/sample/council-records.json",
+    "note": "검색 기능 시연용 가상 요약이며 실제 회의록 인용이 아님"
+  }
+]
