@@ -54,8 +54,11 @@ docker compose up --build
 기존 PostgreSQL에 마이그레이션을 적용하려면:
 
 ```bash
-psql "$DATABASE_URL" -f db/migrations/001_initial.sql
+pnpm db:schema
 ```
+
+`DATABASE_URL`은 환경변수 또는 저장소의 `.env`에서 읽으며 명령 출력에 연결 문자열을
+노출하지 않습니다.
 
 ## MCP stdio 설정
 
@@ -120,18 +123,56 @@ pnpm etl:dry-run
 
 # data/generated/에 결정적 JSON 산출물 기록(같은 입력이면 unchanged)
 pnpm etl
+
+# ETL 재생성 + 스키마 적용 + PostgreSQL 적재
+pnpm db:normalize
+
+# 이미 생성한 산출물을 적재(제한된 DB 사용자는 스키마 적용 생략 가능)
+pnpm db:load -- --skip-schema
+
+# 공식 원천만 적재하고 demo_sample은 제외
+pnpm db:normalize -- --official-only
 ```
 
 ETL은 다음을 수행합니다.
 
 1. 모든 파일의 경로(NFC 정규화), 크기, SHA-256, 기준일/수집시각, 형식을 카탈로그화
 2. CSV를 UTF-8 우선, 실패 시 CP949로 해석
-3. 파일명 대신 헤더로 포항 연도별 인구 및 다양한 의회 의안 CSV를 판별
-4. 인구 XLSX의 시트와 행을 탐색해 시군 인구 후보를 정규화
+3. 포항 연도별 인구의 `년월` 날짜를 그대로 보존하고 다양한 의회 의안 CSV를 판별
+4. 인구 XLSX 제목에서 `2026년 7월`을 찾아 `2026-07-31` 기준 경북/시군 값을 정규화
 5. PDF는 해시와 원문 위치를 보존해 `catalog_only`로 기록
 6. 파싱 오류를 `errors.json`과 종료 코드로 노출
 
 `data/generated/`는 재생성 가능하므로 Git에서 제외됩니다.
+
+### PostgreSQL 적재
+
+적재기는 다음을 보장합니다.
+
+- 경상북도와 현재 22개 시·군(군위군 제외)의 canonical 지역 키 사용
+- 경로+SHA-256 기반 출처 버전 보존, PDF 포함 422개 원천 카탈로그 적재
+- 500행 단위 parameterized upsert와 단일 fact 트랜잭션
+- 원천 SHA/경로/행 번호 기반 의회 레코드 ID와 인구·의회 `source_locator`
+- 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
+- 실패 시 fact 트랜잭션 rollback 및 가능한 경우 `ingestion_run.status = failed` 기록
+- 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
+
+현재 제공 원천과 샘플을 최초 적재한 기대 건수:
+
+| 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
+|---|---:|---:|---:|
+| `data_source` | 21 | 4 | 401 |
+| `population_observation` | 221 | 12 | - |
+| `local_tax_revenue` | 0 | 12 | - |
+| `policy_program` | 0 | 3 | - |
+| `council_record` | 46,596 | 5 | - |
+
+```sql
+SELECT data_status, count(*) FROM data_source GROUP BY data_status;
+SELECT data_status, count(*) FROM population_observation GROUP BY data_status;
+SELECT data_status, count(*) FROM council_record GROUP BY data_status;
+SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
+```
 
 ## 품질 명령
 
@@ -159,8 +200,8 @@ docs/                     설계·도구·데이터 사전·변경 기록
 
 ## 현재 한계
 
-- 실행 API는 해커톤 재현성을 위해 메모리의 샘플 파일을 사용합니다. PostgreSQL 스키마와
-  ETL 산출물은 실제 적재 계층의 계약이며 DB repository 연결은 후속 범위입니다.
+- 실행 API는 해커톤 재현성을 위해 아직 메모리의 샘플 파일을 사용합니다. PostgreSQL에는
+  실제 ETL/샘플 데이터가 적재되지만 MCP 조회 repository 연결은 후속 범위입니다.
 - PDF는 전량 카탈로그화하지만 OCR/본문 추출은 하지 않습니다.
 - 기본 검색은 외부 임베딩 없이 한글 어휘·부분 문자열 검색입니다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.

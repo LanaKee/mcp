@@ -12,6 +12,9 @@
     "test:watch": "vitest",
     "etl": "pnpm --filter @gb/pipelines etl",
     "etl:dry-run": "pnpm --filter @gb/pipelines etl:dry-run",
+    "db:schema": "pnpm --filter @gb/pipelines db:schema",
+    "db:load": "pnpm --filter @gb/pipelines db:load",
+    "db:normalize": "pnpm --filter @gb/pipelines db:normalize",
     "dev": "pnpm --filter @gb/mcp-server dev:http",
     "start": "pnpm --filter @gb/mcp-server start:http"
   },
@@ -22,4 +25,3 @@
     "vitest": "^3.2.4"
   }
 }
-

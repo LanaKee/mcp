@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, relative } from "node:path";
 import { detectCsvKind, parseKoreanCsv, type CsvKind } from "./csv.js";
+import { populationWorkbookReferenceDate } from "./xlsx.js";
 
 export interface CatalogEntry {
   path: string;
@@ -34,7 +35,9 @@ function referenceDate(fileName: string): string | null {
   const compact = fileName.match(/(?:19|20)\d{6}/)?.[0];
   if (compact) return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
   const separated = fileName.match(/(20\d{2})[-_](\d{2})[-_](\d{2})/);
-  return separated ? `${separated[1]}-${separated[2]}-${separated[3]}` : null;
+  if (separated) return `${separated[1]}-${separated[2]}-${separated[3]}`;
+  const monthFirst = fileName.match(/(?:^|[_\s])(\d{2})_(\d{2})_((?:19|20)\d{2})(?:[_.\s]|$)/);
+  return monthFirst ? `${monthFirst[3]}-${monthFirst[1]}-${monthFirst[2]}` : null;
 }
 
 const mediaTypes: Record<string, string> = {
@@ -75,6 +78,10 @@ export async function buildCatalog(
           error = caught instanceof Error ? caught.message : String(caught);
         }
       }
+      const fileReferenceDate =
+        extension === ".xlsx"
+          ? populationWorkbookReferenceDate(buffer)
+          : referenceDate(path.normalize("NFC"));
       return {
         path: relative(repositoryRoot, path).normalize("NFC"),
         fileNameNfc: path.split("/").at(-1)?.normalize("NFC") ?? path.normalize("NFC"),
@@ -82,7 +89,7 @@ export async function buildCatalog(
         byteSize: fileStat.size,
         sha256: createHash("sha256").update(buffer).digest("hex"),
         collectedAt: fileStat.mtime.toISOString(),
-        referenceDate: referenceDate(path.normalize("NFC")),
+        referenceDate: fileReferenceDate,
         mediaType: mediaTypes[extension] ?? "application/octet-stream",
         contentKind,
         encoding,
@@ -93,4 +100,3 @@ export async function buildCatalog(
     })
   );
 }
-

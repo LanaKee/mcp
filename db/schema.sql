@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS policy_program (
   application_start date,
   application_end date,
   source_id uuid NOT NULL REFERENCES data_source(source_id),
+  ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
   data_status text NOT NULL CHECK (data_status IN ('official_observed', 'demo_sample')),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   CHECK (target_age_min IS NULL OR target_age_max IS NULL OR target_age_min <= target_age_max)
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS council_record (
   proposer text,
   resolution text,
   source_id uuid NOT NULL REFERENCES data_source(source_id),
+  ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
   data_status text NOT NULL CHECK (data_status IN ('official_observed', 'demo_sample')),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
@@ -155,12 +157,15 @@ CREATE INDEX IF NOT EXISTS idx_policy_region_age
   ON policy_program(region_id, target_age_min, target_age_max);
 CREATE INDEX IF NOT EXISTS idx_policy_industries
   ON policy_program USING gin(industries);
+CREATE INDEX IF NOT EXISTS idx_policy_ingestion_run
+  ON policy_program(ingestion_run_id);
 CREATE INDEX IF NOT EXISTS idx_council_date_region
   ON council_record(meeting_date, region_id);
+CREATE INDEX IF NOT EXISTS idx_council_ingestion_run
+  ON council_record(ingestion_run_id);
 CREATE INDEX IF NOT EXISTS idx_council_title_trgm
   ON council_record USING gin(title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_chunk_fts
   ON document_chunk USING gin(to_tsvector('simple', content));
 CREATE INDEX IF NOT EXISTS idx_source_sha
   ON data_source(file_sha256);
-

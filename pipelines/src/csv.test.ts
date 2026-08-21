@@ -19,7 +19,16 @@ describe("dataset CSV adapters", () => {
         "경상북도_포항시_연도별.csv"
       )
     ).toEqual([
-      { regionName: "포항시", year: 2024, populationTotal: 481000, sourceRow: 2 }
+      {
+        regionName: "포항시",
+        referenceDate: "2024-12-01",
+        populationTotal: 481000,
+        populationMale: 241800,
+        populationFemale: 239200,
+        householdCount: null,
+        foreignPopulation: 3000,
+        sourceRow: 2
+      }
     ]);
   });
 
@@ -27,14 +36,21 @@ describe("dataset CSV adapters", () => {
     const decoded = parseKoreanCsv(
       Buffer.from("의안번호,의안명,발의자,발의일자,본회의결과\n1,청년 지원 조례안,홍길동,2024-01-02,가결\n")
     );
-    expect(normalizeCouncilRows(decoded, "임의파일.csv")[0]).toMatchObject({
+    expect(normalizeCouncilRows(decoded, "경상북도_상주시_의안.csv")[0]).toMatchObject({
       title: "청년 지원 조례안",
       proposer: "홍길동",
+      meetingDate: "2024-01-02",
       result: "가결"
     });
   });
 
   it("normalizes NFD filenames without exact filename matching", () => {
     expect(inferRegionName("경상북도_상주시_자료.csv")).toBe("상주시");
+  });
+
+  it("maps the provincial council to Gyeongbuk rather than an unresolved region", () => {
+    expect(inferRegionName("경상북도_경북도의회 회의록 안건정보.csv")).toBe(
+      "경상북도"
+    );
   });
 });

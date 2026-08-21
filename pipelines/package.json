@@ -8,12 +8,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "etl": "tsx src/cli.ts --write",
-    "etl:dry-run": "tsx src/cli.ts --dry-run"
+    "etl:dry-run": "tsx src/cli.ts --dry-run",
+    "db:schema": "tsx src/db-cli.ts schema",
+    "db:load": "tsx src/db-cli.ts load",
+    "db:normalize": "tsx src/db-cli.ts normalize"
   },
   "dependencies": {
     "csv-parse": "^6.1.0",
     "iconv-lite": "^0.7.0",
+    "pg": "^8.23.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }
-

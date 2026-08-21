@@ -1,5 +1,7 @@
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
+import { parseReferenceDate } from "./dates.js";
+import { inferGyeongbukRegion } from "./regions.js";
 
 export type CsvKind =
   | "population_annual"
@@ -83,16 +85,17 @@ const numberValue = (value: string) => Number(value.replace(/[,\s]/g, "")) || 0;
 
 export interface NormalizedPopulationRow {
   regionName: string;
-  year: number;
+  referenceDate: string;
   populationTotal: number;
+  populationMale: number;
+  populationFemale: number;
+  householdCount: number | null;
+  foreignPopulation: number;
   sourceRow: number;
 }
 
-export function inferRegionName(pathName: string): string {
-  const normalized = pathName.normalize("NFC");
-  const match = normalized.match(/경상북도[_\s]+([^_]+?시|[^_]+?군)(?:_|\\s)/);
-  if (match?.[1]) return match[1].replace(/\s+/g, "");
-  return "미확인";
+export function inferRegionName(pathName: string): string | null {
+  return inferGyeongbukRegion(pathName)?.regionName ?? null;
 }
 
 export function normalizeAnnualPopulation(
@@ -101,18 +104,33 @@ export function normalizeAnnualPopulation(
 ): NormalizedPopulationRow[] {
   if (decoded.kind !== "population_annual") return [];
   const regionName = inferRegionName(pathName);
+  if (!regionName) return [];
   return decoded.rows
     .map((row, index) => {
-      const date = firstValue(row, ["년월", "연월", "기준연월"]);
-      const year = Number(date.slice(0, 4));
-      const populationTotal =
-        numberValue(firstValue(row, ["한국인남"])) +
-        numberValue(firstValue(row, ["한국인여"])) +
-        numberValue(firstValue(row, ["외국인남"])) +
-        numberValue(firstValue(row, ["외국인여"]));
-      return { regionName, year, populationTotal, sourceRow: index + 2 };
+      const referenceDate = parseReferenceDate(
+        firstValue(row, ["년월", "연월", "기준연월"])
+      );
+      const koreanMale = numberValue(firstValue(row, ["한국인남"]));
+      const koreanFemale = numberValue(firstValue(row, ["한국인여"]));
+      const foreignMale = numberValue(firstValue(row, ["외국인남"]));
+      const foreignFemale = numberValue(firstValue(row, ["외국인여"]));
+      const populationMale = koreanMale + foreignMale;
+      const populationFemale = koreanFemale + foreignFemale;
+      return {
+        regionName,
+        referenceDate,
+        populationTotal: populationMale + populationFemale,
+        populationMale,
+        populationFemale,
+        householdCount: numberValue(firstValue(row, ["세대수"])) || null,
+        foreignPopulation: foreignMale + foreignFemale,
+        sourceRow: index + 2
+      };
     })
-    .filter((row) => row.year >= 1900 && row.populationTotal > 0);
+    .filter(
+      (row): row is NormalizedPopulationRow =>
+        row.referenceDate !== null && row.populationTotal > 0
+    );
 }
 
 export interface NormalizedCouncilRow {
@@ -120,6 +138,8 @@ export interface NormalizedCouncilRow {
   title: string;
   recordNumber: string;
   proposer: string;
+  councilName: string;
+  sessionName: string | null;
   meetingDate: string | null;
   result: string | null;
   sourceRow: number;
@@ -131,23 +151,34 @@ export function normalizeCouncilRows(
 ): NormalizedCouncilRow[] {
   if (decoded.kind !== "council_agenda") return [];
   const regionName = inferRegionName(pathName);
+  if (!regionName) return [];
+  const councilName =
+    regionName === "경상북도" ? "경상북도의회" : `${regionName}의회`;
   return decoded.rows
     .map((row, index) => {
       const title = firstValue(row, ["의안명", "안건명", "건명"]);
+      const rawMeetingDate = firstValue(row, [
+        "회의일자",
+        "발의일자",
+        "발의일",
+        "제안일",
+        "본회의 처리일",
+        "본회의처리일",
+        "본회의-처리일"
+      ]);
       return {
         regionName,
         title,
         recordNumber: firstValue(row, ["의안번호", "안건번호", "연번"]),
-        proposer: firstValue(row, ["발의자", "제안자", "제출자"]),
-        meetingDate:
-          firstValue(row, [
-            "회의일자",
-            "발의일자",
-            "발의일",
-            "제안일",
-            "본회의 처리일",
-            "본회의처리일"
-          ]) || null,
+        proposer: firstValue(row, [
+          "발의자",
+          "제안자",
+          "제출자",
+          "제출(발의)자"
+        ]),
+        councilName,
+        sessionName: firstValue(row, ["회기", "회기정보", "기"]) || null,
+        meetingDate: parseReferenceDate(rawMeetingDate),
         result:
           firstValue(row, [
             "본회의 결과",
@@ -162,4 +193,3 @@ export function normalizeCouncilRows(
     })
     .filter((row) => row.title.length > 0);
 }
-
