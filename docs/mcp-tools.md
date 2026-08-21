@@ -1,0 +1,69 @@
+# MCP 도구 명세
+
+모든 도구 입력은 strict Zod object이므로 선언하지 않은 필드는 거절된다. 모든 출력은
+`data_status`, `result`, `sources`, `limitations`를 갖는다.
+
+## `get_population_trend`
+
+- 입력: `region`, `startYear`, `endYear`
+- 출력: 연도별 인구(명), 절대 증감, 증감률, 방향
+
+```json
+{"region":"포항시","startYear":2022,"endYear":2024}
+```
+
+## `get_local_tax_revenue_trend`
+
+- 입력: `region`, `startYear`, `endYear`, 선택 `taxCategory`
+- 출력: 회계연도별 지방세(원), 회계 기준, 증감
+- 국세는 지원하지 않는다.
+
+## `compare_population_and_tax`
+
+- 입력: `startYear`, `endYear`, 선택 `regions`
+- 출력: 모든 비교 가능 지역과 `인구 감소 && 지방세 증가` 일치 지역
+- 동시 변화는 인과관계가 아니다.
+
+## `search_policies`
+
+- 입력: `region`, `age`, `query`, 선택 `stage`, `asOfDate`
+- 출력: 정책별 `eligible`, 부합 이유, 미충족 조건, 점수
+- 데모 정책은 실제 신청 자격을 의미하지 않는다.
+
+```json
+{"region":"상주시","age":34,"query":"스마트팜","stage":"예비창업"}
+```
+
+## `search_council_records`
+
+- 입력: `query`, 선택 `region`, `council`, `dateFrom`, `dateTo`, `limit`
+- 출력: 제목/본문/메타데이터와 lexical/hybrid 점수
+- 한글 NFC 정규화, 단어·bi-gram·부분문자열을 사용한다.
+
+## `verify_claim_with_data`
+
+- 입력: `metric`(`population`/`local_tax`), `region`, `year`,
+  `claimedValue`, 선택 `tolerancePercent`
+- 출력: `consistent`/`inconsistent`, 기준값, 차이, 차이율
+
+## `get_source_context`
+
+- 입력: `sourceIds` 배열
+- 출력: 찾은 출처와 누락 ID. PDF가 `catalog_only`이면 본문 대신 파일 locator만
+  제공한다.
+
+## `draft_public_document`
+
+- 입력: 문서 종류, 제목, 선택 요청자 문맥, `verifiedAnalysis`
+- 문서 종류: `information_request`, `participatory_budget`
+- `verifiedAnalysis`는 결론, 출처가 연결된 근거, 출처 묶음, 한계,
+  `verified: true`를 포함해야 한다.
+- 근거의 source ID가 출처 묶음에 없으면 실패한다.
+- 출력은 항상 **검토가 필요한 초안**으로 표시한다.
+
+## 오류
+
+MCP 오류는 `isError: true` content로, HTTP 오류는 상태 400 JSON으로 반환한다.
+오류 응답에도 데모 실행 상태를 표시하며 입력값이나 환경 변수 비밀을 로그에 남기지
+않는다.
+
