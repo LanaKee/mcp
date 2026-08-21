@@ -12,6 +12,7 @@ import {
   sourceContextInputSchema,
   summarizeTrend,
   verifyClaimInputSchema,
+  type DataStatus,
   type SourceRef
 } from "@gb/domain";
 import {
@@ -24,11 +25,19 @@ import type { DemoDataStore } from "./data-store.js";
 
 export type JsonSchema = Record<string, unknown>;
 
+export interface ToolResponse<TResult = unknown> {
+  data_status: DataStatus;
+  result: TResult;
+  sources: SourceRef[];
+  limitations: string[];
+  [key: string]: unknown;
+}
+
 export interface ToolDefinition {
   description: string;
   inputSchema: JsonSchema;
   parse: (input: unknown) => unknown;
-  execute: (input: never) => Promise<Record<string, unknown>>;
+  execute: (input: never) => Promise<ToolResponse>;
 }
 
 const objectSchema = (
@@ -41,7 +50,7 @@ const objectSchema = (
   additionalProperties: false
 });
 
-function dataStatus(sources: SourceRef[]) {
+function dataStatus(sources: SourceRef[]): DataStatus {
   return sources.every((source) => source.dataStatus === "official_observed")
     ? "official_observed"
     : "demo_sample";
@@ -60,13 +69,13 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
     description: string,
     schema: z.ZodType<T>,
     inputSchema: JsonSchema,
-    execute: (input: T) => Promise<Record<string, unknown>> | Record<string, unknown>
+    execute: (input: T) => Promise<ToolResponse> | ToolResponse
   ) => {
     definitions[name] = {
       description,
       inputSchema,
       parse: (input) => schema.parse(input),
-      execute: execute as (input: never) => Promise<Record<string, unknown>>
+      execute: async (input) => execute(input as T)
     };
   };
 
@@ -416,7 +425,7 @@ export async function executeTool(
   registry: Record<string, ToolDefinition>,
   name: string,
   input: unknown
-): Promise<Record<string, unknown>> {
+): Promise<ToolResponse> {
   const tool = registry[name];
   if (!tool) throw new Error(`지원하지 않는 도구입니다: ${name}`);
   const parsed = tool.parse(input);
