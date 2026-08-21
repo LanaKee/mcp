@@ -1,0 +1,10 @@
+.git
+.env
+datasets
+*.docx
+AGENTS.md
+node_modules
+**/dist
+data/generated
+coverage
+

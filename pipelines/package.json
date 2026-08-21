@@ -1,0 +1,19 @@
+{
+  "name": "@gb/pipelines",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "etl": "tsx src/cli.ts --write",
+    "etl:dry-run": "tsx src/cli.ts --dry-run"
+  },
+  "dependencies": {
+    "csv-parse": "^6.1.0",
+    "iconv-lite": "^0.7.0",
+    "xlsx": "^0.18.5"
+  }
+}
+
