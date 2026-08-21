@@ -39,6 +39,10 @@
 - 입력: `query`, 선택 `region`, `council`, `dateFrom`, `dateTo`, `limit`
 - 출력: 제목/본문/메타데이터와 lexical/hybrid 점수
 - 한글 NFC 정규화, 단어·bi-gram·부분문자열을 사용한다.
+- 현재 MCP 데모 실행은 기존 in-memory 샘플 경로를 유지한다.
+- 실제 PDF용 `PostgresHybridSearchRepository`는 FTS/trigram 후보와 저장 embedding cosine
+  점수를 결합하며 source/page locator를 반환할 수 있도록 구현되어 있다. 서비스에서
+  DB client를 주입하는 연결 작업은 별도 운영 선택이다.
 
 ## `verify_claim_with_data`
 
@@ -49,8 +53,9 @@
 ## `get_source_context`
 
 - 입력: `sourceIds` 배열
-- 출력: 찾은 출처와 누락 ID. PDF가 `catalog_only`이면 본문 대신 파일 locator만
-  제공한다.
+- 출력: 찾은 출처와 누락 ID. PDF source 자체는 `catalog_only`이지만 PostgreSQL
+  document/chunk에는 추출된 본문과 페이지 locator가 별도로 저장된다. 현재 in-memory
+  도구는 아직 그 DB 본문을 조회하지 않는다.
 
 ## `draft_public_document`
 
@@ -66,4 +71,3 @@
 MCP 오류는 `isError: true` content로, HTTP 오류는 상태 400 JSON으로 반환한다.
 오류 응답에도 데모 실행 상태를 표시하며 입력값이나 환경 변수 비밀을 로그에 남기지
 않는다.
-

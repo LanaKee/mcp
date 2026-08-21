@@ -305,7 +305,7 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
         sources,
         limitations: [
           "현재 검색 결과는 가상 요약 샘플입니다.",
-          "벡터 어댑터 경계는 구현되어 있으나 기본 실행은 외부 임베딩 없이 어휘 검색만 사용합니다."
+          "기본 MCP 실행은 in-memory 어휘 검색이며 PostgreSQL PDF hybrid repository는 아직 서비스에 주입되지 않았습니다."
         ]
       };
     }
@@ -383,7 +383,9 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
           missing: input.sourceIds.filter((id) => !sourceMap.has(id))
         },
         sources,
-        limitations: ["catalog_only PDF는 원문 내용이 아니라 파일 위치와 해시만 제공합니다."]
+        limitations: [
+          "현재 in-memory source 조회는 PDF 파일 위치와 해시만 제공하며, PostgreSQL의 추출 본문/페이지 locator는 아직 연결되지 않았습니다."
+        ]
       };
     }
   );

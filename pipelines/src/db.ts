@@ -46,7 +46,7 @@ export interface DatabaseLoadResult {
   integrity: IntegrityCount[];
 }
 
-interface UpsertResult {
+export interface UpsertResult {
   inserted: number;
   updated: number;
   returned: QueryResultRow[];
@@ -85,7 +85,7 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
-async function upsertRows(
+export async function upsertRows(
   client: Client,
   options: {
     table: string;
@@ -143,8 +143,22 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     resolve(repositoryRoot, "db/migrations/002_normalized_loading.sql"),
     "utf8"
   );
-  await client.query(schema);
-  await client.query(normalizedLoadingMigration);
+  const pdfDocumentsMigration = await readFile(
+    resolve(repositoryRoot, "db/migrations/003_pdf_documents_embeddings.sql"),
+    "utf8"
+  );
+  const existing = await client.query<{ document_table: string | null }>(
+    "SELECT to_regclass('public.document')::text AS document_table"
+  );
+  if (existing.rows[0]?.document_table) {
+    await client.query(normalizedLoadingMigration);
+    await client.query(pdfDocumentsMigration);
+    await client.query(schema);
+  } else {
+    await client.query(schema);
+    await client.query(normalizedLoadingMigration);
+    await client.query(pdfDocumentsMigration);
+  }
 }
 
 function sourceId(

@@ -57,13 +57,35 @@ SHA-256을 포함하므로 같은 경로의 파일이 변경되어도 이전 버
 
 ### `document` / `document_chunk`
 
-정책·회의록·첨부문서 등의 메타데이터와 검색 단위 텍스트를 분리한다. chunk에는
-임베딩 모델/차원/데이터 필드가 있지만 현재 기본 검색은 lexical 방식이다.
+정책·회의록·첨부문서 등의 메타데이터와 검색 단위 텍스트를 분리한다.
+
+- `document_key`, `chunk_key`, UUID는 source version·페이지·순번에서 결정적으로 생성한다.
+- `extraction_status`: `extracted`, `partial`, `ocr_required`, `extraction_failed`,
+  `password_required`
+- `page_count`, `page_start`, `page_end`, `content_sha256`은 추출/검색 provenance를 보존한다.
+- `is_current = false`인 chunk는 삭제하지 않은 과거 추출 결과이며 검색에서 제외한다.
+- 기존 `document_chunk.embedding_*`/`embedding_data` 컬럼은 호환용이며 새 적재기는 쓰지 않는다.
+
+### `document_chunk_embedding`
+
+chunk, provider, model, version별 임베딩을 저장한다. `embedding`은 `real[]`이고
+`cardinality(embedding) = dimensions` check가 있다. provider 차원이 달라질 수 있어 단일
+고정차원 pgvector 컬럼 대신 별도 테이블을 사용했다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `provider` / `model` / `model_version` | 생성기 식별 |
+| `dimensions` | 벡터 차원 |
+| `retrieval_mode` | `semantic` 또는 `lexical_hash` |
+| `embedding` | PostgreSQL `real[]` 벡터 |
+| `content_sha256` | 어떤 chunk 내용으로 생성했는지 확인 |
+| `metadata` | 결정성, retrieval-only 경고 등 |
 
 ### `source_locator`
 
 엔터티 키를 원본 페이지, 행, 절, 문자 범위 또는 사람이 읽을 수 있는 locator와
-연결한다. 현재 적재기는 공식/데모 인구와 의회 레코드의 행 위치를 기록한다.
+연결한다. 현재 적재기는 공식/데모 인구와 의회 레코드의 행 위치, PDF document/chunk
+페이지, 텍스트가 없는 PDF 페이지 상태를 기록한다.
 
 ## 샘플 파일
 

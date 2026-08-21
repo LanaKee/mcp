@@ -18,8 +18,9 @@
   근거 제한형 행정문서 초안 등 8개 도구
 - NFD 파일명에 의존하지 않고 헤더/내용으로 판별하는 CP949·UTF-8 CSV 및 XLSX ETL
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
+- PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - PostgreSQL 정규화 스키마, 마이그레이션, Docker Compose
-- 한글 토큰·부분 문자열·메타데이터 필터 검색과 교체 가능한 벡터 어댑터 경계
+- 한글 FTS/trigram과 저장 임베딩을 결합하는 PostgreSQL hybrid repository
 - Vitest 기반 도메인·검색·ETL·도구·HTTP 테스트
 
 ## 빠른 시작
@@ -124,7 +125,7 @@ pnpm etl:dry-run
 # data/generated/에 결정적 JSON 산출물 기록(같은 입력이면 unchanged)
 pnpm etl
 
-# ETL 재생성 + 스키마 적용 + PostgreSQL 적재
+# ETL 재생성 + 스키마 적용 + 구조화 데이터와 PDF 전체 적재
 pnpm db:normalize
 
 # 이미 생성한 산출물을 적재(제한된 DB 사용자는 스키마 적용 생략 가능)
@@ -132,6 +133,16 @@ pnpm db:load -- --skip-schema
 
 # 공식 원천만 적재하고 demo_sample은 제외
 pnpm db:normalize -- --official-only
+
+# PDF만 페이지 추출/chunk/로컬 임베딩 후 적재
+pnpm pdf:normalize
+
+# 개발·테스트용 파일 제한
+pnpm pdf:normalize -- --limit 5
+
+# PDF 단계를 생략하거나 db:normalize 안에서 제한
+pnpm db:normalize -- --skip-pdf
+pnpm db:normalize -- --pdf-limit 5
 ```
 
 ETL은 다음을 수행합니다.
@@ -140,8 +151,9 @@ ETL은 다음을 수행합니다.
 2. CSV를 UTF-8 우선, 실패 시 CP949로 해석
 3. 포항 연도별 인구의 `년월` 날짜를 그대로 보존하고 다양한 의회 의안 CSV를 판별
 4. 인구 XLSX 제목에서 `2026년 7월`을 찾아 `2026-07-31` 기준 경북/시군 값을 정규화
-5. PDF는 해시와 원문 위치를 보존해 `catalog_only`로 기록
-6. 파싱 오류를 `errors.json`과 종료 코드로 노출
+5. PDF 원천은 `catalog_only` source로 보존하면서 페이지 본문을 별도 document/chunk로 추출
+6. 텍스트가 없는 문서/페이지는 `ocr_required`, 오류는 `extraction_failed`로 명시
+7. 파싱 오류를 `errors.json`과 종료 코드로 노출
 
 `data/generated/`는 재생성 가능하므로 Git에서 제외됩니다.
 
@@ -156,6 +168,8 @@ ETL은 다음을 수행합니다.
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
 - 실패 시 fact 트랜잭션 rollback 및 가능한 경우 `ingestion_run.status = failed` 기록
 - 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
+- PDF chunk는 source SHA/페이지/chunk 순번으로 결정적 ID를 만들고 이전 행은 삭제하지
+  않되 현재 추출에 없는 chunk를 `is_current = false`로 제외
 
 현재 제공 원천과 샘플을 최초 적재한 기대 건수:
 
@@ -166,6 +180,9 @@ ETL은 다음을 수행합니다.
 | `local_tax_revenue` | 0 | 12 | - |
 | `policy_program` | 0 | 3 | - |
 | `council_record` | 46,596 | 5 | - |
+| `document` | 401 | 0 | - |
+| `document_chunk` | 17,487 | 0 | - |
+| `document_chunk_embedding` | 17,487 | 0 | - |
 
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
@@ -173,6 +190,32 @@ SELECT data_status, count(*) FROM population_observation GROUP BY data_status;
 SELECT data_status, count(*) FROM council_record GROUP BY data_status;
 SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
 ```
+
+### PDF 임베딩과 검색
+
+기본 provider는 네트워크를 사용하지 않는 384차원
+`local/hashed-korean-token/1-d384`이다. 한글 단어·2/3글자 토큰을 feature hashing한
+**retrieval-only lexical vector**이며 의미 임베딩 품질을 주장하지 않는다. 동일 content
+hash의 임베딩은 재실행에서 생성하지 않는다.
+
+```bash
+# 기본: 로컬, 무료, 결정적
+pnpm pdf:normalize -- --provider hashed
+
+# 명시적으로 외부 전송을 허용한 경우에만 OpenAI 사용
+OPENAI_API_KEY=... pnpm pdf:normalize -- \
+  --provider openai --allow-external
+```
+
+provider마다 차원이 달라질 수 있어 임베딩은 JSONB가 아니라
+`document_chunk_embedding.embedding real[]`과 dimension check로 저장한다. 현재 환경은
+pgvector ANN을 요구하지 않으며 schema가 설치하는 `pg_trgm`과 `pgcrypto` extension,
+PostgreSQL FTS로 최대 200개 lexical 후보를 만든 뒤 cosine rerank한다. 전용
+`PostgresHybridSearchRepository`는 구현되어 있지만 MCP 데모의 기본 in-memory 경로는
+유지된다.
+
+전체 로컬 실행 결과는 PDF 401개, 11,712페이지, 17,487 chunk였고 추출/OCR 필요 문서는
+0개였다. 다른 원천에서는 실패 상태가 document와 page locator에 저장된다.
 
 ## 품질 명령
 
@@ -202,8 +245,8 @@ docs/                     설계·도구·데이터 사전·변경 기록
 
 - 실행 API는 해커톤 재현성을 위해 아직 메모리의 샘플 파일을 사용합니다. PostgreSQL에는
   실제 ETL/샘플 데이터가 적재되지만 MCP 조회 repository 연결은 후속 범위입니다.
-- PDF는 전량 카탈로그화하지만 OCR/본문 추출은 하지 않습니다.
-- 기본 검색은 외부 임베딩 없이 한글 어휘·부분 문자열 검색입니다.
+- OCR 엔진은 포함하지 않는다. 텍스트 layer가 없는 PDF는 `ocr_required`로 남긴다.
+- 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
 - 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.
 

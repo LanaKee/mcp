@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { lexicalSearch, normalizeKoreanText, tokenizeKorean } from "./index.js";
+import {
+  buildPostgresHybridSearchQuery,
+  lexicalSearch,
+  normalizeKoreanText,
+  PostgresHybridSearchRepository,
+  tokenizeKorean
+} from "./index.js";
 
 const documents = [
   {
@@ -21,6 +27,77 @@ describe("Korean lexical retrieval", () => {
     expect(normalizeKoreanText("지방소멸")).toBe("지방소멸");
   });
 
+  describe("PostgreSQL hybrid retrieval", () => {
+    it("builds parameterized lexical and vector-array scoring SQL", () => {
+      const query = buildPostgresHybridSearchQuery({
+        query: "청년 정착",
+        queryEmbedding: [0.5, -0.5],
+        embedding: {
+          provider: "local",
+          model: "hashed-korean-token",
+          version: "1-d2",
+          dimensions: 2
+        },
+        regionId: "47",
+        limit: 5
+      });
+      expect(query.text).toContain("document_chunk_embedding");
+      expect(query.text).toContain("candidate_ids AS MATERIALIZED");
+      expect(query.text).toContain("unnest(candidates.embedding)");
+      expect(query.text).not.toContain("청년 정착");
+      expect(query.values.slice(0, 8)).toEqual([
+        "청년 정착",
+        [0.5, -0.5],
+        "local",
+        "hashed-korean-token",
+        "1-d2",
+        2,
+        5,
+        "47"
+      ]);
+    });
+
+    it("maps repository scores without replacing the in-memory path", async () => {
+      const repository = new PostgresHybridSearchRepository({
+        async query() {
+          return {
+            rows: [
+              {
+                chunk_id: "chunk",
+                document_id: "document",
+                title: "지방소멸 대응",
+                content: "청년 정착 지원",
+                page_start: 3,
+                page_end: 3,
+                source_id: "source",
+                file_path: "datasets/a.pdf",
+                lexical_score: "1.25",
+                vector_score: "0.5",
+                combined_score: "0.9875"
+              }
+            ]
+          };
+        }
+      });
+      const rows = await repository.search({
+        query: "청년",
+        embedding: {
+          provider: "local",
+          model: "hashed-korean-token",
+          version: "1-d384",
+          dimensions: 384
+        }
+      });
+      expect(rows[0]).toMatchObject({
+        chunkId: "chunk",
+        pageStart: 3,
+        lexicalScore: 1.25,
+        vectorScore: 0.5,
+        score: 0.9875
+      });
+    });
+  });
+
   it("adds Hangul bigrams for partial matching", () => {
     expect(tokenizeKorean("지방소멸")).toContain("소멸");
   });
@@ -32,4 +109,3 @@ describe("Korean lexical retrieval", () => {
     expect(result.map((item) => item.id)).toEqual(["2021"]);
   });
 });
-

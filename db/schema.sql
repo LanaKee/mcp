@@ -111,28 +111,62 @@ CREATE TABLE IF NOT EXISTS council_record (
 
 CREATE TABLE IF NOT EXISTS document (
   document_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_key text NOT NULL UNIQUE,
   region_id text REFERENCES dim_region(region_id),
   document_type text NOT NULL,
   title text NOT NULL,
   organization text,
   published_date date,
   source_id uuid NOT NULL REFERENCES data_source(source_id),
+  ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
+  extraction_status text NOT NULL CHECK (
+    extraction_status IN (
+      'extracted',
+      'partial',
+      'ocr_required',
+      'extraction_failed',
+      'password_required'
+    )
+  ),
+  page_count integer NOT NULL CHECK (page_count >= 0),
+  content_sha256 char(64) NOT NULL,
   data_status text NOT NULL CHECK (data_status IN ('official_observed', 'demo_sample', 'catalog_only')),
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE IF NOT EXISTS document_chunk (
-  chunk_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  chunk_id uuid PRIMARY KEY,
+  chunk_key text NOT NULL UNIQUE,
   document_id uuid NOT NULL REFERENCES document(document_id) ON DELETE CASCADE,
   chunk_index integer NOT NULL CHECK (chunk_index >= 0),
+  page_start integer NOT NULL CHECK (page_start > 0),
+  page_end integer NOT NULL CHECK (page_end >= page_start),
   section_title text,
   content text NOT NULL,
-  token_count integer,
+  content_sha256 char(64) NOT NULL,
+  token_count integer CHECK (token_count IS NULL OR token_count >= 0),
   embedding_model text,
   embedding_dimensions integer,
   embedding_data jsonb,
+  ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
+  is_current boolean NOT NULL DEFAULT true,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   UNIQUE (document_id, chunk_index)
+);
+
+CREATE TABLE IF NOT EXISTS document_chunk_embedding (
+  chunk_id uuid NOT NULL REFERENCES document_chunk(chunk_id) ON DELETE CASCADE,
+  provider text NOT NULL,
+  model text NOT NULL,
+  model_version text NOT NULL,
+  dimensions integer NOT NULL CHECK (dimensions BETWEEN 1 AND 4096),
+  retrieval_mode text NOT NULL CHECK (retrieval_mode IN ('semantic', 'lexical_hash')),
+  embedding real[] NOT NULL,
+  content_sha256 char(64) NOT NULL,
+  generated_at timestamptz NOT NULL DEFAULT now(),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  PRIMARY KEY (chunk_id, provider, model, model_version),
+  CHECK (cardinality(embedding) = dimensions)
 );
 
 CREATE TABLE IF NOT EXISTS source_locator (
@@ -167,5 +201,19 @@ CREATE INDEX IF NOT EXISTS idx_council_title_trgm
   ON council_record USING gin(title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_chunk_fts
   ON document_chunk USING gin(to_tsvector('simple', content));
+CREATE INDEX IF NOT EXISTS idx_chunk_content_trgm
+  ON document_chunk USING gin(content gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_document_source
+  ON document(source_id);
+CREATE INDEX IF NOT EXISTS idx_document_extraction_status
+  ON document(extraction_status);
+CREATE INDEX IF NOT EXISTS idx_document_title_trgm
+  ON document USING gin(title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_chunk_document_page
+  ON document_chunk(document_id, page_start, chunk_index);
+CREATE INDEX IF NOT EXISTS idx_chunk_current_document
+  ON document_chunk(document_id, is_current);
+CREATE INDEX IF NOT EXISTS idx_chunk_embedding_model
+  ON document_chunk_embedding(provider, model, model_version, dimensions);
 CREATE INDEX IF NOT EXISTS idx_source_sha
   ON data_source(file_sha256);
