@@ -4,15 +4,15 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
-import { executeTool, type ToolDefinition } from "./tools.js";
+import { executeTool, type ToolRegistry } from "./tools.js";
 
-export async function startStdioServer(registry: Record<string, ToolDefinition>) {
+export async function startStdioServer(registry: ToolRegistry) {
   const server = new Server(
     { name: "gyeongbuk-public-ai", version: "0.1.0" },
     { capabilities: { tools: {} } }
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: Object.entries(registry).map(([name, tool]) => ({
+    tools: Object.entries(registry.tools).map(([name, tool]) => ({
       name,
       description: tool.description,
       inputSchema: tool.inputSchema
@@ -36,7 +36,8 @@ export async function startStdioServer(registry: Record<string, ToolDefinition>)
           {
             type: "text",
             text: JSON.stringify({
-              data_status: "demo_sample",
+              data_status: "mixed",
+              data_statuses: [],
               error: error instanceof Error ? error.message : String(error)
             })
           }
@@ -45,5 +46,5 @@ export async function startStdioServer(registry: Record<string, ToolDefinition>)
     }
   });
   await server.connect(new StdioServerTransport());
+  return server;
 }
-

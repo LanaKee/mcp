@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import { loadDemoData } from "./data-store.js";
 import { createHttpApp } from "./http.js";
+import { InMemoryDataRepository } from "./repository.js";
 import { createToolRegistry } from "./tools.js";
 
 let baseUrl = "";
@@ -9,7 +10,7 @@ let server: ReturnType<typeof createHttpApp>;
 
 beforeAll(async () => {
   const store = await loadDemoData();
-  server = createHttpApp(createToolRegistry(store), store);
+  server = createHttpApp(createToolRegistry(new InMemoryDataRepository(store)));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address() as AddressInfo;
   baseUrl = `http://127.0.0.1:${address.port}`;
@@ -27,7 +28,16 @@ describe("HTTP API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       status: "ok",
-      data_status: "demo_sample"
+      repository_mode: "memory"
+    });
+  });
+
+  it("reports repository readiness separately", async () => {
+    const response = await fetch(`${baseUrl}/ready`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "ready",
+      mode: "memory"
     });
   });
 
@@ -43,4 +53,3 @@ describe("HTTP API", () => {
     expect(value.data_status).toBe("demo_sample");
   });
 });
-

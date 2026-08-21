@@ -87,6 +87,27 @@ chunk, provider, model, version별 임베딩을 저장한다. `embedding`은 `re
 연결한다. 현재 적재기는 공식/데모 인구와 의회 레코드의 행 위치, PDF document/chunk
 페이지, 텍스트가 없는 PDF 페이지 상태를 기록한다.
 
+### `mcp_tool_audit`
+
+PostgreSQL repository에서 실행된 MCP/HTTP 도구 호출의 bounded 운영 메타데이터를
+90일 만료 시각과 함께 저장한다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `tool_name` | 목적별 도구 이름 |
+| `started_at` / `finished_at` / `duration_ms` | 실행 시각과 지연 |
+| `success` / `error_class` | 성공 여부와 일반 오류 클래스 |
+| `data_statuses` | 응답에 실제 포함된 상태 배열 |
+| `result_count` | 응답 형태에서 계산한 bounded 결과 수 |
+| `request_hash` | process salt + 도구명 + canonical input의 SHA-256 |
+| `request_metadata` | raw 값이 아닌 필드명, 타입, 문자열/배열 길이 |
+| `repository_mode` | `memory` 또는 `postgres` |
+| `expires_at` | 기본 `created_at + 90 days`; 운영 purge 기준 |
+
+감사 쓰기는 best-effort다. 실패는 구조화 경고로 남지만 성공한 read-only query를
+실패로 바꾸지 않는다. 현재 schema는 만료 인덱스를 제공하며 삭제 scheduler는 배포
+환경이 운영해야 한다.
+
 ## 샘플 파일
 
 | 파일 | 범위 | 상태 |

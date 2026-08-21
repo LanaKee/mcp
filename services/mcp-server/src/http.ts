@@ -3,9 +3,8 @@ import { access } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { DemoDataStore } from "./data-store.js";
 import { representativeQuestions, runRepresentativeDemo } from "./demo.js";
-import { executeTool, type ToolDefinition } from "./tools.js";
+import { executeTool, type ToolRegistry } from "./tools.js";
 
 async function body(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -46,10 +45,7 @@ async function webDirectory() {
   return null;
 }
 
-export function createHttpApp(
-  registry: Record<string, ToolDefinition>,
-  store: DemoDataStore
-) {
+export function createHttpApp(registry: ToolRegistry) {
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://localhost");
@@ -57,12 +53,20 @@ export function createHttpApp(
         return json(response, 200, {
           status: "ok",
           service: "gyeongbuk-public-ai",
-          data_status: "demo_sample"
+          repository_mode: registry.repository.mode
+        });
+      }
+      if (request.method === "GET" && url.pathname === "/ready") {
+        const readiness = await registry.repository.readiness();
+        return json(response, readiness.ready ? 200 : 503, {
+          status: readiness.ready ? "ready" : "not_ready",
+          ...readiness
         });
       }
       if (request.method === "GET" && url.pathname === "/api/questions") {
         return json(response, 200, {
-          data_status: "demo_sample",
+          data_status:
+            registry.repository.mode === "memory" ? "demo_sample" : "mixed",
           questions: representativeQuestions
         });
       }
@@ -78,7 +82,7 @@ export function createHttpApp(
         return json(
           response,
           200,
-          await runRepresentativeDemo(input.questionId, registry, store)
+          await runRepresentativeDemo(input.questionId, registry)
         );
       }
 
@@ -104,15 +108,14 @@ export function createHttpApp(
       }
 
       return json(response, 404, {
-        data_status: "demo_sample",
+        data_status: registry.repository.mode === "memory" ? "demo_sample" : "mixed",
         error: "not_found"
       });
     } catch (error) {
       return json(response, 400, {
-        data_status: "demo_sample",
+        data_status: registry.repository.mode === "memory" ? "demo_sample" : "mixed",
         error: error instanceof Error ? error.message : String(error)
       });
     }
   });
 }
-

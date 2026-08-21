@@ -18,7 +18,10 @@
     "@gb/retrieval": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "csv-parse": "^6.1.0",
+    "pg": "^8.23.0",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }
-

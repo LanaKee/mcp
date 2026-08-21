@@ -35,6 +35,9 @@ importers:
 
   pipelines:
     dependencies:
+      '@gb/retrieval':
+        specifier: workspace:*
+        version: link:../packages/retrieval
       csv-parse:
         specifier: ^6.1.0
         version: 6.2.1
@@ -69,9 +72,16 @@ importers:
       csv-parse:
         specifier: ^6.1.0
         version: 6.2.1
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
 
 packages:
 

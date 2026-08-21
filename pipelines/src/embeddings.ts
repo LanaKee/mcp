@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { hashedKoreanEmbedding } from "@gb/retrieval";
 import type { PdfChunkPlan } from "./pdf.js";
 
 export type EmbeddingRetrievalMode = "semantic" | "lexical_hash";
@@ -23,49 +23,6 @@ export interface ChunkEmbeddingPlan extends EmbeddingDescriptor {
   metadata: Record<string, unknown>;
 }
 
-function normalizedTokens(value: string): string[] {
-  const words = value
-    .normalize("NFC")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
-  const tokens: string[] = [];
-  for (const word of words) {
-    tokens.push(`w:${word}`);
-    if (word.length >= 2) {
-      for (let index = 0; index < word.length - 1; index += 1) {
-        tokens.push(`b:${word.slice(index, index + 2)}`);
-      }
-    }
-    if (word.length >= 3) {
-      for (let index = 0; index < word.length - 2; index += 1) {
-        tokens.push(`t:${word.slice(index, index + 3)}`);
-      }
-    }
-  }
-  return tokens;
-}
-
-function hashedVector(text: string, dimensions: number): number[] {
-  const vector = new Float64Array(dimensions);
-  const counts = new Map<string, number>();
-  for (const token of normalizedTokens(text)) {
-    counts.set(token, (counts.get(token) ?? 0) + 1);
-  }
-  for (const [token, count] of counts) {
-    const digest = createHash("sha256").update(token).digest();
-    const index = digest.readUInt32BE(0) % dimensions;
-    const sign = (digest[4]! & 1) === 0 ? 1 : -1;
-    vector[index] = (vector[index] ?? 0) + sign * (1 + Math.log(count));
-  }
-  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
-  if (norm === 0) return Array.from(vector);
-  return Array.from(vector, (value) => Math.fround(value / norm));
-}
-
 export class HashedKoreanEmbeddingProvider implements EmbeddingProvider {
   readonly descriptor: EmbeddingDescriptor;
 
@@ -83,7 +40,9 @@ export class HashedKoreanEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embed(texts: string[]): Promise<number[][]> {
-    return texts.map((text) => hashedVector(text, this.descriptor.dimensions));
+    return texts.map((text) =>
+      hashedKoreanEmbedding(text, this.descriptor.dimensions)
+    );
   }
 }
 

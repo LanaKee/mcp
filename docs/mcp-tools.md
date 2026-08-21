@@ -1,11 +1,13 @@
 # MCP 도구 명세
 
 모든 도구 입력은 strict Zod object이므로 선언하지 않은 필드는 거절된다. 모든 출력은
-`data_status`, `result`, `sources`, `limitations`를 갖는다.
+`data_status`, `data_statuses`, `result`, `sources`, `limitations`를 갖는다. 아래 factual
+도구는 선택 `dataStatuses` 배열로 `official_observed`/`demo_sample`을 제한할 수 있다.
+기본은 둘 다이며 같은 연도/키가 충돌하면 공식 레코드를 우선한다.
 
 ## `get_population_trend`
 
-- 입력: `region`, `startYear`, `endYear`
+- 입력: `region`, `startYear`, `endYear`, 선택 `dataStatuses`
 - 출력: 연도별 인구(명), 절대 증감, 증감률, 방향
 
 ```json
@@ -14,19 +16,19 @@
 
 ## `get_local_tax_revenue_trend`
 
-- 입력: `region`, `startYear`, `endYear`, 선택 `taxCategory`
+- 입력: `region`, `startYear`, `endYear`, 선택 `taxCategory`, `dataStatuses`
 - 출력: 회계연도별 지방세(원), 회계 기준, 증감
 - 국세는 지원하지 않는다.
 
 ## `compare_population_and_tax`
 
-- 입력: `startYear`, `endYear`, 선택 `regions`
+- 입력: `startYear`, `endYear`, 선택 `regions`, `dataStatuses`
 - 출력: 모든 비교 가능 지역과 `인구 감소 && 지방세 증가` 일치 지역
 - 동시 변화는 인과관계가 아니다.
 
 ## `search_policies`
 
-- 입력: `region`, `age`, `query`, 선택 `stage`, `asOfDate`
+- 입력: `region`, `age`, `query`, 선택 `stage`, `asOfDate`, `dataStatuses`
 - 출력: 정책별 `eligible`, 부합 이유, 미충족 조건, 점수
 - 데모 정책은 실제 신청 자격을 의미하지 않는다.
 
@@ -36,26 +38,26 @@
 
 ## `search_council_records`
 
-- 입력: `query`, 선택 `region`, `council`, `dateFrom`, `dateTo`, `limit`
+- 입력: `query`, 선택 `region`, `council`, `dateFrom`, `dateTo`, `limit`,
+  `dataStatuses`
 - 출력: 제목/본문/메타데이터와 lexical/hybrid 점수
 - 한글 NFC 정규화, 단어·bi-gram·부분문자열을 사용한다.
-- 현재 MCP 데모 실행은 기존 in-memory 샘플 경로를 유지한다.
-- 실제 PDF용 `PostgresHybridSearchRepository`는 FTS/trigram 후보와 저장 embedding cosine
-  점수를 결합하며 source/page locator를 반환할 수 있도록 구현되어 있다. 서비스에서
-  DB client를 주입하는 연결 작업은 별도 운영 선택이다.
+- PostgreSQL 모드는 구조화 `council_record`와 현재 PDF `document_chunk`를 결합한다.
+- PDF hit는 `recordType`, `pageStart`, `pageEnd`, `locator`, source ID를 포함한다.
+- `PostgresHybridSearchRepository`는 FTS/trigram 후보와 저장 embedding cosine 점수를
+  결합한다.
 
 ## `verify_claim_with_data`
 
 - 입력: `metric`(`population`/`local_tax`), `region`, `year`,
-  `claimedValue`, 선택 `tolerancePercent`
+  `claimedValue`, 선택 `tolerancePercent`, `dataStatuses`
 - 출력: `consistent`/`inconsistent`, 기준값, 차이, 차이율
 
 ## `get_source_context`
 
 - 입력: `sourceIds` 배열
-- 출력: 찾은 출처와 누락 ID. PDF source 자체는 `catalog_only`이지만 PostgreSQL
-  document/chunk에는 추출된 본문과 페이지 locator가 별도로 저장된다. 현재 in-memory
-  도구는 아직 그 DB 본문을 조회하지 않는다.
+- 출력: 찾은 출처와 누락 ID, source version alias, 최대 source당 50개 locator.
+  PostgreSQL PDF source는 page/chunk locator와 최대 1,000자 excerpt를 반환한다.
 
 ## `draft_public_document`
 
@@ -69,5 +71,5 @@
 ## 오류
 
 MCP 오류는 `isError: true` content로, HTTP 오류는 상태 400 JSON으로 반환한다.
-오류 응답에도 데모 실행 상태를 표시하며 입력값이나 환경 변수 비밀을 로그에 남기지
-않는다.
+오류 응답에도 repository 실행 상태를 표시하며 입력값이나 환경 변수 비밀을 로그에
+남기지 않는다. PostgreSQL tool audit에는 raw query 대신 hash와 shape만 저장한다.

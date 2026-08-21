@@ -147,17 +147,23 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     resolve(repositoryRoot, "db/migrations/003_pdf_documents_embeddings.sql"),
     "utf8"
   );
+  const repositoryAuditMigration = await readFile(
+    resolve(repositoryRoot, "db/migrations/004_mcp_repository_audit.sql"),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
   if (existing.rows[0]?.document_table) {
     await client.query(normalizedLoadingMigration);
     await client.query(pdfDocumentsMigration);
+    await client.query(repositoryAuditMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
     await client.query(normalizedLoadingMigration);
     await client.query(pdfDocumentsMigration);
+    await client.query(repositoryAuditMigration);
   }
 }
 

@@ -5,6 +5,15 @@ export const dataStatusSchema = z.enum([
   "demo_sample",
   "catalog_only"
 ]);
+export const factDataStatusSchema = z.enum([
+  "official_observed",
+  "demo_sample"
+]);
+const factDataStatusesSchema = z
+  .array(factDataStatusSchema)
+  .min(1)
+  .max(2)
+  .optional();
 
 export const sourceRefSchema = z
   .object({
@@ -26,7 +35,8 @@ export const populationTrendInputSchema = z
   .object({
     region: z.string().min(1).max(80),
     startYear: yearSchema,
-    endYear: yearSchema
+    endYear: yearSchema,
+    dataStatuses: factDataStatusesSchema
   })
   .strict()
   .refine((value) => value.startYear <= value.endYear, {
@@ -38,7 +48,8 @@ export const localTaxTrendInputSchema = z
     region: z.string().min(1).max(80),
     startYear: yearSchema,
     endYear: yearSchema,
-    taxCategory: z.string().min(1).max(80).default("합계")
+    taxCategory: z.string().min(1).max(80).default("합계"),
+    dataStatuses: factDataStatusesSchema
   })
   .strict()
   .refine((value) => value.startYear <= value.endYear, {
@@ -49,7 +60,8 @@ export const comparisonInputSchema = z
   .object({
     startYear: yearSchema,
     endYear: yearSchema,
-    regions: z.array(z.string().min(1)).max(30).optional()
+    regions: z.array(z.string().min(1)).max(30).optional(),
+    dataStatuses: factDataStatusesSchema
   })
   .strict()
   .refine((value) => value.startYear < value.endYear, {
@@ -62,7 +74,8 @@ export const policySearchInputSchema = z
     age: z.number().int().min(0).max(120),
     query: z.string().min(1).max(200),
     stage: z.string().min(1).max(80).optional(),
-    asOfDate: z.string().date().optional()
+    asOfDate: z.string().date().optional(),
+    dataStatuses: factDataStatusesSchema
   })
   .strict();
 
@@ -73,7 +86,8 @@ export const councilSearchInputSchema = z
     council: z.string().min(1).max(100).optional(),
     dateFrom: z.string().date().optional(),
     dateTo: z.string().date().optional(),
-    limit: z.number().int().min(1).max(20).default(5)
+    limit: z.number().int().min(1).max(20).default(5),
+    dataStatuses: factDataStatusesSchema
   })
   .strict();
 
@@ -83,7 +97,8 @@ export const verifyClaimInputSchema = z
     region: z.string().min(1).max(80),
     year: yearSchema,
     claimedValue: z.number().nonnegative(),
-    tolerancePercent: z.number().min(0).max(100).default(1)
+    tolerancePercent: z.number().min(0).max(100).default(1),
+    dataStatuses: factDataStatusesSchema
   })
   .strict();
 

@@ -19,6 +19,7 @@ services:
   mcp-server:
     build: .
     environment:
+      DATA_REPOSITORY: postgres
       PORT: 8787
       DATABASE_URL: postgresql://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
     ports:

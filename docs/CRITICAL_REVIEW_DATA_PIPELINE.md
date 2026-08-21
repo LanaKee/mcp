@@ -9,6 +9,9 @@
 - 동일 1개 PDF 재실행에서 118개 embedding을 전부 skip했다.
 - 초기 hybrid SQL은 전체 array scan으로 약 15초가 걸렸다. indexed candidate CTE와
   bounded cosine rerank로 같은 corpus에서 약 0.16~0.20초로 수정했다.
+- PostgreSQL MCP smoke에서 `/ready` 13.6ms, 공식 인구 42.4ms, demo 지방세 28.1ms,
+  공식 PDF chunk 검색 171.2ms, page context 45.7ms였다.
+- 감사 검증 19건 이상은 모두 성공했고 raw 검색어가 `request_metadata`에 남은 건수는 0이었다.
 
 ## 영역별 평가
 
@@ -55,9 +58,30 @@
   streaming load가 필요하다.
 - 실패 report는 200건까지 저장하므로 대규모 장애는 별도 artifact/로그가 필요하다.
 
+### MCP 실행 repository 검토
+
+해결된 P0:
+
+- HTTP/stdio가 같은 feature-flagged repository와 tool registry를 사용한다.
+- `DATA_REPOSITORY=postgres`는 연결/필수 schema 실패 시 시작에 실패하며 메모리
+  fallback을 하지 않는다.
+- 공식/데모 상태 필터가 SQL까지 전달되고 공식 레코드가 동키에서 우선된다.
+- 의회 검색은 구조화 레코드와 PDF chunk를 함께 조회하며 source/page locator를 돌려준다.
+- `/health`와 `/ready`를 분리하고 종료 신호에서 PostgreSQL pool을 닫는다.
+- audit는 raw query/secret 대신 salted hash와 필드 shape를 저장한다.
+
+남은 위험:
+
+- 원격 HTTP에는 인증, tenant 분리, rate limit이 없다.
+- process salt를 환경에 고정하지 않으면 재시작 사이 request hash 상관분석은 불가능하다.
+- 감사 `expires_at`은 기록되지만 자동 삭제 scheduler는 포함하지 않는다.
+- 구조화 의회 제목 점수와 PDF hybrid 점수는 서로 다른 분포여서 장기적으로 학습/평가
+  기반 score calibration이 필요하다.
+- local tax/policy 공식 source가 아직 없어 해당 기본 결과에는 demo가 포함될 수 있다.
+
 ## 우선순위 개선
 
-1. **P0 운영 연결:** MCP 서비스에 DB repository를 feature flag로 주입하고 접근제어/감사로그 추가.
+1. **P0 접근제어:** 원격 HTTP 인증, rate limit, 배포별 audit salt/retention purge.
 2. **P1 품질:** 표/발언자/머리말 제거 평가셋과 page-level golden extraction test 구축.
 3. **P1 OCR:** 승인된 로컬 OCR queue와 원문/추출본 품질 점수 추가.
 4. **P1 semantic:** 검증된 multilingual model을 로컬 배포하거나 승인된 외부 provider 사용.

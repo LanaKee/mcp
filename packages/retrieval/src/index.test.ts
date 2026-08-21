@@ -71,6 +71,10 @@ describe("Korean lexical retrieval", () => {
                 page_end: 3,
                 source_id: "source",
                 file_path: "datasets/a.pdf",
+                region_name: "김천시",
+                organization: "김천시의회",
+                published_date: "2023-01-01",
+                data_status: "official_observed",
                 lexical_score: "1.25",
                 vector_score: "0.5",
                 combined_score: "0.9875"

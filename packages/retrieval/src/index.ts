@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export interface SearchDocument<TMetadata extends Record<string, unknown>> {
   id: string;
   title: string;
@@ -53,6 +55,38 @@ export function tokenizeKorean(value: string): string[] {
     }
   }
   return [...terms];
+}
+
+export function hashedKoreanEmbedding(
+  value: string,
+  dimensions = 384
+): number[] {
+  if (!Number.isInteger(dimensions) || dimensions < 32 || dimensions > 4096) {
+    throw new Error("Hashed embedding dimensions must be an integer from 32 to 4096");
+  }
+  const words = normalizeKoreanText(value).split(" ").filter(Boolean);
+  const counts = new Map<string, number>();
+  for (const word of words) {
+    const tokens = [`w:${word}`];
+    for (let index = 0; index < word.length - 1; index += 1) {
+      tokens.push(`b:${word.slice(index, index + 2)}`);
+    }
+    for (let index = 0; index < word.length - 2; index += 1) {
+      tokens.push(`t:${word.slice(index, index + 3)}`);
+    }
+    for (const token of tokens) counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+  const vector = new Float64Array(dimensions);
+  for (const [token, count] of counts) {
+    const digest = createHash("sha256").update(token).digest();
+    const index = digest.readUInt32BE(0) % dimensions;
+    const sign = (digest[4]! & 1) === 0 ? 1 : -1;
+    vector[index] = (vector[index] ?? 0) + sign * (1 + Math.log(count));
+  }
+  const norm = Math.sqrt(vector.reduce((sum, item) => sum + item * item, 0));
+  return norm === 0
+    ? Array.from(vector)
+    : Array.from(vector, (item) => Math.fround(item / norm));
 }
 
 export interface SearchOptions<TMetadata extends Record<string, unknown>> {
@@ -132,6 +166,8 @@ export interface PostgresHybridSearchInput {
   regionId?: string;
   publishedFrom?: string;
   publishedTo?: string;
+  dataStatuses?: string[];
+  organization?: string;
   limit?: number;
   candidateLimit?: number;
 }
@@ -150,6 +186,10 @@ export interface PostgresHybridSearchRow {
   page_end: number;
   source_id: string;
   file_path: string | null;
+  region_name: string | null;
+  organization: string | null;
+  published_date: string | null;
+  data_status: string;
   lexical_score: number | string;
   vector_score: number | string | null;
   combined_score: number | string;
@@ -209,7 +249,12 @@ export function buildPostgresHybridSearchQuery(
           dc.page_start,
           dc.page_end,
           ds.source_id,
+          ds.source_key,
           ds.file_path,
+          region.region_name,
+          d.organization,
+          d.published_date,
+          d.data_status,
           (
             ts_rank(
               to_tsvector('simple', dc.content),
@@ -223,6 +268,7 @@ export function buildPostgresHybridSearchQuery(
         JOIN document_chunk dc ON dc.chunk_id = candidate.chunk_id
         JOIN document d ON d.document_id = dc.document_id
         JOIN data_source ds ON ds.source_id = d.source_id
+        LEFT JOIN dim_region region ON region.region_id = d.region_id
         LEFT JOIN document_chunk_embedding e
           ON e.chunk_id = dc.chunk_id
          AND e.provider = $3
@@ -232,6 +278,8 @@ export function buildPostgresHybridSearchQuery(
         WHERE ($8::text IS NULL OR d.region_id = $8)
           AND ($9::date IS NULL OR d.published_date >= $9)
           AND ($10::date IS NULL OR d.published_date <= $10)
+          AND d.data_status = ANY($15::text[])
+          AND ($16::text IS NULL OR d.organization ILIKE ('%' || $16 || '%'))
       ),
       candidates AS (
         SELECT *
@@ -266,8 +314,12 @@ export function buildPostgresHybridSearchQuery(
         content,
         page_start,
         page_end,
-        source_id::text,
+        source_key AS source_id,
         file_path,
+        region_name,
+        organization,
+        published_date::text,
+        data_status,
         lexical_score,
         vector_score,
         (
@@ -293,7 +345,9 @@ export function buildPostgresHybridSearchQuery(
       0.65,
       0.35,
       candidateLimit,
-      ftsQuery
+      ftsQuery,
+      input.dataStatuses ?? ["official_observed", "demo_sample"],
+      input.organization ?? null
     ]
   };
 }
@@ -311,6 +365,10 @@ export class PostgresHybridSearchRepository {
       pageEnd: number;
       sourceId: string;
       filePath: string | null;
+      regionName: string | null;
+      organization: string | null;
+      publishedDate: string | null;
+      dataStatus: string;
       lexicalScore: number;
       vectorScore: number | null;
       score: number;
@@ -330,6 +388,10 @@ export class PostgresHybridSearchRepository {
       pageEnd: row.page_end,
       sourceId: row.source_id,
       filePath: row.file_path,
+      regionName: row.region_name,
+      organization: row.organization,
+      publishedDate: row.published_date,
+      dataStatus: row.data_status,
       lexicalScore: Number(row.lexical_score),
       vectorScore:
         row.vector_score === null ? null : Number(row.vector_score),

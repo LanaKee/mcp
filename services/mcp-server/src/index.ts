@@ -1,19 +1,32 @@
-import { loadDemoData } from "./data-store.js";
 import { createHttpApp } from "./http.js";
 import { startStdioServer } from "./mcp.js";
+import { createDataRepository } from "./runtime.js";
 import { createToolRegistry } from "./tools.js";
 
 const mode = process.argv.includes("--stdio") ? "stdio" : "http";
-const store = await loadDemoData();
-const registry = createToolRegistry(store);
+const repository = await createDataRepository();
+const registry = createToolRegistry(repository);
 
 if (mode === "stdio") {
-  await startStdioServer(registry);
+  const server = await startStdioServer(registry);
+  const shutdown = async () => {
+    await server.close().catch(() => undefined);
+    await repository.close().catch(() => undefined);
+  };
+  process.once("SIGTERM", () => void shutdown());
+  process.once("SIGINT", () => void shutdown());
 } else {
   const port = Number(process.env.PORT ?? 8787);
-  const server = createHttpApp(registry, store);
+  const server = createHttpApp(registry);
+  const shutdown = async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await repository.close().catch(() => undefined);
+  };
+  process.once("SIGTERM", () => void shutdown());
+  process.once("SIGINT", () => void shutdown());
   server.listen(port, "0.0.0.0", () => {
-    console.log(`gyeongbuk-public-ai HTTP server listening on http://0.0.0.0:${port}`);
+    console.log(
+      `gyeongbuk-public-ai HTTP server listening on http://0.0.0.0:${port} (${repository.mode})`
+    );
   });
 }
-

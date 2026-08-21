@@ -4,10 +4,9 @@
 조회하고, 결론·근거·출처·한계를 함께 보여 주는 해커톤용 vertical slice입니다.
 
 > [!WARNING]
-> 저장소의 지방세·정책·의회 데이터와 정규화 인구 샘플은 모두
-> `data_status: "demo_sample"`인 기능 시연용 값입니다. 공식 통계·공고·회의록으로
-> 인용하거나 실제 의사결정에 사용하면 안 됩니다. 로컬 `datasets/`를 처리한 ETL
-> 결과만 `official_observed`로 구분하며, 그 경우에도 원출처 검토가 필요합니다.
+> `data/sample/`의 인구·지방세·정책·의회 값은 `demo_sample`인 기능 시연용이다.
+> `datasets/`에서 파싱한 값만 `official_observed`이며, 이 값도 원출처와 기준일을
+> 확인한 뒤 사용해야 한다.
 
 ## 구현 범위
 
@@ -21,6 +20,7 @@
 - PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - PostgreSQL 정규화 스키마, 마이그레이션, Docker Compose
 - 한글 FTS/trigram과 저장 임베딩을 결합하는 PostgreSQL hybrid repository
+- feature flag 기반 PostgreSQL MCP repository, readiness, redacted 도구 감사 로그
 - Vitest 기반 도메인·검색·ETL·도구·HTTP 테스트
 
 ## 빠른 시작
@@ -35,6 +35,8 @@ pnpm start
 ```
 
 브라우저에서 <http://localhost:8787>을 엽니다.
+`DATA_REPOSITORY=auto`가 기본이며 `DATABASE_URL`이 있으면 PostgreSQL, 없으면
+명시적 데모 메모리 저장소를 사용한다. `.env`는 서버가 자동으로 읽는다.
 
 개발 모드:
 
@@ -91,7 +93,8 @@ pnpm --filter @gb/mcp-server dev:stdio
 
 | 방식 | 경로 | 설명 |
 |---|---|---|
-| `GET` | `/health` | 상태 확인 |
+| `GET` | `/health` | 프로세스 생존 확인 |
+| `GET` | `/ready` | 선택 repository/필수 DB schema 준비 확인 |
 | `GET` | `/api/questions` | 대표 질문 목록 |
 | `POST` | `/api/demo` | 대표 질문 ID 실행 |
 | `POST` | `/api/tools/:toolName` | MCP와 동일한 도구 함수 실행 |
@@ -112,7 +115,25 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
   -d '{"query":"지방소멸","dateFrom":"2020-01-01","dateTo":"2024-12-31","limit":5}'
 ```
 
-모든 사실 응답은 최상위 `data_status`, `sources`, `limitations`를 포함합니다.
+모든 사실 응답은 최상위 `data_status`, `data_statuses`, `sources`,
+`limitations`를 포함한다. 입력의 선택 `dataStatuses`로
+`official_observed`/`demo_sample`을 명시할 수 있고 기본값은 둘 다 허용한다. 실제
+반환 상태가 둘 이상이면 `data_status: "mixed"`이며 개별 상태는 `data_statuses`와
+레코드에 유지된다.
+
+### 실행 repository
+
+| `DATA_REPOSITORY` | 동작 |
+|---|---|
+| `auto` | `DATABASE_URL`이 있으면 PostgreSQL, 없으면 메모리 데모 |
+| `postgres` | PostgreSQL 필수. 연결/스키마 실패 시 시작 실패하며 fallback하지 않음 |
+| `memory`, `disabled` | 명시적으로 `data/sample/` 메모리 repository 사용 |
+
+PostgreSQL 모드의 모든 SQL은 목적별 parameterized/bounded query다. 종료 시 pool을
+닫으며, 도구 실행은 요청 원문 대신 salted SHA-256과 필드 타입/길이만
+`mcp_tool_audit`에 best-effort로 기록한다. 감사 기록 실패는 운영 경고로 남지만 성공한
+읽기 결과를 실패로 바꾸지 않는다. 배포 간 hash 상관이 필요하면
+`AUDIT_HASH_SALT`를 secret manager에서 고정한다.
 
 ## 원천 데이터 ETL
 
@@ -211,8 +232,8 @@ provider마다 차원이 달라질 수 있어 임베딩은 JSONB가 아니라
 `document_chunk_embedding.embedding real[]`과 dimension check로 저장한다. 현재 환경은
 pgvector ANN을 요구하지 않으며 schema가 설치하는 `pg_trgm`과 `pgcrypto` extension,
 PostgreSQL FTS로 최대 200개 lexical 후보를 만든 뒤 cosine rerank한다. 전용
-`PostgresHybridSearchRepository`는 구현되어 있지만 MCP 데모의 기본 in-memory 경로는
-유지된다.
+`PostgresHybridSearchRepository`는 PostgreSQL MCP repository의 의회 검색에 연결되어
+구조화 의안과 PDF chunk를 함께 반환한다.
 
 전체 로컬 실행 결과는 PDF 401개, 11,712페이지, 17,487 chunk였고 추출/OCR 필요 문서는
 0개였다. 다른 원천에서는 실패 상태가 document와 page locator에 저장된다.
@@ -243,12 +264,11 @@ docs/                     설계·도구·데이터 사전·변경 기록
 
 ## 현재 한계
 
-- 실행 API는 해커톤 재현성을 위해 아직 메모리의 샘플 파일을 사용합니다. PostgreSQL에는
-  실제 ETL/샘플 데이터가 적재되지만 MCP 조회 repository 연결은 후속 범위입니다.
 - OCR 엔진은 포함하지 않는다. 텍스트 layer가 없는 PDF는 `ocr_required`로 남긴다.
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
 - 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.
+- 원격 배포를 위한 인증·rate limit은 아직 포함하지 않는다.
 
 상세 내용은 [아키텍처](docs/architecture.md),
 [데이터 사전](docs/data-dictionary.md), [MCP 도구 명세](docs/mcp-tools.md)를 참고하세요.

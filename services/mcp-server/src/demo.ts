@@ -1,5 +1,9 @@
-import type { DemoDataStore } from "./data-store.js";
-import { executeTool, type ToolDefinition } from "./tools.js";
+import type { SourceRef } from "@gb/domain";
+import {
+  executeTool,
+  type ResponseDataStatus,
+  type ToolRegistry
+} from "./tools.js";
 
 export const representativeQuestions = [
   {
@@ -20,13 +24,23 @@ export const representativeQuestions = [
   }
 ] as const;
 
-type Registry = Record<string, ToolDefinition>;
+interface RepresentativeDemoResponse {
+  data_status: ResponseDataStatus;
+  question: string;
+  conclusion: string;
+  evidence: Array<{
+    statement: string;
+    detail?: string | string[];
+    sourceIds: string[];
+  }>;
+  sources: SourceRef[];
+  limitations: string[];
+}
 
 export async function runRepresentativeDemo(
   questionId: string,
-  registry: Registry,
-  _store: DemoDataStore
-) {
+  registry: ToolRegistry
+): Promise<RepresentativeDemoResponse> {
   if (questionId === "population-tax") {
     const response = await executeTool(registry, "compare_population_and_tax", {
       startYear: 2022,
@@ -42,10 +56,10 @@ export async function runRepresentativeDemo(
     return {
       data_status: response.data_status,
       question: representativeQuestions[0].question,
-      conclusion: `${result.matches.map((item) => item.regionName).join(", ")}에서 인구 감소와 지방세 증가가 동시에 나타나는 데모 패턴을 확인했습니다.`,
+      conclusion: `${result.matches.map((item) => item.regionName).join(", ")}에서 인구 감소와 지방세 증가가 동시에 나타나는 ${response.data_status === "demo_sample" ? "데모" : "반환 데이터"} 패턴을 확인했습니다.`,
       evidence: result.matches.map((item) => ({
         statement: `${item.regionName}: 인구 ${item.populationTrend.changePercent}%, 지방세 +${item.taxTrend.changePercent}%`,
-        sourceIds: ["demo-population-2026", "demo-local-tax-2026"]
+        sourceIds: response.sources.map((source) => source.sourceId)
       })),
       sources: response.sources,
       limitations: response.limitations
@@ -71,11 +85,11 @@ export async function runRepresentativeDemo(
     return {
       data_status: response.data_status,
       question: representativeQuestions[1].question,
-      conclusion: `데모 기준으로 ${eligible.length}개 정책이 입력 조건에 부합합니다.`,
+      conclusion: `${response.data_status === "demo_sample" ? "데모" : "반환 데이터"} 기준으로 ${eligible.length}개 정책이 입력 조건에 부합합니다.`,
       evidence: result.matches.map((item) => ({
         statement: `${item.policy.title}: ${item.eligible ? "조건 부합" : "추가 조건 확인"}`,
         detail: [...item.reasons, ...item.unmetConditions],
-        sourceIds: ["demo-policy-source-2026"]
+        sourceIds: response.sources.map((source) => source.sourceId)
       })),
       sources: response.sources,
       limitations: response.limitations
@@ -104,7 +118,7 @@ export async function runRepresentativeDemo(
       data_status: response.data_status,
       question: representativeQuestions[2].question,
       conclusion:
-        "데모 기록에서는 기반시설 중심 논의가 청년 정착, 성과관리, 생활인구·스마트농업으로 확장됩니다.",
+        `${response.data_status === "demo_sample" ? "데모 기록" : "검색 결과"}에서는 기반시설 중심 논의가 청년 정착, 성과관리, 생활인구·스마트농업으로 확장됩니다.`,
       evidence: sorted.map((item) => ({
         statement: `${item.metadata.meetingDate.slice(0, 4)} — ${item.title}`,
         detail: item.text,
@@ -116,7 +130,7 @@ export async function runRepresentativeDemo(
   }
 
   if (questionId === "public-document") {
-    const analysis = await runRepresentativeDemo("population-tax", registry, _store);
+    const analysis = await runRepresentativeDemo("population-tax", registry);
     const response = await executeTool(registry, "draft_public_document", {
       documentType: "information_request",
       title: "시군별 인구 및 지방세 세수 산출 근거 공개 요청",
@@ -136,7 +150,12 @@ export async function runRepresentativeDemo(
       data_status: response.data_status,
       question: representativeQuestions[3].question,
       conclusion: "검증 묶음에 포함된 내용만으로 정보공개청구서 초안을 만들었습니다.",
-      evidence: [{ statement: result.draft, sourceIds: ["demo-population-2026", "demo-local-tax-2026"] }],
+      evidence: [
+        {
+          statement: result.draft,
+          sourceIds: analysis.sources.map((source) => source.sourceId)
+        }
+      ],
       sources: response.sources,
       limitations: response.limitations
     };
@@ -144,4 +163,3 @@ export async function runRepresentativeDemo(
 
   throw new Error(`알 수 없는 대표 질문입니다: ${questionId}`);
 }
-

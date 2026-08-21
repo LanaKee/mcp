@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import {
   comparePopulationAndTax,
   comparisonInputSchema,
@@ -6,7 +7,6 @@ import {
   draftPublicDocumentInputSchema,
   evaluatePolicyEligibility,
   localTaxTrendInputSchema,
-  normalizeRegionName,
   policySearchInputSchema,
   populationTrendInputSchema,
   sourceContextInputSchema,
@@ -15,18 +15,19 @@ import {
   type DataStatus,
   type SourceRef
 } from "@gb/domain";
-import {
-  DisabledVectorAdapter,
-  hybridSearch,
-  type SearchDocument
-} from "@gb/retrieval";
 import type { z } from "zod";
-import type { DemoDataStore } from "./data-store.js";
+import {
+  DEFAULT_FACT_STATUSES,
+  type DataRepository,
+  type FactDataStatus
+} from "./repository.js";
 
 export type JsonSchema = Record<string, unknown>;
+export type ResponseDataStatus = DataStatus | "mixed";
 
 export interface ToolResponse<TResult = unknown> {
-  data_status: DataStatus;
+  data_status: ResponseDataStatus;
+  data_statuses: DataStatus[];
   result: TResult;
   sources: SourceRef[];
   limitations: string[];
@@ -40,6 +41,11 @@ export interface ToolDefinition {
   execute: (input: never) => Promise<ToolResponse>;
 }
 
+export interface ToolRegistry {
+  tools: Record<string, ToolDefinition>;
+  repository: DataRepository;
+}
+
 const objectSchema = (
   properties: Record<string, unknown>,
   required: string[]
@@ -50,19 +56,42 @@ const objectSchema = (
   additionalProperties: false
 });
 
-function dataStatus(sources: SourceRef[]): DataStatus {
-  return sources.every((source) => source.dataStatus === "official_observed")
-    ? "official_observed"
-    : "demo_sample";
+const factStatusProperty = {
+  type: "array",
+  minItems: 1,
+  maxItems: 2,
+  uniqueItems: true,
+  items: { type: "string", enum: ["official_observed", "demo_sample"] }
+};
+
+function statuses(input: unknown): FactDataStatus[] {
+  return (
+    input as { dataStatuses?: FactDataStatus[] }
+  ).dataStatuses ?? [...DEFAULT_FACT_STATUSES];
 }
 
-export function createToolRegistry(store: DemoDataStore): Record<string, ToolDefinition> {
-  const sourceMap = new Map(store.sources.map((source) => [source.sourceId, source]));
-  const sourcesFor = (ids: Iterable<string>) =>
-    [...new Set(ids)]
-      .map((id) => sourceMap.get(id))
-      .filter((source): source is SourceRef => Boolean(source));
+function responseStatus(values: DataStatus[]): ResponseDataStatus {
+  const unique = [...new Set(values)];
+  if (unique.length === 0) return "mixed";
+  return unique.length === 1 ? unique[0]! : "mixed";
+}
 
+function mergeSources(...groups: SourceRef[][]): SourceRef[] {
+  return [...new Map(groups.flat().map((source) => [source.sourceId, source])).values()];
+}
+
+function statusLimitations(values: DataStatus[]): string[] {
+  const limitations: string[] = [];
+  if (values.includes("demo_sample")) {
+    limitations.push("결과에 demo_sample이 포함되어 공식 사실로 인용할 수 없습니다.");
+  }
+  if (values.includes("official_observed")) {
+    limitations.push("official_observed도 원출처와 기준일을 함께 확인해야 합니다.");
+  }
+  return limitations;
+}
+
+export function createToolRegistry(repository: DataRepository): ToolRegistry {
   const definitions: Record<string, ToolDefinition> = {};
   const add = <T>(
     name: string,
@@ -86,28 +115,29 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
     "get_population_trend",
     "지역별 인구 시계열과 증감률을 조회합니다.",
     populationTrendInputSchema,
-    objectSchema({ region, startYear: year, endYear: year }, [
-      "region",
-      "startYear",
-      "endYear"
-    ]),
-    (input) => {
-      const rows = store.population
-        .filter(
-          (record) =>
-            normalizeRegionName(record.regionName) === normalizeRegionName(input.region) &&
-            record.year >= input.startYear &&
-            record.year <= input.endYear
-        )
-        .sort((a, b) => a.year - b.year);
+    objectSchema(
+      { region, startYear: year, endYear: year, dataStatuses: factStatusProperty },
+      ["region", "startYear", "endYear"]
+    ),
+    async (input) => {
+      const loaded = await repository.getPopulationTrend({
+        ...input,
+        dataStatuses: statuses(input)
+      });
+      const rows = loaded.records.sort((left, right) => left.year - right.year);
       if (rows.length === 0) throw new Error("해당 지역·기간의 인구 데이터가 없습니다.");
-      const sources = sourcesFor(rows.map((row) => row.sourceId));
       return {
-        data_status: dataStatus(sources),
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
         result: {
           region: rows[0]!.regionName,
           unit: "명",
-          points: rows.map((row) => ({ year: row.year, value: row.populationTotal })),
+          points: rows.map((row) => ({
+            year: row.year,
+            value: row.populationTotal,
+            sourceId: row.sourceId,
+            dataStatus: row.dataStatus
+          })),
           summary: summarizeTrend(
             rows.map((row) => ({
               year: row.year,
@@ -116,8 +146,8 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
             }))
           )
         },
-        sources,
-        limitations: ["데모 샘플은 공식 통계가 아니며 실제 의사결정에 사용할 수 없습니다."]
+        sources: loaded.sources,
+        limitations: statusLimitations(loaded.dataStatuses)
       };
     }
   );
@@ -131,32 +161,36 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
         region,
         startYear: year,
         endYear: year,
-        taxCategory: { type: "string", default: "합계" }
+        taxCategory: { type: "string", default: "합계" },
+        dataStatuses: factStatusProperty
       },
       ["region", "startYear", "endYear"]
     ),
-    (input) => {
-      const rows = store.taxes
-        .filter(
-          (record) =>
-            normalizeRegionName(record.regionName) === normalizeRegionName(input.region) &&
-            record.taxCategory === input.taxCategory &&
-            record.fiscalYear >= input.startYear &&
-            record.fiscalYear <= input.endYear
-        )
-        .sort((a, b) => a.fiscalYear - b.fiscalYear);
-      if (rows.length === 0) throw new Error("해당 지역·기간의 지방세 데이터가 없습니다.");
-      const sources = sourcesFor(rows.map((row) => row.sourceId));
+    async (input) => {
+      const loaded = await repository.getLocalTaxTrend({
+        ...input,
+        taxCategory: input.taxCategory ?? "합계",
+        dataStatuses: statuses(input)
+      });
+      const rows = loaded.records.sort(
+        (left, right) => left.fiscalYear - right.fiscalYear
+      );
+      if (rows.length === 0) {
+        throw new Error("해당 지역·기간의 지방세 데이터가 없습니다.");
+      }
       return {
-        data_status: dataStatus(sources),
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
         result: {
           region: rows[0]!.regionName,
-          tax_category: input.taxCategory,
+          tax_category: input.taxCategory ?? "합계",
           accounting_basis: rows[0]!.accountingBasis,
           unit: "원",
           points: rows.map((row) => ({
             year: row.fiscalYear,
-            value: row.revenueAmountWon
+            value: row.revenueAmountWon,
+            sourceId: row.sourceId,
+            dataStatus: row.dataStatus
           })),
           summary: summarizeTrend(
             rows.map((row) => ({
@@ -166,9 +200,10 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
             }))
           )
         },
-        sources,
+        sources: loaded.sources,
         limitations: [
-          "현재 지방세 값은 기능 시연용 가상 결산 샘플이며 공식 수치가 아닙니다."
+          "국세는 범위 밖입니다.",
+          ...statusLimitations(loaded.dataStatuses)
         ]
       };
     }
@@ -182,33 +217,48 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
       {
         startYear: year,
         endYear: year,
-        regions: { type: "array", items: region, maxItems: 30 }
+        regions: { type: "array", items: region, maxItems: 30 },
+        dataStatuses: factStatusProperty
       },
       ["startYear", "endYear"]
     ),
-    (input) => {
+    async (input) => {
+      const dataStatuses = statuses(input);
+      const [population, taxes] = await Promise.all([
+        repository.getPopulationTrend({
+          startYear: input.startYear,
+          endYear: input.endYear,
+          dataStatuses
+        }),
+        repository.getLocalTaxTrend({
+          startYear: input.startYear,
+          endYear: input.endYear,
+          taxCategory: "합계",
+          dataStatuses
+        })
+      ]);
       const comparison = comparePopulationAndTax(
-        store.population,
-        store.taxes,
+        population.records,
+        taxes.records,
         input.startYear,
         input.endYear,
         input.regions
       );
-      const sources = sourcesFor([
-        ...store.population.map((row) => row.sourceId),
-        ...store.taxes.map((row) => row.sourceId)
-      ]);
+      const usedStatuses = [
+        ...new Set([...population.dataStatuses, ...taxes.dataStatuses])
+      ];
       return {
-        data_status: dataStatus(sources),
+        data_status: responseStatus(usedStatuses),
+        data_statuses: usedStatuses,
         result: {
           period: { start_year: input.startYear, end_year: input.endYear },
           matches: comparison.filter((item) => item.matches),
           all_regions: comparison
         },
-        sources,
+        sources: mergeSources(population.sources, taxes.sources),
         limitations: [
           "동시 변화는 상관관계만 보여 주며 인과관계를 입증하지 않습니다.",
-          "지방세 수치는 기능 시연용 가상 샘플입니다."
+          ...statusLimitations(usedStatuses)
         ]
       };
     }
@@ -224,21 +274,29 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
         age: { type: "integer", minimum: 0, maximum: 120 },
         query: { type: "string", minLength: 1, maxLength: 200 },
         stage: { type: "string", maxLength: 80 },
-        asOfDate: { type: "string", format: "date" }
+        asOfDate: { type: "string", format: "date" },
+        dataStatuses: factStatusProperty
       },
       ["region", "age", "query"]
     ),
-    (input) => {
-      const matches = store.policies
+    async (input) => {
+      const loaded = await repository.findPolicies({
+        region: input.region,
+        query: input.query,
+        dataStatuses: statuses(input),
+        limit: 100
+      });
+      const matches = loaded.records
         .map((policy) => evaluatePolicyEligibility(policy, input))
-        .sort((a, b) => b.score - a.score);
-      const sources = sourcesFor(matches.map((match) => match.policy.sourceId));
+        .sort((left, right) => right.score - left.score);
       return {
-        data_status: dataStatus(sources),
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
         result: { matches },
-        sources,
+        sources: loaded.sources,
         limitations: [
-          "정책은 데모용 가상 공고입니다. 실제 신청 자격·기간은 공식 공고에서 확인해야 합니다."
+          "정책 신청 전 최신 공식 공고의 자격과 기간을 확인해야 합니다.",
+          ...statusLimitations(loaded.dataStatuses)
         ]
       };
     }
@@ -246,7 +304,7 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
 
   add(
     "search_council_records",
-    "한글 부분일치와 날짜·지역·의회 필터로 의회 안건 및 회의자료를 검색합니다.",
+    "한글 부분일치와 날짜·지역·의회 필터로 의회 안건 및 PDF 페이지를 검색합니다.",
     councilSearchInputSchema,
     objectSchema(
       {
@@ -255,57 +313,25 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
         council: { type: "string", maxLength: 100 },
         dateFrom: { type: "string", format: "date" },
         dateTo: { type: "string", format: "date" },
-        limit: { type: "integer", minimum: 1, maximum: 20, default: 5 }
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 5 },
+        dataStatuses: factStatusProperty
       },
       ["query"]
     ),
     async (input) => {
-      type Metadata = {
-        region: string;
-        council: string;
-        meetingDate: string;
-        sourceId: string;
-        locator: string;
-        dataStatus: string;
-        [key: string]: unknown;
-      };
-      const documents: SearchDocument<Metadata>[] = store.council.map((record) => ({
-        id: record.recordId,
-        title: record.title,
-        text: record.content,
-        metadata: {
-          region: record.regionName,
-          council: record.council,
-          meetingDate: record.meetingDate,
-          sourceId: record.sourceId,
-          locator: record.locator,
-          dataStatus: record.dataStatus
-        }
-      }));
-      const matches = await hybridSearch(
-        input.query,
-        documents,
-        new DisabledVectorAdapter<Metadata>(),
-        {
-          limit: input.limit,
-          filter: (metadata) =>
-            (!input.region ||
-              normalizeRegionName(metadata.region).includes(
-                normalizeRegionName(input.region)
-              )) &&
-            (!input.council || metadata.council.includes(input.council)) &&
-            (!input.dateFrom || metadata.meetingDate >= input.dateFrom) &&
-            (!input.dateTo || metadata.meetingDate <= input.dateTo)
-        }
-      );
-      const sources = sourcesFor(matches.map((match) => String(match.metadata.sourceId)));
+      const loaded = await repository.searchCouncil({
+        ...input,
+        limit: input.limit ?? 5,
+        dataStatuses: statuses(input)
+      });
       return {
-        data_status: dataStatus(sources),
-        result: { matches },
-        sources,
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
+        result: { matches: loaded.records },
+        sources: loaded.sources,
         limitations: [
-          "현재 검색 결과는 가상 요약 샘플입니다.",
-          "기본 MCP 실행은 in-memory 어휘 검색이며 PostgreSQL PDF hybrid repository는 아직 서비스에 주입되지 않았습니다."
+          "PDF text layer의 읽기 순서와 표 구조는 원문 페이지에서 재확인해야 합니다.",
+          ...statusLimitations(loaded.dataStatuses)
         ]
       };
     }
@@ -321,35 +347,37 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
         region,
         year,
         claimedValue: { type: "number", minimum: 0 },
-        tolerancePercent: { type: "number", minimum: 0, maximum: 100, default: 1 }
+        tolerancePercent: { type: "number", minimum: 0, maximum: 100, default: 1 },
+        dataStatuses: factStatusProperty
       },
       ["metric", "region", "year", "claimedValue"]
     ),
-    (input) => {
-      const row =
+    async (input) => {
+      const loaded =
         input.metric === "population"
-          ? store.population.find(
-              (candidate) =>
-                normalizeRegionName(candidate.regionName) ===
-                  normalizeRegionName(input.region) && candidate.year === input.year
-            )
-          : store.taxes.find(
-              (candidate) =>
-                normalizeRegionName(candidate.regionName) ===
-                  normalizeRegionName(input.region) &&
-                candidate.fiscalYear === input.year &&
-                candidate.taxCategory === "합계"
-            );
+          ? await repository.findPopulationValue({
+              region: input.region,
+              year: input.year,
+              dataStatuses: statuses(input)
+            })
+          : await repository.findLocalTaxValue({
+              region: input.region,
+              year: input.year,
+              dataStatuses: statuses(input)
+            });
+      const row = loaded.records[0];
       if (!row) throw new Error("검증에 필요한 기준 데이터가 없습니다.");
       const actualValue =
         "populationTotal" in row ? row.populationTotal : row.revenueAmountWon;
       const difference = input.claimedValue - actualValue;
       const tolerancePercent = input.tolerancePercent ?? 1;
       const differencePercent =
-        actualValue === 0 ? 0 : Number(((Math.abs(difference) / actualValue) * 100).toFixed(3));
-      const sources = sourcesFor([row.sourceId]);
+        actualValue === 0
+          ? 0
+          : Number(((Math.abs(difference) / actualValue) * 100).toFixed(3));
       return {
-        data_status: dataStatus(sources),
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
         result: {
           verdict:
             differencePercent <= tolerancePercent ? "consistent" : "inconsistent",
@@ -357,34 +385,47 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
           actual_value: actualValue,
           difference,
           difference_percent: differencePercent,
-          tolerance_percent: tolerancePercent
+          tolerance_percent: tolerancePercent,
+          source_id: row.sourceId,
+          record_data_status: row.dataStatus
         },
-        sources,
-        limitations: ["검증 결과의 신뢰도는 기준 데이터의 data_status에 좌우됩니다."]
+        sources: loaded.sources,
+        limitations: statusLimitations(loaded.dataStatuses)
       };
     }
   );
 
   add(
     "get_source_context",
-    "source_id로 출처 메타데이터와 원문 위치 정보를 조회합니다.",
+    "source_id로 출처 메타데이터와 원문 행·페이지·chunk 위치를 조회합니다.",
     sourceContextInputSchema,
     objectSchema(
-      { sourceIds: { type: "array", minItems: 1, maxItems: 20, items: { type: "string" } } },
+      {
+        sourceIds: {
+          type: "array",
+          minItems: 1,
+          maxItems: 20,
+          items: { type: "string" }
+        }
+      },
       ["sourceIds"]
     ),
-    (input) => {
-      const sources = sourcesFor(input.sourceIds);
+    async (input) => {
+      const loaded = await repository.getSourceContexts(input.sourceIds);
+      const matched = new Set(
+        loaded.records.flatMap((context) => context.aliases ?? [context.source.sourceId])
+      );
       return {
-        data_status: dataStatus(sources),
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
         result: {
           requested: input.sourceIds,
-          found: sources,
-          missing: input.sourceIds.filter((id) => !sourceMap.has(id))
+          found: loaded.records,
+          missing: input.sourceIds.filter((sourceId) => !matched.has(sourceId))
         },
-        sources,
+        sources: loaded.sources,
         limitations: [
-          "현재 in-memory source 조회는 PDF 파일 위치와 해시만 제공하며, PostgreSQL의 추출 본문/페이지 locator는 아직 연결되지 않았습니다."
+          "excerpt는 최대 1,000자로 제한되며 전체 원문은 locator의 파일/페이지에서 확인해야 합니다."
         ]
       };
     }
@@ -408,8 +449,12 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
     ),
     (input) => {
       const result = draftPublicDocument(input);
+      const usedStatuses = [
+        ...new Set(input.verifiedAnalysis.sources.map((source) => source.dataStatus))
+      ];
       return {
-        data_status: result.dataStatus,
+        data_status: responseStatus(usedStatuses),
+        data_statuses: usedStatuses,
         result,
         sources: input.verifiedAnalysis.sources,
         limitations: [
@@ -420,16 +465,137 @@ export function createToolRegistry(store: DemoDataStore): Record<string, ToolDef
     }
   );
 
-  return definitions;
+  return { tools: definitions, repository };
+}
+
+let generatedAuditSalt: string | undefined;
+
+function auditSalt(): string {
+  generatedAuditSalt ??= randomBytes(32).toString("hex");
+  return process.env.AUDIT_HASH_SALT ?? generatedAuditSalt;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+function redactedMetadata(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { inputType: typeof input };
+  }
+  const allowedKeys = new Set([
+    "age",
+    "asOfDate",
+    "claimedValue",
+    "council",
+    "dataStatuses",
+    "dateFrom",
+    "dateTo",
+    "documentType",
+    "endYear",
+    "limit",
+    "metric",
+    "query",
+    "region",
+    "regions",
+    "requesterContext",
+    "sourceIds",
+    "stage",
+    "startYear",
+    "taxCategory",
+    "title",
+    "tolerancePercent",
+    "verifiedAnalysis",
+    "year"
+  ]);
+  const entries = Object.entries(input as Record<string, unknown>).slice(0, 30);
+  const safeEntries = entries.filter(([key]) => allowedKeys.has(key));
+  return {
+    keys: safeEntries.map(([key]) => key).sort(),
+    unknownFieldCount: entries.length - safeEntries.length,
+    fields: Object.fromEntries(
+      safeEntries.map(([key, value]) => [
+        key,
+        Array.isArray(value)
+          ? { type: "array", length: value.length }
+          : typeof value === "string"
+            ? { type: "string", length: value.length }
+            : { type: typeof value }
+      ])
+    )
+  };
+}
+
+function resultCount(response: ToolResponse): number {
+  const result = response.result;
+  if (!result || typeof result !== "object") return result === undefined ? 0 : 1;
+  for (const key of ["matches", "points", "found", "all_regions"]) {
+    const value = (result as Record<string, unknown>)[key];
+    if (Array.isArray(value)) return value.length;
+  }
+  return 1;
 }
 
 export async function executeTool(
-  registry: Record<string, ToolDefinition>,
+  registry: ToolRegistry,
   name: string,
   input: unknown
 ): Promise<ToolResponse> {
-  const tool = registry[name];
-  if (!tool) throw new Error(`지원하지 않는 도구입니다: ${name}`);
-  const parsed = tool.parse(input);
-  return tool.execute(parsed as never);
+  const startedAt = new Date();
+  const auditToolName = registry.tools[name] ? name : "unsupported";
+  let response: ToolResponse | undefined;
+  let caught: unknown;
+  try {
+    const tool = registry.tools[name];
+    if (!tool) throw new Error(`지원하지 않는 도구입니다: ${name}`);
+    const parsed = tool.parse(input);
+    response = await tool.execute(parsed as never);
+    return response;
+  } catch (error) {
+    caught = error;
+    throw error;
+  } finally {
+    const finishedAt = new Date();
+    try {
+      await registry.repository.writeAudit({
+        toolName: auditToolName.slice(0, 120),
+        startedAt,
+        finishedAt,
+        success: caught === undefined,
+        dataStatuses: response?.data_statuses ?? [],
+        resultCount: response ? resultCount(response) : 0,
+        requestHash: createHash("sha256")
+          .update(auditSalt())
+          .update(name)
+          .update(stableJson(input))
+          .digest("hex"),
+        requestMetadata: redactedMetadata(input),
+        errorClass:
+          caught === undefined
+            ? null
+            : caught instanceof Error
+              ? caught.name
+              : "UnknownError"
+      });
+    } catch (auditError) {
+      const code =
+        typeof auditError === "object" && auditError !== null && "code" in auditError
+          ? String((auditError as { code?: unknown }).code)
+          : "audit_write_failed";
+      console.error(
+        JSON.stringify({
+          warning: "audit_write_failed",
+          toolName: auditToolName.slice(0, 120),
+          code
+        })
+      );
+    }
+  }
 }

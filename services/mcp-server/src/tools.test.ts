@@ -1,13 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadDemoData, type DemoDataStore } from "./data-store.js";
-import { createToolRegistry, executeTool, type ToolDefinition } from "./tools.js";
+import { InMemoryDataRepository } from "./repository.js";
+import { createToolRegistry, executeTool, type ToolRegistry } from "./tools.js";
 
 let store: DemoDataStore;
-let registry: Record<string, ToolDefinition>;
+let registry: ToolRegistry;
 
 beforeAll(async () => {
   store = await loadDemoData();
-  registry = createToolRegistry(store);
+  registry = createToolRegistry(new InMemoryDataRepository(store));
 });
 
 describe("MCP tools", () => {
@@ -80,4 +81,3 @@ describe("MCP tools", () => {
     expect(JSON.stringify(response)).toContain("검토가 필요한 초안");
   });
 });
-

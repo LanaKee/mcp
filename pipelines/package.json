@@ -15,6 +15,7 @@
     "pdf:normalize": "tsx src/pdf-cli.ts"
   },
   "dependencies": {
+    "@gb/retrieval": "workspace:*",
     "csv-parse": "^6.1.0",
     "iconv-lite": "^0.7.0",
     "pdfjs-dist": "^6.2.108",
