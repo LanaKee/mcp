@@ -1,9 +1,21 @@
+import { isIP } from "node:net";
 import { createHttpApp } from "./http.js";
+import { loadHttpSecurityConfig } from "./http-security.js";
 import { startStdioServer } from "./mcp.js";
-import { createDataRepository } from "./runtime.js";
+import {
+  createDataRepository,
+  loadRepositoryEnvironment
+} from "./runtime.js";
 import { createToolRegistry } from "./tools.js";
 
 const mode = process.argv.includes("--stdio") ? "stdio" : "http";
+loadRepositoryEnvironment();
+const httpSecurity = mode === "http" ? loadHttpSecurityConfig() : undefined;
+const httpHost =
+  mode === "http" ? (process.env.HTTP_HOST ?? "127.0.0.1") : undefined;
+if (httpHost && isIP(httpHost) === 0) {
+  throw new Error("HTTP_HOST must be an IPv4 or IPv6 address");
+}
 const repository = await createDataRepository();
 const registry = createToolRegistry(repository);
 
@@ -17,16 +29,16 @@ if (mode === "stdio") {
   process.once("SIGINT", () => void shutdown());
 } else {
   const port = Number(process.env.PORT ?? 8787);
-  const server = createHttpApp(registry);
+  const server = createHttpApp(registry, { security: httpSecurity });
   const shutdown = async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await repository.close().catch(() => undefined);
   };
   process.once("SIGTERM", () => void shutdown());
   process.once("SIGINT", () => void shutdown());
-  server.listen(port, "0.0.0.0", () => {
+  server.listen(port, httpHost!, () => {
     console.log(
-      `gyeongbuk-public-ai HTTP server listening on http://0.0.0.0:${port} (${repository.mode})`
+      `gyeongbuk-public-ai HTTP server listening on http://${httpHost}:${port} (${repository.mode})`
     );
   });
 }

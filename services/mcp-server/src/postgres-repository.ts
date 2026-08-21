@@ -106,11 +106,45 @@ export class PostgresDataRepository implements DataRepository {
     ) {
       throw new Error("PG_POOL_MAX must be an integer from 1 to 50");
     }
+    const runtimeInteger = (
+      name: string,
+      fallback: number,
+      minimum: number,
+      maximum: number
+    ): number => {
+      const value = Number(process.env[name] ?? fallback);
+      if (!Number.isInteger(value) || value < minimum || value > maximum) {
+        throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
+      }
+      return value;
+    };
     const pool = new Pool({
       connectionString,
       max: configuredPoolMax,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000
+      idleTimeoutMillis: runtimeInteger(
+        "PG_IDLE_TIMEOUT_MS",
+        30_000,
+        1_000,
+        300_000
+      ),
+      connectionTimeoutMillis: runtimeInteger(
+        "PG_CONNECTION_TIMEOUT_MS",
+        5_000,
+        500,
+        60_000
+      ),
+      statement_timeout: runtimeInteger(
+        "PG_STATEMENT_TIMEOUT_MS",
+        8_000,
+        500,
+        120_000
+      ),
+      query_timeout: runtimeInteger(
+        "PG_QUERY_TIMEOUT_MS",
+        10_000,
+        500,
+        120_000
+      )
     });
     return new PostgresDataRepository(pool, async () => pool.end());
   }
@@ -711,7 +745,14 @@ export class PostgresDataRepository implements DataRepository {
            AND to_regclass('public.document') IS NOT NULL
            AND to_regclass('public.document_chunk') IS NOT NULL
            AND to_regclass('public.document_chunk_embedding') IS NOT NULL
-           AND to_regclass('public.mcp_tool_audit') IS NOT NULL AS database_ready`
+           AND to_regclass('public.mcp_tool_audit') IS NOT NULL
+           AND EXISTS (
+             SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema = 'public'
+               AND table_name = 'mcp_tool_audit'
+               AND column_name = 'correlation_id'
+           ) AS database_ready`
       );
       return {
         ready: result.rows[0]?.database_ready === true,
@@ -743,10 +784,11 @@ export class PostgresDataRepository implements DataRepository {
           result_count,
           request_hash,
           request_metadata,
+          correlation_id,
           error_class,
           repository_mode
         )
-       VALUES ($1, $2, $3, $4, $5, $6::text[], $7, $8, $9::jsonb, $10, 'postgres')`,
+       VALUES ($1, $2, $3, $4, $5, $6::text[], $7, $8, $9::jsonb, $10, $11, 'postgres')`,
       [
         event.toolName,
         event.startedAt,
@@ -757,6 +799,7 @@ export class PostgresDataRepository implements DataRepository {
         Math.max(0, event.resultCount),
         event.requestHash,
         JSON.stringify(event.requestMetadata),
+        event.correlationId,
         event.errorClass
       ]
     );

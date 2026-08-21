@@ -77,7 +77,9 @@ async function runQuestion(questionId, button) {
       body: JSON.stringify({ questionId })
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? "요청에 실패했습니다.");
+    if (!response.ok) {
+      throw new Error(result.error?.message ?? "요청에 실패했습니다.");
+    }
     renderResult(result);
   } catch (error) {
     resultSection.hidden = false;
@@ -94,7 +96,11 @@ async function runQuestion(questionId, button) {
 
 async function boot() {
   const response = await fetch("/api/questions");
-  const { questions } = await response.json();
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error?.message ?? "질문을 불러오지 못했습니다.");
+  }
+  const { questions } = result;
   questionList.replaceChildren(
     ...questions.map((item, index) => {
       const button = document.createElement("button");

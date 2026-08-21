@@ -150,6 +150,7 @@ export interface AuditEvent {
   resultCount: number;
   requestHash: string;
   requestMetadata: Record<string, unknown>;
+  correlationId: string | null;
   errorClass: string | null;
 }
 

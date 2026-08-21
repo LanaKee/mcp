@@ -27,17 +27,20 @@ describe("HTTP API", () => {
     const response = await fetch(`${baseUrl}/health`);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      status: "ok",
-      repository_mode: "memory"
+      status: "ok"
     });
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("content-security-policy")).toContain(
+      "default-src 'self'"
+    );
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
 
   it("reports repository readiness separately", async () => {
     const response = await fetch(`${baseUrl}/ready`);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      status: "ready",
-      mode: "memory"
+      status: "ready"
     });
   });
 

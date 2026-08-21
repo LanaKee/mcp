@@ -68,8 +68,14 @@ flowchart LR
 - stdio MCP는 공식 `@modelcontextprotocol/sdk`의 `Server`와
   `StdioServerTransport`를 사용한다.
 - HTTP는 Node 내장 서버이며 MCP와 같은 registry/validation/실행 함수를 호출한다.
-- `/health`는 프로세스 생존, `/ready`는 선택 repository와 필수 DB schema를 구분한다.
+- `/health`는 프로세스 생존, 공개 `/ready`는 내부 mode/detail 없이 ready 여부만 돌려준다.
 - HTTP와 stdio는 같은 repository를 주입하고 SIGINT/SIGTERM에서 pool을 닫는다.
+- `http-security.ts`는 token digest 비교, correlation ID, trusted-proxy 정책, bounded
+  token bucket, JSON shape 제한을 담당한다. stdio에는 적용하지 않는다.
+- `/api/**`는 선택 token auth를 거치고 PDF hybrid/데모/초안 route는 더 낮은 rate
+  budget과 별도 operation timeout을 사용한다.
+- Node request/header timeout과 PostgreSQL statement/query timeout이 장시간 작업을
+  bounded failure로 종료한다.
 - 웹은 프레임워크 없는 HTML/CSS/JavaScript로 빌드 의존성을 최소화했다.
 
 ## 신뢰 경계
@@ -85,11 +91,17 @@ flowchart LR
 8. 수치 동시 변화는 관측으로 표현하고 원인으로 단정하지 않는다.
 9. 감사 로그는 raw query/secret 대신 process salt 기반 hash와 필드 타입/길이만 저장한다.
 10. 감사 저장 실패는 경고하지만 read-only 도구 성공을 뒤집지 않는다.
+11. token mode는 32바이트 이상 secret 없이는 시작하지 않고 digest를 constant-time 비교한다.
+12. proxy header는 기본 불신이며 loopback/명시 IP proxy를 설정했을 때만 validated
+    XFF를 사용한다.
+13. route/method/tool allowlist, 64KiB body, JSON depth/node 제한과 same-origin CSP를 적용한다.
+14. strict/generate된 request ID는 응답·안전 오류·audit correlation에 사용한다.
 
 ## 후속 확장
 
 - `ocr_required` PDF의 승인된 OCR 처리
 - corpus가 커질 때 모델별 pgvector partition/ANN index
 - 실제 지방세·정책 공식 소스 adapter와 라이선스 검토
-- 인증과 rate limit이 포함된 원격 MCP transport
 - 감사 로그 정기 purge job과 운영 경보
+- multi-instance 공용 rate-limit store와 tenant별 token/권한
+- reverse proxy TLS, secret rotation, WAF 정책의 배포 자동 검증

@@ -36,7 +36,9 @@ pnpm start
 
 브라우저에서 <http://localhost:8787>을 엽니다.
 `DATA_REPOSITORY=auto`가 기본이며 `DATABASE_URL`이 있으면 PostgreSQL, 없으면
-명시적 데모 메모리 저장소를 사용한다. `.env`는 서버가 자동으로 읽는다.
+명시적 데모 메모리 저장소를 사용한다. `.env`는 서버가 자동으로 읽는다. 로컬 HTTP
+인증 기본은 `HTTP_AUTH_MODE=off`이며 외부에 노출해서는 안 된다.
+서버 bind 기본도 `HTTP_HOST=127.0.0.1`이며 Docker만 명시적으로 `0.0.0.0`을 사용한다.
 
 개발 모드:
 
@@ -47,12 +49,16 @@ pnpm dev
 ### Docker
 
 ```bash
-docker compose up --build
+HTTP_AUTH_TOKEN="$(openssl rand -hex 32)" docker compose up --build
 ```
 
 - 웹/API: <http://localhost:8787>
 - PostgreSQL: `localhost:5432`
 - 초기 스키마: `db/schema.sql`
+
+Compose는 `HTTP_AUTH_MODE=token`을 강제하며 token이 없으면 시작하지 않는다. 운영
+배포는 TLS를 종료하는 reverse proxy 뒤에 두고 token은 secret manager/배포 secret으로
+주입해야 한다. 저장소에 token을 기록하지 않는다.
 
 기존 PostgreSQL에 마이그레이션을 적용하려면:
 
@@ -88,13 +94,14 @@ pnpm --filter @gb/mcp-server dev:stdio
 ```
 
 서버는 stdout을 JSON-RPC 전용으로 사용합니다.
+HTTP 인증·rate limit 설정은 local stdio transport에 적용되지 않는다.
 
 ## HTTP API
 
 | 방식 | 경로 | 설명 |
 |---|---|---|
 | `GET` | `/health` | 프로세스 생존 확인 |
-| `GET` | `/ready` | 선택 repository/필수 DB schema 준비 확인 |
+| `GET` | `/ready` | 최소 ready/not-ready 상태만 공개 |
 | `GET` | `/api/questions` | 대표 질문 목록 |
 | `POST` | `/api/demo` | 대표 질문 ID 실행 |
 | `POST` | `/api/tools/:toolName` | MCP와 동일한 도구 함수 실행 |
@@ -102,15 +109,21 @@ pnpm --filter @gb/mcp-server dev:stdio
 ```bash
 curl http://localhost:8787/health
 
+export HTTP_AUTH_TOKEN="$(openssl rand -hex 32)"
+HTTP_AUTH_MODE=token pnpm start
+
 curl -X POST http://localhost:8787/api/demo \
+  -H "authorization: Bearer $HTTP_AUTH_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"questionId":"population-tax"}'
 
 curl -X POST http://localhost:8787/api/tools/search_policies \
+  -H "authorization: Bearer $HTTP_AUTH_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"region":"상주시","age":34,"query":"스마트팜","stage":"예비창업"}'
 
 curl -X POST http://localhost:8787/api/tools/search_council_records \
+  -H "authorization: Bearer $HTTP_AUTH_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"query":"지방소멸","dateFrom":"2020-01-01","dateTo":"2024-12-31","limit":5}'
 ```
@@ -120,6 +133,28 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
 `official_observed`/`demo_sample`을 명시할 수 있고 기본값은 둘 다 허용한다. 실제
 반환 상태가 둘 이상이면 `data_status: "mixed"`이며 개별 상태는 `data_statuses`와
 레코드에 유지된다.
+
+### HTTP 접근 제어
+
+- `HTTP_AUTH_MODE=token`은 `/api/**`에 `Authorization: Bearer` 또는 `X-API-Key`를
+  요구한다. token은 32바이트 이상이어야 하며 약한 placeholder는 시작 시 거절한다.
+- `/health`, 최소 정보만 주는 `/ready`, 정적 UI는 공개다. token mode에서 공개 UI는
+  API token을 브라우저에 넣지 않으므로 API 호출 기능은 reverse proxy 인증 연동 없이
+  동작하지 않는다.
+- token 비교는 SHA-256 고정 길이 digest를 constant-time 비교하며 token/raw body는
+  로그나 감사 테이블에 저장하지 않는다.
+- per-client 메모리 token bucket은 기본 분당 cheap 120회, PDF hybrid/데모/초안 등
+  expensive 12회, readiness 60회다. 초과 시 `429`와 `Retry-After`를 반환한다.
+- client는 기본적으로 socket IP다. `X-Forwarded-For`는 무시한다.
+  `HTTP_TRUST_PROXY=loopback` 또는 `explicit`과 `HTTP_TRUST_PROXY_IPS`를 설정해
+  immediate proxy를 정확히 신뢰한 경우에만 validated 첫 IP를 사용한다.
+- JSON POST는 `application/json`, 기본 64KiB, depth 12/node 5,000 제한을 적용한다.
+  고정 route/method/tool allowlist와 CSP/frame/referrer/permissions 보안 헤더를 사용하며
+  cross-origin wildcard CORS를 제공하지 않는다.
+- 모든 응답은 안전한 `X-Request-ID`를 반환한다. strict 형식의 inbound ID만 수용하고
+  PostgreSQL audit의 `correlation_id`로 연결한다.
+- Node request/operation timeout과 PostgreSQL connection/statement/query timeout은
+  `.env.example` 변수로 조정한다. 기본 DB statement/query timeout은 8초/10초다.
 
 ### 실행 repository
 
@@ -268,7 +303,9 @@ docs/                     설계·도구·데이터 사전·변경 기록
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
 - 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.
-- 원격 배포를 위한 인증·rate limit은 아직 포함하지 않는다.
+- token은 단일 shared secret이며 tenant/role 권한 모델은 없다.
+- rate limit은 process-local이므로 여러 replica에서는 공용 Redis/게이트웨이가 필요하다.
+- TLS 인증서와 secret rotation은 reverse proxy/배포 플랫폼 책임이다.
 
 상세 내용은 [아키텍처](docs/architecture.md),
 [데이터 사전](docs/data-dictionary.md), [MCP 도구 명세](docs/mcp-tools.md)를 참고하세요.

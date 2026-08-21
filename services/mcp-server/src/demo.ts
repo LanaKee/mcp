@@ -2,6 +2,7 @@ import type { SourceRef } from "@gb/domain";
 import {
   executeTool,
   type ResponseDataStatus,
+  type ToolExecutionContext,
   type ToolRegistry
 } from "./tools.js";
 
@@ -39,13 +40,19 @@ interface RepresentativeDemoResponse {
 
 export async function runRepresentativeDemo(
   questionId: string,
-  registry: ToolRegistry
+  registry: ToolRegistry,
+  context: ToolExecutionContext = {}
 ): Promise<RepresentativeDemoResponse> {
   if (questionId === "population-tax") {
-    const response = await executeTool(registry, "compare_population_and_tax", {
-      startYear: 2022,
-      endYear: 2024
-    });
+    const response = await executeTool(
+      registry,
+      "compare_population_and_tax",
+      {
+        startYear: 2022,
+        endYear: 2024
+      },
+      context
+    );
     const result = response.result as {
       matches: Array<{
         regionName: string;
@@ -67,12 +74,17 @@ export async function runRepresentativeDemo(
   }
 
   if (questionId === "smartfarm-policy") {
-    const response = await executeTool(registry, "search_policies", {
-      region: "상주시",
-      age: 34,
-      query: "스마트팜",
-      stage: "예비창업"
-    });
+    const response = await executeTool(
+      registry,
+      "search_policies",
+      {
+        region: "상주시",
+        age: 34,
+        query: "스마트팜",
+        stage: "예비창업"
+      },
+      context
+    );
     const result = response.result as {
       matches: Array<{
         policy: { title: string; policyId: string };
@@ -97,13 +109,18 @@ export async function runRepresentativeDemo(
   }
 
   if (questionId === "council-change") {
-    const response = await executeTool(registry, "search_council_records", {
-      query: "지방소멸 청년 생활인구",
-      council: "경상북도의회",
-      dateFrom: "2020-01-01",
-      dateTo: "2024-12-31",
-      limit: 10
-    });
+    const response = await executeTool(
+      registry,
+      "search_council_records",
+      {
+        query: "지방소멸 청년 생활인구",
+        council: "경상북도의회",
+        dateFrom: "2020-01-01",
+        dateTo: "2024-12-31",
+        limit: 10
+      },
+      context
+    );
     const result = response.result as {
       matches: Array<{
         title: string;
@@ -130,21 +147,30 @@ export async function runRepresentativeDemo(
   }
 
   if (questionId === "public-document") {
-    const analysis = await runRepresentativeDemo("population-tax", registry);
-    const response = await executeTool(registry, "draft_public_document", {
-      documentType: "information_request",
-      title: "시군별 인구 및 지방세 세수 산출 근거 공개 요청",
-      verifiedAnalysis: {
-        conclusion: analysis.conclusion,
-        evidence: analysis.evidence.map((item) => ({
-          statement: item.statement,
-          sourceIds: item.sourceIds
-        })),
-        sources: analysis.sources,
-        limitations: analysis.limitations,
-        verified: true
-      }
-    });
+    const analysis = await runRepresentativeDemo(
+      "population-tax",
+      registry,
+      context
+    );
+    const response = await executeTool(
+      registry,
+      "draft_public_document",
+      {
+        documentType: "information_request",
+        title: "시군별 인구 및 지방세 세수 산출 근거 공개 요청",
+        verifiedAnalysis: {
+          conclusion: analysis.conclusion,
+          evidence: analysis.evidence.map((item) => ({
+            statement: item.statement,
+            sourceIds: item.sourceIds
+          })),
+          sources: analysis.sources,
+          limitations: analysis.limitations,
+          verified: true
+        }
+      },
+      context
+    );
     const result = response.result as { draft: string };
     return {
       data_status: response.data_status,

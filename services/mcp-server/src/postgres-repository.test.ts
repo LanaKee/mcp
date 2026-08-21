@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PostgresDataRepository } from "./postgres-repository.js";
 
 class RecordingExecutor {
@@ -14,6 +14,10 @@ class RecordingExecutor {
 }
 
 describe("PostgresDataRepository query contracts", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("keeps fact filters parameterized and bounded", async () => {
     const executor = new RecordingExecutor();
     const repository = new PostgresDataRepository(executor);
@@ -75,6 +79,7 @@ describe("PostgresDataRepository query contracts", () => {
       resultCount: 2,
       requestHash: "a".repeat(64),
       requestMetadata: { keys: ["query"], fields: { query: { length: 12 } } },
+      correlationId: "trace_1234-safe",
       errorClass: null
     });
 
@@ -83,6 +88,7 @@ describe("PostgresDataRepository query contracts", () => {
     expect(call.text).toContain("VALUES ($1, $2, $3");
     expect(call.values[0]).toBe("search_council_records");
     expect(call.values[3]).toBe(125);
+    expect(call.values[9]).toBe("trace_1234-safe");
   });
 
   it("closes its injected pool exactly once per close call", async () => {
@@ -93,5 +99,14 @@ describe("PostgresDataRepository query contracts", () => {
     });
     await repository.close();
     expect(closes).toBe(1);
+  });
+
+  it("rejects unsafe PostgreSQL timeout configuration before connecting", () => {
+    vi.stubEnv("PG_STATEMENT_TIMEOUT_MS", "0");
+    expect(() =>
+      PostgresDataRepository.fromConnectionString(
+        "postgresql://localhost/unreachable"
+      )
+    ).toThrow("PG_STATEMENT_TIMEOUT_MS must be an integer");
   });
 });

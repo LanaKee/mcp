@@ -70,6 +70,19 @@
 
 ## 오류
 
-MCP 오류는 `isError: true` content로, HTTP 오류는 상태 400 JSON으로 반환한다.
-오류 응답에도 repository 실행 상태를 표시하며 입력값이나 환경 변수 비밀을 로그에
-남기지 않는다. PostgreSQL tool audit에는 raw query 대신 hash와 shape만 저장한다.
+MCP 오류는 `isError: true` content로 반환한다. stdio는 local transport이므로 HTTP
+token/rate limit을 적용하지 않는다.
+
+HTTP `/api/**`는 설정 시 bearer/API token을 요구하고 다음 상태를 구분한다.
+
+- `400`: JSON/입력 shape 검증 실패
+- `401`: token 누락/불일치
+- `404`/`405`: 고정 route/tool/method allowlist 위반
+- `413`/`415`: body 크기/content type 위반
+- `422`: 안전하게 표시 가능한 처리 불가
+- `429`: rate limit, `Retry-After` 포함
+- `503`/`504`: DB/operation availability 또는 timeout
+
+오류 body는 code, 일반화된 message, `request_id`만 포함해 내부 오류/환경 변수를
+노출하지 않는다. 모든 HTTP 응답에는 security header와 `X-Request-ID`가 있다.
+PostgreSQL audit에는 raw query 대신 hash/shape와 동일 correlation ID를 저장한다.

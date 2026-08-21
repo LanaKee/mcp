@@ -46,6 +46,11 @@ export interface ToolRegistry {
   repository: DataRepository;
 }
 
+export interface ToolExecutionContext {
+  correlationId?: string;
+  signal?: AbortSignal;
+}
+
 const objectSchema = (
   properties: Record<string, unknown>,
   required: string[]
@@ -546,13 +551,17 @@ function resultCount(response: ToolResponse): number {
 export async function executeTool(
   registry: ToolRegistry,
   name: string,
-  input: unknown
+  input: unknown,
+  context: ToolExecutionContext = {}
 ): Promise<ToolResponse> {
   const startedAt = new Date();
   const auditToolName = registry.tools[name] ? name : "unsupported";
   let response: ToolResponse | undefined;
   let caught: unknown;
   try {
+    if (context.signal?.aborted) {
+      throw Object.assign(new Error("Operation aborted"), { name: "AbortError" });
+    }
     const tool = registry.tools[name];
     if (!tool) throw new Error(`지원하지 않는 도구입니다: ${name}`);
     const parsed = tool.parse(input);
@@ -563,12 +572,13 @@ export async function executeTool(
     throw error;
   } finally {
     const finishedAt = new Date();
+    const aborted = context.signal?.aborted === true;
     try {
       await registry.repository.writeAudit({
         toolName: auditToolName.slice(0, 120),
         startedAt,
         finishedAt,
-        success: caught === undefined,
+        success: caught === undefined && !aborted,
         dataStatuses: response?.data_statuses ?? [],
         resultCount: response ? resultCount(response) : 0,
         requestHash: createHash("sha256")
@@ -577,9 +587,12 @@ export async function executeTool(
           .update(stableJson(input))
           .digest("hex"),
         requestMetadata: redactedMetadata(input),
+        correlationId: context.correlationId ?? null,
         errorClass:
-          caught === undefined
-            ? null
+          aborted
+            ? "AbortError"
+            : caught === undefined
+              ? null
             : caught instanceof Error
               ? caught.name
               : "UnknownError"
@@ -593,6 +606,7 @@ export async function executeTool(
         JSON.stringify({
           warning: "audit_write_failed",
           toolName: auditToolName.slice(0, 120),
+          correlationId: context.correlationId ?? null,
           code
         })
       );

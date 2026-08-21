@@ -21,9 +21,20 @@ services:
     environment:
       DATA_REPOSITORY: postgres
       PORT: 8787
+      HTTP_HOST: 0.0.0.0
+      HTTP_AUTH_MODE: token
+      HTTP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN:?Set a strong HTTP_AUTH_TOKEN}
+      HTTP_TRUST_PROXY: off
+      PG_STATEMENT_TIMEOUT_MS: 8000
+      PG_QUERY_TIMEOUT_MS: 10000
       DATABASE_URL: postgresql://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
     ports:
       - "8787:8787"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8787/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     depends_on:
       postgres:
         condition: service_healthy

@@ -101,6 +101,7 @@ PostgreSQL repository에서 실행된 MCP/HTTP 도구 호출의 bounded 운영 �
 | `result_count` | 응답 형태에서 계산한 bounded 결과 수 |
 | `request_hash` | process salt + 도구명 + canonical input의 SHA-256 |
 | `request_metadata` | raw 값이 아닌 필드명, 타입, 문자열/배열 길이 |
+| `correlation_id` | strict inbound 또는 생성된 HTTP `X-Request-ID`; stdio는 NULL 가능 |
 | `repository_mode` | `memory` 또는 `postgres` |
 | `expires_at` | 기본 `created_at + 90 days`; 운영 purge 기준 |
 

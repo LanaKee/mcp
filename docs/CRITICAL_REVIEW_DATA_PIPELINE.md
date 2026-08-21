@@ -12,6 +12,9 @@
 - PostgreSQL MCP smoke에서 `/ready` 13.6ms, 공식 인구 42.4ms, demo 지방세 28.1ms,
   공식 PDF chunk 검색 171.2ms, page context 45.7ms였다.
 - 감사 검증 19건 이상은 모두 성공했고 raw 검색어가 `request_metadata`에 남은 건수는 0이었다.
+- token-authenticated PostgreSQL 최종 smoke에서 public health 15.2ms, minimal readiness
+  73.0ms, 공식 인구 37.2ms, PDF hybrid 165.4ms였다. 무인증 API는 401이었다.
+- population/PDF audit 2건에 strict correlation ID가 저장됐고 raw 검색어 저장은 0건이었다.
 
 ## 영역별 평가
 
@@ -72,18 +75,37 @@
 
 남은 위험:
 
-- 원격 HTTP에는 인증, tenant 분리, rate limit이 없다.
 - process salt를 환경에 고정하지 않으면 재시작 사이 request hash 상관분석은 불가능하다.
 - 감사 `expires_at`은 기록되지만 자동 삭제 scheduler는 포함하지 않는다.
 - 구조화 의회 제목 점수와 PDF hybrid 점수는 서로 다른 분포여서 장기적으로 학습/평가
   기반 score calibration이 필요하다.
 - local tax/policy 공식 source가 아직 없어 해당 기본 결과에는 demo가 포함될 수 있다.
 
+### HTTP 접근 제어 검토
+
+해결된 P0:
+
+- `/api/**` bearer/API token auth, 강한 token startup validation, constant-time digest 비교
+- 공개 health와 내부 detail을 제거한 readiness 분리
+- 기본 loopback bind와 Docker의 명시적 token/`0.0.0.0`
+- socket IP별 bounded token bucket과 expensive route 별도 budget
+- proxy header 기본 불신, loopback/명시 IP proxy만 허용
+- body/content/depth/node, route/method/tool allowlist, CSP와 same-origin 정책
+- non-sensitive 오류, strict request ID, audit correlation
+- Node operation/request timeout과 PostgreSQL statement/query timeout
+
+남은 운영 위험:
+
+- token은 shared secret 하나이므로 사용자별 revoke/role/tenant 분리가 없다.
+- rate limiter는 process-local이라 multi-replica 전체 한도를 보장하지 않는다.
+- TLS, token rotation, WAF, 중앙 rate limit은 reverse proxy/배포 플랫폼이 담당해야 한다.
+- 공개 readiness는 per-IP 제한되지만 대규모 분산 공격 방어는 edge 계층이 필요하다.
+
 ## 우선순위 개선
 
-1. **P0 접근제어:** 원격 HTTP 인증, rate limit, 배포별 audit salt/retention purge.
-2. **P1 품질:** 표/발언자/머리말 제거 평가셋과 page-level golden extraction test 구축.
-3. **P1 OCR:** 승인된 로컬 OCR queue와 원문/추출본 품질 점수 추가.
-4. **P1 semantic:** 검증된 multilingual model을 로컬 배포하거나 승인된 외부 provider 사용.
+1. **P1 추출 품질:** 표/발언자/머리말 제거 평가셋과 page-level golden extraction test 구축.
+2. **P1 OCR:** 승인된 로컬 OCR queue와 원문/추출본 품질 점수 추가.
+3. **P1 semantic:** 검증된 multilingual model을 로컬 배포하거나 승인된 외부 provider 사용.
+4. **P1 운영 확장:** tenant token/role, 중앙 rate limit, rotation/purge automation.
 5. **P2 규모:** provider+dimension별 pgvector partition과 HNSW/IVFFlat, streaming extraction.
 6. **P2 lifecycle:** source version별 retention과 stale locator 조회 정책 명문화.

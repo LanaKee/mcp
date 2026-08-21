@@ -1,39 +1,201 @@
 import { createReadStream } from "node:fs";
 import { access } from "node:fs/promises";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse
+} from "node:http";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { representativeQuestions, runRepresentativeDemo } from "./demo.js";
+import {
+  BoundedTokenBucketRateLimiter,
+  JsonShapeError,
+  clientAddress,
+  correlationId,
+  isAuthorized,
+  loadHttpSecurityConfig,
+  validateJsonShape,
+  type HttpSecurityConfig,
+  type RateLimitGroup
+} from "./http-security.js";
 import { executeTool, type ToolRegistry } from "./tools.js";
-
-async function body(request: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    const buffer = Buffer.from(chunk);
-    size += buffer.length;
-    if (size > 1_000_000) throw new Error("요청 본문은 1MB 이하여야 합니다.");
-    chunks.push(buffer);
-  }
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-}
-
-function json(response: ServerResponse, status: number, value: unknown) {
-  response.writeHead(status, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store"
-  });
-  response.end(JSON.stringify(value));
-}
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const webCandidates = [
   resolve(moduleDirectory, "../../../apps/web/dist"),
   resolve(moduleDirectory, "../../../apps/web/src")
 ];
+const staticFiles: Record<string, string> = {
+  "/": "index.html",
+  "/index.html": "index.html",
+  "/app.js": "app.js",
+  "/styles.css": "styles.css"
+};
+const expensiveTools = new Set([
+  "search_council_records",
+  "get_source_context",
+  "draft_public_document"
+]);
 
-async function webDirectory() {
+export interface HttpAppOptions {
+  security?: HttpSecurityConfig;
+  rateLimiter?: BoundedTokenBucketRateLimiter;
+}
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly publicMessage: string,
+    readonly headers: Record<string, string> = {}
+  ) {
+    super(code);
+  }
+}
+
+const securityHeaders: Record<string, string> = {
+  "content-security-policy":
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+  "permissions-policy":
+    "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY"
+};
+
+function responseHeaders(
+  requestId: string,
+  extra: Record<string, string> = {}
+): Record<string, string> {
+  return {
+    ...securityHeaders,
+    "cache-control": "no-store",
+    "x-request-id": requestId,
+    ...extra
+  };
+}
+
+function json(
+  response: ServerResponse,
+  status: number,
+  value: unknown,
+  requestId: string,
+  headers: Record<string, string> = {}
+): void {
+  response.writeHead(
+    status,
+    responseHeaders(requestId, {
+      "content-type": "application/json; charset=utf-8",
+      ...headers
+    })
+  );
+  response.end(JSON.stringify(value));
+}
+
+function errorJson(
+  response: ServerResponse,
+  error: HttpError,
+  requestId: string
+): void {
+  json(
+    response,
+    error.status,
+    {
+      error: {
+        code: error.code,
+        message: error.publicMessage
+      },
+      request_id: requestId
+    },
+    requestId,
+    error.headers
+  );
+}
+
+function contentLength(request: IncomingMessage): number | undefined {
+  const value = request.headers["content-length"];
+  if (value === undefined) return undefined;
+  if (Array.isArray(value) || !/^\d+$/.test(value)) {
+    throw new HttpError(400, "invalid_content_length", "Invalid request.");
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new HttpError(400, "invalid_content_length", "Invalid request.");
+  }
+  return parsed;
+}
+
+async function jsonBody(
+  request: IncomingMessage,
+  config: HttpSecurityConfig
+): Promise<Record<string, unknown>> {
+  const mediaType = request.headers["content-type"]
+    ?.split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (mediaType !== "application/json") {
+    throw new HttpError(
+      415,
+      "unsupported_media_type",
+      "Content-Type must be application/json."
+    );
+  }
+  const declaredLength = contentLength(request);
+  if (declaredLength !== undefined && declaredLength > config.bodyMaxBytes) {
+    request.resume();
+    throw new HttpError(413, "body_too_large", "Request body is too large.", {
+      connection: "close"
+    });
+  }
+  const chunks: Buffer[] = [];
+  let size = 0;
+  let tooLarge = false;
+  for await (const chunk of request) {
+    const buffer = Buffer.from(chunk);
+    size += buffer.length;
+    if (size > config.bodyMaxBytes) {
+      tooLarge = true;
+      chunks.length = 0;
+    } else if (!tooLarge) {
+      chunks.push(buffer);
+    }
+  }
+  if (tooLarge) {
+    throw new HttpError(413, "body_too_large", "Request body is too large.", {
+      connection: "close"
+    });
+  }
+  let parsed: unknown;
+  try {
+    parsed =
+      chunks.length === 0
+        ? {}
+        : JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new HttpError(400, "invalid_json", "Request body must be valid JSON.");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new HttpError(400, "invalid_json_shape", "JSON body must be an object.");
+  }
+  try {
+    validateJsonShape(parsed, config);
+  } catch (error) {
+    if (error instanceof JsonShapeError) {
+      throw new HttpError(
+        400,
+        "invalid_json_shape",
+        "JSON body exceeds structural limits."
+      );
+    }
+    throw error;
+  }
+  return parsed as Record<string, unknown>;
+}
+
+async function webDirectory(): Promise<string | null> {
   for (const candidate of webCandidates) {
     try {
       await access(resolve(candidate, "index.html"));
@@ -45,77 +207,317 @@ async function webDirectory() {
   return null;
 }
 
-export function createHttpApp(registry: ToolRegistry) {
-  return createServer(async (request, response) => {
+function toolName(pathname: string, registry: ToolRegistry): string | undefined {
+  const prefix = "/api/tools/";
+  if (!pathname.startsWith(prefix)) return undefined;
+  const encoded = pathname.slice(prefix.length);
+  if (!encoded || encoded.includes("/")) return undefined;
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return Object.hasOwn(registry.tools, decoded) ? decoded : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function operationGroup(
+  pathname: string,
+  registry: ToolRegistry
+): RateLimitGroup {
+  if (pathname === "/ready") return "ready";
+  if (pathname === "/api/demo") return "expensive";
+  const name = toolName(pathname, registry);
+  return name && expensiveTools.has(name) ? "expensive" : "cheap";
+}
+
+function operationTimeout(
+  group: RateLimitGroup,
+  config: HttpSecurityConfig
+): number {
+  return group === "expensive"
+    ? config.expensiveOperationTimeoutMs
+    : config.cheapOperationTimeoutMs;
+}
+
+async function withinTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const controller = new AbortController();
+  try {
+    return await Promise.race([
+      operation(controller.signal),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => {
+            controller.abort();
+            reject(
+              new HttpError(
+                504,
+                "operation_timeout",
+                "The operation exceeded its time limit."
+              )
+            );
+          },
+          timeoutMs
+        );
+        timer.unref();
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function rateLimit(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestId: string,
+  group: RateLimitGroup,
+  config: HttpSecurityConfig,
+  limiter: BoundedTokenBucketRateLimiter
+): boolean {
+  const decision = limiter.consume(
+    clientAddress(
+      request,
+      config.trustProxy,
+      config.trustedProxyAddresses
+    ),
+    group
+  );
+  if (decision.allowed) return true;
+  errorJson(
+    response,
+    new HttpError(429, "rate_limited", "Too many requests.", {
+      "retry-after": String(decision.retryAfterSeconds),
+      "ratelimit-limit": String(decision.limit),
+      "ratelimit-remaining": "0"
+    }),
+    requestId
+  );
+  return false;
+}
+
+function methodNotAllowed(allow: string): HttpError {
+  return new HttpError(405, "method_not_allowed", "Method not allowed.", {
+    allow
+  });
+}
+
+function normalizedError(error: unknown): HttpError {
+  if (error instanceof HttpError) return error;
+  if (
+    error instanceof Error &&
+    (error.name === "ZodError" || error.name === "ValidationError")
+  ) {
+    return new HttpError(400, "invalid_request", "Request validation failed.");
+  }
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+  if (code === "57014") {
+    return new HttpError(
+      504,
+      "database_timeout",
+      "The data operation exceeded its time limit."
+    );
+  }
+  if (
+    code.startsWith("08") ||
+    code.startsWith("53") ||
+    ["57P01", "57P02", "57P03", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT"].includes(
+      code
+    )
+  ) {
+    return new HttpError(
+      503,
+      "service_unavailable",
+      "The data service is temporarily unavailable."
+    );
+  }
+  if (
+    error instanceof Error &&
+    /^(Query read timeout|Connection terminated due to connection timeout)$/.test(
+      error.message
+    )
+  ) {
+    return new HttpError(
+      504,
+      "database_timeout",
+      "The data operation exceeded its time limit."
+    );
+  }
+  if (/^[0-9A-Z]{5}$/.test(code)) {
+    return new HttpError(
+      500,
+      "database_error",
+      "The data operation failed."
+    );
+  }
+  if (error instanceof Error) {
+    return new HttpError(
+      422,
+      "request_unprocessable",
+      "The request could not be completed with the available data."
+    );
+  }
+  return new HttpError(500, "internal_error", "An internal error occurred.");
+}
+
+function logUnexpected(error: unknown, requestId: string): void {
+  if (error instanceof HttpError || (error instanceof Error && error.name === "ZodError")) {
+    return;
+  }
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : undefined;
+  console.error(
+    JSON.stringify({
+      error: "http_request_failed",
+      requestId,
+      errorClass: error instanceof Error ? error.name : "UnknownError",
+      ...(code ? { code } : {})
+    })
+  );
+}
+
+export function createHttpApp(
+  registry: ToolRegistry,
+  options: HttpAppOptions = {}
+) {
+  const config = options.security ?? loadHttpSecurityConfig();
+  const limiter =
+    options.rateLimiter ?? new BoundedTokenBucketRateLimiter(config);
+  const server = createServer(async (request, response) => {
+    const requestId = correlationId(request.headers["x-request-id"]);
     try {
       const url = new URL(request.url ?? "/", "http://localhost");
-      if (request.method === "GET" && url.pathname === "/health") {
-        return json(response, 200, {
-          status: "ok",
-          service: "gyeongbuk-public-ai",
-          repository_mode: registry.repository.mode
-        });
-      }
-      if (request.method === "GET" && url.pathname === "/ready") {
-        const readiness = await registry.repository.readiness();
-        return json(response, readiness.ready ? 200 : 503, {
-          status: readiness.ready ? "ready" : "not_ready",
-          ...readiness
-        });
-      }
-      if (request.method === "GET" && url.pathname === "/api/questions") {
-        return json(response, 200, {
-          data_status:
-            registry.repository.mode === "memory" ? "demo_sample" : "mixed",
-          questions: representativeQuestions
-        });
-      }
-      if (request.method === "POST" && url.pathname.startsWith("/api/tools/")) {
-        const name = decodeURIComponent(url.pathname.slice("/api/tools/".length));
-        return json(response, 200, await executeTool(registry, name, await body(request)));
-      }
-      if (request.method === "POST" && url.pathname === "/api/demo") {
-        const input = (await body(request)) as { questionId?: unknown };
-        if (typeof input.questionId !== "string") {
-          throw new Error("questionId 문자열이 필요합니다.");
-        }
+      const group = operationGroup(url.pathname, registry);
+
+      if (url.pathname === "/health") {
+        if (request.method !== "GET") throw methodNotAllowed("GET");
         return json(
           response,
           200,
-          await runRepresentativeDemo(input.questionId, registry)
+          { status: "ok", service: "gyeongbuk-public-ai" },
+          requestId
         );
       }
 
-      if (request.method === "GET") {
-        const files: Record<string, string> = {
-          "/": "index.html",
-          "/index.html": "index.html",
-          "/app.js": "app.js",
-          "/styles.css": "styles.css"
-        };
-        const file = files[url.pathname];
-        const directory = await webDirectory();
-        if (file && directory) {
-          const type =
-            extname(file) === ".css"
-              ? "text/css; charset=utf-8"
-              : extname(file) === ".js"
-                ? "text/javascript; charset=utf-8"
-                : "text/html; charset=utf-8";
-          response.writeHead(200, { "content-type": type });
-          return createReadStream(resolve(directory, file)).pipe(response);
-        }
+      if (url.pathname === "/ready") {
+        if (request.method !== "GET") throw methodNotAllowed("GET");
+        if (!rateLimit(request, response, requestId, group, config, limiter)) return;
+        const readiness = await withinTimeout(
+          () => registry.repository.readiness(),
+          operationTimeout(group, config)
+        );
+        return json(
+          response,
+          readiness.ready ? 200 : 503,
+          { status: readiness.ready ? "ready" : "not_ready" },
+          requestId
+        );
       }
 
-      return json(response, 404, {
-        data_status: registry.repository.mode === "memory" ? "demo_sample" : "mixed",
-        error: "not_found"
-      });
+      if (url.pathname.startsWith("/api/")) {
+        if (!rateLimit(request, response, requestId, group, config, limiter)) return;
+        if (!isAuthorized(request.headers, config)) {
+          throw new HttpError(401, "unauthorized", "Authentication required.", {
+            "www-authenticate": 'Bearer realm="gyeongbuk-public-ai"'
+          });
+        }
+
+        if (url.pathname === "/api/questions") {
+          if (request.method !== "GET") throw methodNotAllowed("GET");
+          return json(
+            response,
+            200,
+            {
+              data_status:
+                registry.repository.mode === "memory" ? "demo_sample" : "mixed",
+              questions: representativeQuestions
+            },
+            requestId
+          );
+        }
+
+        if (url.pathname === "/api/demo") {
+          if (request.method !== "POST") throw methodNotAllowed("POST");
+          const input = await jsonBody(request, config);
+          if (typeof input.questionId !== "string") {
+            throw new HttpError(
+              400,
+              "invalid_request",
+              "Request validation failed."
+            );
+          }
+          const questionId = input.questionId;
+          const result = await withinTimeout(
+            (signal) =>
+              runRepresentativeDemo(questionId, registry, {
+                correlationId: requestId,
+                signal
+              }),
+            operationTimeout(group, config)
+          );
+          return json(response, 200, result, requestId);
+        }
+
+        const name = toolName(url.pathname, registry);
+        if (!name) {
+          throw new HttpError(404, "not_found", "Resource not found.");
+        }
+        if (request.method !== "POST") throw methodNotAllowed("POST");
+        const input = await jsonBody(request, config);
+        const result = await withinTimeout(
+          (signal) =>
+            executeTool(registry, name, input, {
+              correlationId: requestId,
+              signal
+            }),
+          operationTimeout(group, config)
+        );
+        return json(response, 200, result, requestId);
+      }
+
+      const file = staticFiles[url.pathname];
+      if (file) {
+        if (request.method !== "GET") throw methodNotAllowed("GET");
+        const directory = await webDirectory();
+        if (!directory) {
+          throw new HttpError(404, "not_found", "Resource not found.");
+        }
+        const type =
+          extname(file) === ".css"
+            ? "text/css; charset=utf-8"
+            : extname(file) === ".js"
+              ? "text/javascript; charset=utf-8"
+              : "text/html; charset=utf-8";
+        response.writeHead(
+          200,
+          responseHeaders(requestId, { "content-type": type })
+        );
+        return createReadStream(resolve(directory, file)).pipe(response);
+      }
+
+      throw new HttpError(404, "not_found", "Resource not found.");
     } catch (error) {
-      return json(response, 400, {
-        data_status: registry.repository.mode === "memory" ? "demo_sample" : "mixed",
-        error: error instanceof Error ? error.message : String(error)
-      });
+      const httpError = normalizedError(error);
+      logUnexpected(error, requestId);
+      if (!response.headersSent) {
+        errorJson(response, httpError, requestId);
+      } else {
+        response.destroy();
+      }
     }
   });
+  server.requestTimeout = config.requestTimeoutMs;
+  server.headersTimeout = config.headersTimeoutMs;
+  server.keepAliveTimeout = 5_000;
+  server.maxRequestsPerSocket = 100;
+  server.setTimeout(config.requestTimeoutMs);
+  return server;
 }

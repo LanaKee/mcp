@@ -194,6 +194,12 @@ CREATE TABLE IF NOT EXISTS mcp_tool_audit (
   result_count integer NOT NULL DEFAULT 0 CHECK (result_count >= 0),
   request_hash char(64) NOT NULL,
   request_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  correlation_id varchar(64)
+    CONSTRAINT mcp_tool_audit_correlation_format
+    CHECK (
+      correlation_id IS NULL
+      OR correlation_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{7,63}$'
+    ),
   error_class text,
   repository_mode text NOT NULL CHECK (repository_mode IN ('memory', 'postgres')),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -248,5 +254,8 @@ CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_tool_time
   ON mcp_tool_audit(tool_name, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_expires
   ON mcp_tool_audit(expires_at);
+CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_correlation
+  ON mcp_tool_audit(correlation_id)
+  WHERE correlation_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_source_sha
   ON data_source(file_sha256);
