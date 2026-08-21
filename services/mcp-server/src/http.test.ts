@@ -1,0 +1,46 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { AddressInfo } from "node:net";
+import { loadDemoData } from "./data-store.js";
+import { createHttpApp } from "./http.js";
+import { createToolRegistry } from "./tools.js";
+
+let baseUrl = "";
+let server: ReturnType<typeof createHttpApp>;
+
+beforeAll(async () => {
+  const store = await loadDemoData();
+  server = createHttpApp(createToolRegistry(store), store);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address() as AddressInfo;
+  baseUrl = `http://127.0.0.1:${address.port}`;
+});
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  );
+});
+
+describe("HTTP API", () => {
+  it("reports health", async () => {
+    const response = await fetch(`${baseUrl}/health`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "ok",
+      data_status: "demo_sample"
+    });
+  });
+
+  it("runs a representative question", async () => {
+    const response = await fetch(`${baseUrl}/api/demo`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ questionId: "population-tax" })
+    });
+    const value = (await response.json()) as Record<string, unknown>;
+    expect(response.status).toBe(200);
+    expect(value).toHaveProperty("conclusion");
+    expect(value.data_status).toBe("demo_sample");
+  });
+});
+

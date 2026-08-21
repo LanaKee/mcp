@@ -1,0 +1,24 @@
+{
+  "name": "@gb/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "dev:http": "tsx src/index.ts --http",
+    "dev:stdio": "tsx src/index.ts --stdio",
+    "start:http": "node dist/index.js --http",
+    "start:stdio": "node dist/index.js --stdio"
+  },
+  "dependencies": {
+    "@gb/domain": "workspace:*",
+    "@gb/retrieval": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "csv-parse": "^6.1.0",
+    "zod": "^3.25.76"
+  }
+}
+
