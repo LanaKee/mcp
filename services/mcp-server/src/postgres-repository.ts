@@ -268,6 +268,30 @@ function uniqueStatuses(rows: Array<{ data_status: DataStatus }>): DataStatus[] 
   return [...new Set(rows.map((row) => row.data_status))];
 }
 
+function memberSummary(row: {
+  council_member_id: string;
+  name: string;
+  party: string | null;
+  district: string | null;
+  position: string | null;
+  career: string | null;
+  homepage_url: string;
+  lead_count: string | number;
+  co_count: string | number;
+}): CouncilMemberSummary {
+  return {
+    councilMemberId: row.council_member_id,
+    name: row.name,
+    party: row.party,
+    district: row.district,
+    position: row.position,
+    career: row.career,
+    homepageUrl: row.homepage_url,
+    leadBillCount: Number(row.lead_count),
+    coBillCount: Number(row.co_count)
+  };
+}
+
 function boundedLimit(value: number, maximum: number): number {
   return Math.min(Math.max(Math.trunc(value), 1), maximum);
 }
@@ -808,6 +832,65 @@ export class PostgresDataRepository implements DataRepository {
    * summary is returned alongside the hits so an ambiguous name (two 김상희)
    * surfaces as two members rather than being silently merged.
    */
+  /**
+   * Loads council members together with their own provenance.
+   *
+   * The roster is returned to callers as data, so it has to carry sources of
+   * its own. Deriving sources from the bill rows alone left every member
+   * uncited whenever no bill matched the query.
+   */
+  private async loadCouncilMembers(filter: {
+    name?: string;
+    party?: string;
+    memberIds?: string[];
+  }): Promise<Array<SourceRow & { summary: CouncilMemberSummary }>> {
+    const rows = await this.executor.query<
+      SourceRow & {
+        council_member_id: string;
+        name: string;
+        party: string | null;
+        district: string | null;
+        position: string | null;
+        career: string | null;
+        homepage_url: string;
+        lead_count: string | number;
+        co_count: string | number;
+      }
+    >(
+      `SELECT
+         m.council_member_id,
+         m.name,
+         m.party,
+         m.district,
+         m.position,
+         m.career,
+         m.homepage_url,
+         m.data_status,
+         ds.source_key,
+         ds.title,
+         ds.provider,
+         ds.source_url,
+         ds.collected_at,
+         ds.is_official,
+         ds.file_path,
+         ds.license_note,
+         count(*) FILTER (WHERE s.role = 'lead') AS lead_count,
+         count(*) FILTER (WHERE s.role = 'co') AS co_count
+       FROM council_member m
+       JOIN data_source ds ON ds.source_id = m.source_id
+       LEFT JOIN council_bill_sponsor s
+         ON s.council_member_id = m.council_member_id
+       WHERE ($1::text IS NULL OR m.name = $1 OR m.name ILIKE ('%' || $1 || '%'))
+         AND ($2::text IS NULL OR m.party ILIKE ('%' || $2 || '%'))
+         AND ($3::text[] IS NULL OR m.council_member_id = ANY($3::text[]))
+       GROUP BY m.council_member_id, ds.source_id
+       ORDER BY (m.name = coalesce($1, m.name)) DESC, m.name
+       LIMIT 64`,
+      [filter.name ?? null, filter.party ?? null, filter.memberIds ?? null]
+    );
+    return rows.rows.map((row) => ({ ...row, summary: memberSummary(row) }));
+  }
+
   async searchMemberBills(input: {
     member?: string;
     query?: string;
@@ -823,48 +906,11 @@ export class PostgresDataRepository implements DataRepository {
     const limit = boundedLimit(input.limit, 50);
     const role = input.role === "any" ? null : input.role;
 
-    const memberRows = await this.executor.query<{
-      council_member_id: string;
-      name: string;
-      party: string | null;
-      district: string | null;
-      position: string | null;
-      career: string | null;
-      homepage_url: string;
-      lead_count: string | number;
-      co_count: string | number;
-    }>(
-      `SELECT
-         m.council_member_id,
-         m.name,
-         m.party,
-         m.district,
-         m.position,
-         m.career,
-         m.homepage_url,
-         count(*) FILTER (WHERE s.role = 'lead') AS lead_count,
-         count(*) FILTER (WHERE s.role = 'co') AS co_count
-       FROM council_member m
-       LEFT JOIN council_bill_sponsor s
-         ON s.council_member_id = m.council_member_id
-       WHERE ($1::text IS NULL OR m.name = $1 OR m.name ILIKE ('%' || $1 || '%'))
-         AND ($2::text IS NULL OR m.party ILIKE ('%' || $2 || '%'))
-       GROUP BY m.council_member_id
-       ORDER BY (m.name = coalesce($1, m.name)) DESC, m.name
-       LIMIT 20`,
-      [input.member ?? null, input.party ?? null]
-    );
-    const members: CouncilMemberSummary[] = memberRows.rows.map((row) => ({
-      councilMemberId: row.council_member_id,
-      name: row.name,
-      party: row.party,
-      district: row.district,
-      position: row.position,
-      career: row.career,
-      homepageUrl: row.homepage_url,
-      leadBillCount: Number(row.lead_count),
-      coBillCount: Number(row.co_count)
-    }));
+    const memberRows = await this.loadCouncilMembers({
+      ...(input.member ? { name: input.member } : {}),
+      ...(input.party ? { party: input.party } : {})
+    });
+    const members = memberRows.map((row) => row.summary);
 
     // A member filter that matches nobody must return nothing rather than the
     // whole council's legislative record.
@@ -1030,11 +1076,40 @@ export class PostgresDataRepository implements DataRepository {
       }
     }));
 
+    // A topic query asks "which bills", so the roster must describe the people
+    // behind those bills. Returning the whole council for a topic that matched
+    // nothing reads as a result set, and it let callers answer a question that
+    // no record supports.
+    let reportedMembers = memberRows;
+    if (input.query) {
+      reportedMembers = [];
+      if (records.length > 0) {
+        const sponsors = await this.executor.query<{ council_member_id: string }>(
+          `SELECT DISTINCT s.council_member_id
+             FROM council_bill_sponsor s
+            WHERE s.council_bill_id = ANY($1::text[])
+              AND s.council_member_id IS NOT NULL
+              AND ($2::text IS NULL OR s.role = $2)`,
+          [records.map((record) => record.id), role]
+        );
+        const sponsorIds = sponsors.rows.map((row) => row.council_member_id);
+        if (sponsorIds.length > 0) {
+          // Re-queried rather than filtered: the unrestricted roster is capped,
+          // so filtering it would silently drop sponsors outside that window.
+          reportedMembers = await this.loadCouncilMembers({
+            ...(input.member ? { name: input.member } : {}),
+            ...(input.party ? { party: input.party } : {}),
+            memberIds: sponsorIds
+          });
+        }
+      }
+    }
+
     return {
       records,
-      sources: uniqueSources(result.rows),
-      dataStatuses: uniqueStatuses(result.rows),
-      members
+      sources: uniqueSources([...result.rows, ...reportedMembers]),
+      dataStatuses: uniqueStatuses([...result.rows, ...reportedMembers]),
+      members: reportedMembers.map((row) => row.summary)
     };
   }
 

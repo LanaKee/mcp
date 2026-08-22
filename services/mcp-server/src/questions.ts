@@ -15,8 +15,8 @@
  *   comparability caveats through.
  * - `uljin-population` asks for a window wider than that region actually holds,
  *   so the agent declines and says what it does have.
- * - `press-depopulation` and `council-depopulation` reach different retrieval
- *   tools from the same topic word.
+ * - `press-population` and `council-population` reach different retrieval tools
+ *   from the same topic word.
  * - `youth-policy` names a dataset that exists but is empty, which the agent
  *   discloses while answering from another source.
  * - `mars-water` is out of scope entirely and gets no candidates at all.
@@ -31,12 +31,12 @@ export const representativeQuestions = [
     question: "울진군의 2015년부터 2024년까지 인구 추세를 알려줘"
   },
   {
-    id: "press-depopulation",
-    question: "경상북도 지방소멸 대응 관련 보도자료를 찾아줘"
+    id: "press-population",
+    question: "경상북도 인구 관련 보도자료를 찾아줘"
   },
   {
-    id: "council-depopulation",
-    question: "도의회에서 지방소멸을 다룬 의안을 찾아줘"
+    id: "council-population",
+    question: "도의회에서 인구 관련 의안을 찾아줘"
   },
   {
     id: "youth-policy",

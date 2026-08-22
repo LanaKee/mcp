@@ -229,8 +229,23 @@ export async function runAgent(
         step.arguments,
         context
       );
-      executedDatasets.push(step.datasetId);
       const dataset = getDatasetDefinition(step.datasetId);
+      // A tool can succeed and still return nothing that supports a claim: a
+      // filter that matches no row yields `empty` with no sources. Counting
+      // that as evidence would make the agent answer "collected evidence from
+      // X" while citing nobody, which is the exact failure this system exists
+      // to prevent. Record it as a miss instead.
+      if (response.data_status === "empty" || response.sources.length === 0) {
+        rejectedSteps.push({
+          step,
+          reason: `${step.tool} 호출은 성공했지만 조건에 맞는 데이터가 없어 근거로 쓰지 않았습니다.`
+        });
+        limitations.add(
+          `${dataset?.title ?? step.datasetId}에서 조건에 맞는 기록을 찾지 못했습니다.`
+        );
+        continue;
+      }
+      executedDatasets.push(step.datasetId);
       for (const rule of dataset?.usageRules ?? []) limitations.add(rule);
       for (const limitation of response.limitations) limitations.add(limitation);
       sources.push(...response.sources);
