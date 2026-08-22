@@ -4,6 +4,8 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
+import { registerPrompts } from "./mcp-prompts.js";
+import { registerResources } from "./mcp-resources.js";
 import { executeTool, type ToolRegistry } from "./tools.js";
 
 export const MCP_SERVER_NAME = "gyeongbuk-public-ai";
@@ -35,7 +37,7 @@ export function mcpCorrelationId(
 export function createMcpServer(registry: ToolRegistry): Server {
   const server = new Server(
     { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {}, resources: {}, prompts: {} } }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -77,6 +79,9 @@ export function createMcpServer(registry: ToolRegistry): Server {
       };
     }
   });
+
+  registerResources(server, registry);
+  registerPrompts(server);
 
   return server;
 }
