@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { extname } from "node:path";
 import { parseReferenceDate } from "./dates.js";
+import { containsMarkupSource } from "./gb-press-release.js";
 import {
   type EtlResult,
   type OfficialCouncilRow,
@@ -457,12 +458,23 @@ export function pressReleaseId(sourceRecordId: string): string {
   return `gb-press-${sourceRecordId}`;
 }
 
+/**
+ * A handful of posts contain an entire HWP-exported HTML document pasted as
+ * escaped source. Recovery runs first, so anything still reading as markup here
+ * could not be salvaged and is genuinely unusable — a different failure from
+ * garbled encoding, and one that deserves an accurate label.
+ */
+function looksLikeMarkupSource(body: string): boolean {
+  return containsMarkupSource(body);
+}
+
 function classifyPressBody(
   title: string,
   body: string
 ): PlannedPressRelease["contentClassification"] {
   const text = `${title}\n${body}`;
   if (body.trim().length === 0) return "unusable_for_retrieval";
+  if (looksLikeMarkupSource(body)) return "unusable_for_retrieval";
   const replacement = (text.match(/\uFFFD/g) ?? []).length;
   if (replacement > 0 && replacement / text.length > 0.005) {
     return "mojibake_suspected";

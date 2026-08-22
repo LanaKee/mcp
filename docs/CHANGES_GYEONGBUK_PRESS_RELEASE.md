@@ -122,6 +122,41 @@
 깨진 문자열을 "맥락"이라며 돌려주지 않기 위해서다. 판정 기준은 기존
 `korean-text-quality` 규칙과 동일한 발상(치환문자 비율, 한글 비율)을 쓴다.
 
+## 앵글 브래킷이 제거된 HWP 문서 복구
+
+일부 게시물(주로 2020~2021년의 일일 보도자료 목록)은 HWP에서 내보낸 HTML 문서
+전체가 본문에 붙여넣어져 있다. 게시판은 이를 서빙하기 전에 앵글 브래킷을
+제거하므로, 태그가 태그로 보이지 않아 일반적인 태그 제거기가 통하지 않는다.
+결과적으로 스타일 선언 사이에 실제 본문이 파묻힌 상태로 도착한다.
+
+```
+P CLASS=HStyle0 STYLE=...;line-height:130%제           목/SPAN/P
+```
+
+`recoverHwpMarkupBody()`가 문서 프리앰블과 브래킷 없는 태그를 제거해 본문을
+복원한다. CSS 값은 느슨한 패턴이 아니라 엄격한 토큰 문법으로 파싱해야
+`130%` 다음의 한글에서 정확히 멈춘다. 복구 후에도 마크업이 남아 있으면 원본을
+그대로 돌려주고 `unusable_for_retrieval`로 남긴다 — 반쯤 정리된 텍스트를
+검색에 노출하는 것이 더 나쁘기 때문이다.
+
+전체 13,707건 중 402건이 손상돼 있었고 401건을 복구했다. 자세한 경위는
+[MISTAKE_OVEREAGER_MARKUP_CLASSIFIER.md](./MISTAKE_OVEREAGER_MARKUP_CLASSIFIER.md)
+참고.
+
+## 수집 결과
+
+| 항목 | 값 |
+| --- | --- |
+| 레코드 | 13,707건 |
+| 기간 | 2020-01-06 ~ 2026-08-21 |
+| 월 커버리지 | 80개월, 누락 없음 |
+| 첨부 보유 | 13,674건 |
+| `extracted_ok` | 13,702건 |
+| `unusable_for_retrieval` | 5건 (빈 본문 4, 복구 불가 1) |
+
+2020년~2021년 10월은 월 25건 내외, 2021년 11월부터 월 270건 내외로
+게시량이 급증한다. 크롤 누락이 아니라 게시판의 실제 운영 변화다.
+
 ## 사용법
 
 ```bash
@@ -147,9 +182,10 @@ pnpm process
 
 ## 테스트
 
-- `pipelines/src/gb-press-release.test.ts` — 파서 10개 (주석 제목 누출, 두 자리
-  연도, 첨부파일, CSV 이스케이프, 컷오프 중단, 약관 미승인 거부)
+- `pipelines/src/gb-press-release.test.ts` — 파서 13개 (주석 제목 누출, 두 자리
+  연도, 첨부파일, CSV 이스케이프, 컷오프 중단, 약관 미승인 거부, HWP 마크업 복구)
 - `pipelines/src/csv.test.ts` — 헤더 기반 kind 판별
-- `pipelines/src/load-plan.test.ts` — 재크롤 시 id 안정성, 언급 시군, 판독 불가 분류
+- `pipelines/src/load-plan.test.ts` — 재크롤 시 id 안정성, 언급 시군,
+  복구 불가 본문은 `unusable`·복구된 본문은 `extracted_ok`
 - `services/mcp-server/src/tools.test.ts` — 도구 계약
 - `services/mcp-server/src/press-release-search.integration.test.ts` — 실제 DB 검색

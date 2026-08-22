@@ -1,6 +1,7 @@
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
 import { parseReferenceDate } from "./dates.js";
+import { recoverHwpMarkupBody } from "./gb-press-release.js";
 import {
   detectLocalTaxCsvKind,
   type LocalTaxCsvKind
@@ -371,11 +372,16 @@ export function normalizePressReleaseRows(
     .map((row, index) => {
       const publishedAt = firstValue(row, ["published_at"]);
       const viewCount = Number.parseInt(firstValue(row, ["view_count"]), 10);
+      const capturedBody = firstValue(row, ["body"]);
+      const body = recoverHwpMarkupBody(capturedBody);
       return {
         sourceRecordId: firstValue(row, ["source_record_id"]),
         title: firstValue(row, ["title"]),
-        body: firstValue(row, ["body"]),
-        bodySha256: firstValue(row, ["body_sha256"]),
+        body,
+        // Recovering a body invalidates the captured digest, so drop it and let
+        // the planner hash what is actually stored.
+        bodySha256:
+          body === capturedBody ? firstValue(row, ["body_sha256"]) : "",
         provinceName: firstValue(row, ["province_name"]) || fallbackProvince,
         department: firstValue(row, ["department"]) || null,
         contactPhone: firstValue(row, ["phone"]) || null,

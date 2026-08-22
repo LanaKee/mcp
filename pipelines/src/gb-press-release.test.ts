@@ -3,12 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { repositoryRoot } from "./etl.js";
 import {
+  containsMarkupSource,
   crawlGbPressReleases,
   expandTwoDigitYear,
   gbPressDetailUrl,
   gbPressReleasesToCsv,
   parseGbPressDetail,
-  parseGbPressListPage
+  parseGbPressListPage,
+  recoverHwpMarkupBody
 } from "./gb-press-release.js";
 
 const listItem = (step: number, title: string, date: string) => `
@@ -182,6 +184,73 @@ describe("Gyeongbuk press release parser", () => {
     expect(csv.split("\n")[0]).toContain("source_record_id");
     expect(csv).toContain('""인용""');
     expect(csv).toContain('"제목, 쉼표"');
+  });
+});
+
+describe("Gyeongbuk press release HWP markup recovery", () => {
+  // The board strips angle brackets from pasted HWP exports before serving
+  // them, so a tag stripper cannot see the tags and the prose arrives buried
+  // in style declarations.
+  const damagedBody = [
+    "!DOCTYPE HTML PUBLIC -//W3C//DTD HTML 4.01 Transitional//EN",
+    "HTML",
+    "HEAD",
+    " NAME=Generator CONTENT=Hancom HWP 9.1.1.4504",
+    " HTTP-EQUIV=Content-Type CONTENT=text/html; charset=utf-8",
+    "TITLE/TITLE",
+    "STYLE type=text/css",
+    "p.HStyle0",
+    "\t{style-name:바탕글; margin-top:0.0pt; font-family:함초롬바탕; color:#000000;}",
+    "/STYLE",
+    "/HEAD",
+    "BODY",
+    "P CLASS=HStyle0 STYLE=text-align:center;line-height:130%;SPAN STYLE=font-size:16.0pt;font-family:휴먼명조;letter-spacing:4%;line-height:130%제           목/SPAN/P",
+    "TABLE border=1 cellspacing=0 cellpadding=0 style=border-collapse:collapse;border:none;",
+    "TR",
+    "\tTD valign=middle bgcolor=#d8d8d8 style=width:585;height:52;padding:1.4pt 1.4pt 1.4pt 1.4pt",
+    "P CLASS=HStyle0 STYLE=margin-left:25.5pt;text-indent:-25.5pt;line-height:130%;SPAN STYLE=font-size:13.0pt;font-family:HY헤드라인M;line-height:130%① 경북도, 코로나19 확진환자 3명 확인/SPAN/P",
+    "/TD",
+    "/TR",
+    "/TABLE",
+    "/BODY",
+    "/HTML"
+  ].join("\n");
+
+  it("recovers the prose from a bracket-less HWP export", () => {
+    const recovered = recoverHwpMarkupBody(damagedBody);
+    expect(containsMarkupSource(recovered)).toBe(false);
+    expect(recovered).toContain("제 목");
+    expect(recovered).toContain("① 경북도, 코로나19 확진환자 3명 확인");
+    expect(recovered).not.toContain("HStyle0");
+    expect(recovered).not.toContain("font-size");
+    expect(recovered).not.toContain("Hancom HWP");
+  });
+
+  it("leaves an ordinary body untouched", () => {
+    // The recovery pass runs over every record, so it has to be a no-op for
+    // the 97% of posts that were never damaged.
+    const clean = [
+      "경상북도는 2024년 청년 일자리 사업을 추진한다.",
+      "- 3개 분야 11개 사업에 191억원 투입",
+      "담당부서: 청년정책관"
+    ].join("\n");
+    expect(recoverHwpMarkupBody(clean)).toBe(clean);
+  });
+
+  it("returns the original body when the markup cannot be salvaged", () => {
+    // A stylesheet with no document body has no prose to recover; handing back
+    // half-stripped CSS would be worse than reporting the record unusable.
+    const stylesheetOnly = [
+      "!DOCTYPE HTML PUBLIC -//W3C//DTD HTML 4.01 Transitional//EN",
+      "HTML",
+      "HEAD",
+      " NAME=Generator CONTENT=Hancom HWP 9.1.1.4504",
+      "STYLE type=text/css",
+      "p.HStyle0",
+      "\t{style-name:바탕글; font-family:함초롬바탕; color:#000000;}"
+    ].join("\n");
+    expect(recoverHwpMarkupBody(stylesheetOnly)).toBe(stylesheetOnly);
+    expect(containsMarkupSource(stylesheetOnly)).toBe(true);
   });
 });
 

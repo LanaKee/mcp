@@ -22,6 +22,89 @@ export const GB_PRESS_CRAWLER_USER_AGENT =
 /** The board returns ten rows per page; the offset is a row index, not a page. */
 export const GB_PRESS_PAGE_SIZE = 10;
 
+/**
+ * Tag names that appear in the HWP HTML export. `STYLE`/`META`/`TITLE` are
+ * deliberately absent: they double as attribute names (`STYLE=`) or only ever
+ * occur in the document preamble, which is removed separately.
+ */
+const HWP_TAG_NAMES =
+  "TABLE|TBODY|THEAD|TR|TD|TH|COLGROUP|COL|SPAN|DIV|CENTER|FONT|IMG|BR|HR|PRE|NOBR|STRONG|SUP|SUB|O:P|UL|OL|LI|H[1-6]|P|A|B|I|U|EM";
+const CSS_NUMBER = "[+-]?[0-9][0-9.]*(?:%|pt|px|em|cm|mm|in)?";
+const CSS_VALUE_TOKEN = `(?:${CSS_NUMBER}|#[0-9A-Fa-f]{3,8}|[A-Za-z][A-Za-z0-9_-]*)`;
+/**
+ * Font names are the only declaration values that may contain Hangul, so they
+ * are the only ones allowed to run to the terminating semicolon. Every other
+ * value is a strict token list, which is what lets the scanner stop at the
+ * boundary between a style attribute and the prose that follows it.
+ */
+const CSS_DECLARATION =
+  `(?:(?:font-family|style-name)\\s*:[^;\\n]*;` +
+  `|[A-Za-z-]+\\s*:\\s*(?:${CSS_VALUE_TOKEN}[ ,]*)*;?)\\s*`;
+const HWP_ATTRIBUTE_VALUE =
+  `(?:(?:${CSS_DECLARATION})+|#[0-9A-Fa-f]{3,8}|${CSS_NUMBER}` +
+  `|[A-Za-z_][\\w.:/-]*|"[^"\\n]*")`;
+const HWP_TAG_PATTERN = new RegExp(
+  `(?<![a-z0-9\\uAC00-\\uD7A3])/?(?:${HWP_TAG_NAMES})(?![a-z0-9])` +
+    `(?:\\s+[A-Za-z-]+\\s*=\\s*${HWP_ATTRIBUTE_VALUE})*`,
+  "gu"
+);
+const HWP_PREAMBLE_LINE =
+  /^[ \t]*(?:!DOCTYPE|\/?HTML|\/?HEAD|\/?TITLE|\/?STYLE|\/?META|NAME\s*=|HTTP-EQUIV\s*=)[^\n]*$/gimu;
+const HWP_DOCUMENT_MARKERS = [
+  "!DOCTYPE HTML",
+  "HTTP-EQUIV=CONTENT-TYPE",
+  "CONTENT=HANCOM HWP",
+  "STYLE-NAME:",
+  "FONT-FAMILY:"
+];
+
+/**
+ * Reports whether a body still reads as HTML source rather than prose. Used
+ * both to decide whether recovery is worth attempting and, afterwards, as the
+ * gate that decides whether recovery actually succeeded.
+ */
+export function containsMarkupSource(body: string): boolean {
+  const head = body.slice(0, 4000).toUpperCase();
+  return HWP_DOCUMENT_MARKERS.some((marker) => head.includes(marker));
+}
+
+/**
+ * A subset of posts paste an entire HWP-exported HTML document into the body.
+ * The board strips the angle brackets before serving it, so a plain tag
+ * stripper cannot see the tags and the prose arrives buried in style
+ * declarations. This removes the preamble and the bracket-less tags so the
+ * genuine text survives; bodies without that damage are returned untouched.
+ */
+export function recoverHwpMarkupBody(body: string): string {
+  if (!containsMarkupSource(body)) return body;
+
+  const documentStart = /^[ \t]*BODY[ \t]*>?[ \t]*$/mu.exec(body);
+  const documentEnd = /^[ \t]*\/BODY[ \t]*>?[ \t]*$/mu.exec(body);
+  let text =
+    documentStart && documentEnd && documentEnd.index > documentStart.index
+      ? body.slice(documentStart.index + documentStart[0].length, documentEnd.index)
+      : body;
+
+  text = text.replace(HWP_PREAMBLE_LINE, "");
+  // Adjacent tags lost their delimiters too ("/SPANSPAN"), so one pass can only
+  // remove every other tag. Repeat until the text stops shrinking.
+  for (let pass = 0; pass < 6; pass += 1) {
+    const next = text.replace(HWP_TAG_PATTERN, " ");
+    if (next === text) break;
+    text = next;
+  }
+
+  const recovered = text
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/gu, " ").replace(/^\s*\/+\s*|\s*\/+\s*$/gu, "").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+
+  // Never trade a readable body for a mangled one: if recovery left markup
+  // behind, hand back the original so the loader can flag it honestly.
+  return containsMarkupSource(recovered) ? body : recovered;
+}
+
 export interface GbPressAttachment {
   name: string;
   url: string;
@@ -322,7 +405,7 @@ export function parseGbPressDetail(
       ""
     )
     .replace(/<script[\s\S]*?<\/script>/giu, "");
-  const body = normalizedBlockText(bodySource);
+  const body = recoverHwpMarkupBody(normalizedBlockText(bodySource));
   if (body.length === 0) {
     issues.push({
       field: "body",

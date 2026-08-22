@@ -162,6 +162,39 @@ describe("press release planning", () => {
     ).toBe(true);
   });
 
+  it("treats an unsalvageable HTML document as unusable rather than mojibake", async () => {
+    // Some 2020 posts contain a whole HWP-exported HTML document pasted as
+    // escaped source. The text is intact; it just is not prose.
+    const etl = fixture();
+    etl.pressRelease[0]!.body = [
+      "!DOCTYPE HTML PUBLIC -//W3C//DTD HTML 4.01 Transitional//EN",
+      "HTML",
+      "HEAD",
+      "NAME=Generator CONTENT=Hancom HWP 9.1.1.4504",
+      "HTTP-EQUIV=Content-Type CONTENT=text/html; charset=utf-8",
+      "STYLE type=text/css",
+      "p.HStyle0 {style-name:바탕글; font-family:함초롬바탕;}"
+    ].join("\n");
+    const plan = await createLoadPlan(etl);
+    expect(plan.pressReleases[0]?.contentClassification).toBe(
+      "unusable_for_retrieval"
+    );
+  });
+
+  it("keeps a body whose markup was recovered as ordinary prose", async () => {
+    // Guards the negative class: an over-eager markup detector once suppressed
+    // 400 perfectly readable releases.
+    const etl = fixture();
+    etl.pressRelease[0]!.body = [
+      "제 목",
+      "① 경북도, 청년 일자리 사업 추진",
+      "- 3개 분야 11개 사업에 191억원 투입",
+      "청년정책관"
+    ].join("\n");
+    const plan = await createLoadPlan(etl);
+    expect(plan.pressReleases[0]?.contentClassification).toBe("extracted_ok");
+  });
+
   it("flags an unreadable body instead of indexing it as context", async () => {
     const etl = fixture();
     etl.pressRelease[0]!.body = "\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD";
