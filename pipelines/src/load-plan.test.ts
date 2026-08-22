@@ -106,9 +106,195 @@ function fixture(): EtlResult {
         dataStatus: "official_observed"
       }
     ],
+    councilMember: [],
+    councilBill: [],
+    councilBillSponsor: [],
     errors: []
   };
 }
+
+const councilSourcePath = "datasets/gyeongbuk-council/경상북도의회_의안.csv";
+const councilSha256 = "e".repeat(64);
+
+function councilFixture(): EtlResult {
+  const etl = fixture();
+  etl.catalog = [
+    {
+      ...catalogEntry(),
+      path: councilSourcePath,
+      fileNameNfc: "경상북도의회_의안.csv",
+      sha256: councilSha256,
+      contentKind: "council_bill"
+    }
+  ];
+  etl.population = [];
+  etl.council = [];
+  etl.pressRelease = [];
+  etl.councilMember = [
+    {
+      searchCode: "12009",
+      siteMemberId: "852",
+      name: "김대진",
+      party: "국민의힘",
+      district: "안동시 제1선거구",
+      position: "문화환경위원회 위원장",
+      officePhone: "054-880-5360",
+      education: "안동대학교 졸업",
+      career: "(전)안동시의회 의원",
+      photoUrl: null,
+      homepageUrl: "https://council.gb.go.kr/member/main?search_code=12009",
+      sourceRow: 2,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256,
+      dataStatus: "official_observed"
+    },
+    {
+      searchCode: "13640",
+      siteMemberId: "897",
+      name: "공승희",
+      party: "국민의힘",
+      district: "비례대표",
+      position: "문화환경위원회 위원",
+      officePhone: null,
+      education: null,
+      career: null,
+      photoUrl: null,
+      homepageUrl: "https://council.gb.go.kr/member/main?search_code=13640",
+      sourceRow: 3,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256,
+      dataStatus: "official_observed"
+    }
+  ];
+  etl.councilBill = [
+    {
+      billUid: "AA11BB22CC33DD44EE55FF6677889900",
+      billNumber: "1327",
+      title: "경상북도 산림의 공익기능 증진에 관한 조례안",
+      billKind: "조례안",
+      proposerKind: "의원",
+      committee: "농수산위원회",
+      sessionName: "제360회 경상북도의회 정례회",
+      proposedDate: "2026-03-11",
+      decidedDate: "2026-03-20",
+      status: "처리완료",
+      outcome: "원안가결",
+      leadSponsors: ["김대진"],
+      coSponsorCount: 2,
+      detailUrl: "https://council.gb.go.kr/member/bill/contents?reform=view",
+      sourceRow: 2,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256,
+      dataStatus: "official_observed"
+    }
+  ];
+  etl.councilBillSponsor = [
+    {
+      billUid: "AA11BB22CC33DD44EE55FF6677889900",
+      role: "lead",
+      memberName: "김대진",
+      searchCode: "12009",
+      sourceRow: 2,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256
+    },
+    {
+      billUid: "AA11BB22CC33DD44EE55FF6677889900",
+      role: "co",
+      memberName: "공승희",
+      searchCode: null,
+      sourceRow: 3,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256
+    },
+    {
+      billUid: "AA11BB22CC33DD44EE55FF6677889900",
+      role: "co",
+      memberName: "박전임",
+      searchCode: null,
+      sourceRow: 4,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256
+    }
+  ];
+  return etl;
+}
+
+describe("council member and bill planning", () => {
+  it("keys members and bills on the site's own identifiers", async () => {
+    const plan = await createLoadPlan(councilFixture());
+    expect(plan.councilMembers.map((row) => row.councilMemberId)).toEqual([
+      "gb-council-member-12009",
+      "gb-council-member-13640"
+    ]);
+    expect(plan.councilBills[0]?.councilBillId).toBe(
+      "gb-council-bill-aa11bb22cc33dd44ee55ff6677889900"
+    );
+    expect(plan.councilBills[0]?.leadSponsorCount).toBe(1);
+  });
+
+  it("resolves a district to its city but leaves 비례대표 unmapped", async () => {
+    const plan = await createLoadPlan(councilFixture());
+    const byName = new Map(plan.councilMembers.map((row) => [row.name, row]));
+    expect(byName.get("김대진")?.regionId).toBe("47170");
+    // A proportional-representation seat has no geography; inventing one would
+    // make the member look like they represent a city they do not.
+    expect(byName.get("공승희")?.regionId).toBeNull();
+  });
+
+  it("keeps 대표발의 and 공동발의 as separate rows", async () => {
+    const plan = await createLoadPlan(councilFixture());
+    const roles = plan.councilBillSponsors.map((row) => [row.role, row.memberName]);
+    expect(roles).toEqual([
+      ["lead", "김대진"],
+      ["co", "공승희"],
+      ["co", "박전임"]
+    ]);
+  });
+
+  it("keeps a sponsor who is not on the roster instead of dropping the link", async () => {
+    const plan = await createLoadPlan(councilFixture());
+    const byName = new Map(
+      plan.councilBillSponsors.map((row) => [row.memberName, row])
+    );
+    expect(byName.get("김대진")?.councilMemberId).toBe("gb-council-member-12009");
+    // Matched by name even though the CSV carried no search_code.
+    expect(byName.get("공승희")?.councilMemberId).toBe("gb-council-member-13640");
+    // A past-term member keeps their name with a null member id.
+    expect(byName.get("박전임")?.councilMemberId).toBeNull();
+    expect(plan.rejected.filter((row) => row.entityType.startsWith("council_"))).toEqual(
+      []
+    );
+  });
+
+  it("rejects a sponsor row whose bill was never planned", async () => {
+    const etl = councilFixture();
+    etl.councilBillSponsor.push({
+      billUid: "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+      role: "lead",
+      memberName: "김대진",
+      searchCode: "12009",
+      sourceRow: 9,
+      sourcePath: councilSourcePath,
+      sourceSha256: councilSha256
+    });
+    const plan = await createLoadPlan(etl);
+    expect(
+      plan.rejected.some(
+        (row) =>
+          row.entityType === "council_bill_sponsor" &&
+          row.reason.includes("unknown bill")
+      )
+    ).toBe(true);
+  });
+
+  it("emits a locator for every planned member and bill", async () => {
+    const plan = await createLoadPlan(councilFixture());
+    const entityTypes = plan.locators.map((row) => row.entityType);
+    expect(entityTypes).toContain("council_member");
+    expect(entityTypes).toContain("council_bill");
+  });
+});
 
 describe("press release planning", () => {
   it("keys press releases on the board post id, not the snapshot file", async () => {

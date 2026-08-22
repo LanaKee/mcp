@@ -65,11 +65,29 @@ export async function readGeneratedEtl(): Promise<EtlResult> {
   )
     .then((raw) => JSON.parse(raw) as EtlResult["pressRelease"])
     .catch(() => [] as EtlResult["pressRelease"]);
+  const optional = async <K extends keyof EtlResult>(
+    file: string
+  ): Promise<EtlResult[K]> =>
+    readFile(resolve(generatedDirectory, file), "utf8")
+      .then((raw) => JSON.parse(raw) as EtlResult[K])
+      .catch(() => [] as unknown as EtlResult[K]);
+  const councilMember = await optional<"councilMember">(
+    "council-member.normalized.json"
+  );
+  const councilBill = await optional<"councilBill">(
+    "council-bill.normalized.json"
+  );
+  const councilBillSponsor = await optional<"councilBillSponsor">(
+    "council-bill-sponsor.normalized.json"
+  );
   return {
     catalog: catalog as EtlResult["catalog"],
     population: population as EtlResult["population"],
     council: council as EtlResult["council"],
     pressRelease,
+    councilMember,
+    councilBill,
+    councilBillSponsor,
     localTax: localTax as EtlResult["localTax"],
     errors: errors as EtlResult["errors"]
   };

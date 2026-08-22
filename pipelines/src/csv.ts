@@ -14,6 +14,9 @@ export type CsvKind =
   | "population_local"
   | "council_agenda"
   | "press_release"
+  | "council_member"
+  | "council_bill"
+  | "council_bill_sponsor"
   | LocalTaxCsvKind
   | "other";
 
@@ -66,6 +69,25 @@ export function detectCsvKind(headers: string[]): CsvKind {
     )
   ) {
     return "press_release";
+  }
+  // The council CSVs are checked before the generic 의안/안건 heuristic because
+  // the bill file also carries a 의안번호-equivalent column.
+  if (
+    ["bill_uid", "role", "member_name"].every((header) => compact.includes(header))
+  ) {
+    return "council_bill_sponsor";
+  }
+  if (
+    ["bill_uid", "title", "detail_url"].every((header) => compact.includes(header))
+  ) {
+    return "council_bill";
+  }
+  if (
+    ["search_code", "name", "homepage_url"].every((header) =>
+      compact.includes(header)
+    )
+  ) {
+    return "council_member";
   }
   if (
     ["의안명", "안건명", "건명"].some((header) => compact.includes(header)) &&
@@ -362,6 +384,12 @@ const pressListValue = (value: string): string[] =>
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
 
+const semicolonListValue = (value: string): string[] =>
+  value
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
 export function normalizePressReleaseRows(
   decoded: DecodedCsv,
   pathName: string
@@ -396,4 +424,113 @@ export function normalizePressReleaseRows(
       };
     })
     .filter((row) => row.sourceRecordId.length > 0 && row.title.length > 0);
+}
+
+export interface NormalizedCouncilMemberRow {
+  searchCode: string;
+  siteMemberId: string | null;
+  name: string;
+  party: string | null;
+  district: string | null;
+  position: string | null;
+  officePhone: string | null;
+  education: string | null;
+  career: string | null;
+  photoUrl: string | null;
+  homepageUrl: string;
+  sourceRow: number;
+}
+
+export function normalizeCouncilMemberRows(
+  decoded: DecodedCsv
+): NormalizedCouncilMemberRow[] {
+  if (decoded.kind !== "council_member") return [];
+  return decoded.rows
+    .map((row, index) => ({
+      searchCode: firstValue(row, ["search_code"]),
+      siteMemberId: firstValue(row, ["site_member_id"]) || null,
+      name: firstValue(row, ["name"]),
+      party: firstValue(row, ["party"]) || null,
+      district: firstValue(row, ["district"]) || null,
+      position: firstValue(row, ["position"]) || null,
+      officePhone: firstValue(row, ["office_phone"]) || null,
+      education: firstValue(row, ["education"]) || null,
+      career: firstValue(row, ["career"]) || null,
+      photoUrl: firstValue(row, ["photo_url"]) || null,
+      homepageUrl: firstValue(row, ["homepage_url"]),
+      sourceRow: index + 2
+    }))
+    .filter((row) => row.searchCode.length > 0 && row.name.length > 0);
+}
+
+export interface NormalizedCouncilBillRow {
+  billUid: string;
+  billNumber: string | null;
+  title: string;
+  billKind: string | null;
+  proposerKind: string | null;
+  committee: string | null;
+  sessionName: string | null;
+  proposedDate: string | null;
+  decidedDate: string | null;
+  status: string | null;
+  outcome: string | null;
+  leadSponsors: string[];
+  coSponsorCount: number;
+  detailUrl: string;
+  sourceRow: number;
+}
+
+export function normalizeCouncilBillRows(
+  decoded: DecodedCsv
+): NormalizedCouncilBillRow[] {
+  if (decoded.kind !== "council_bill") return [];
+  return decoded.rows
+    .map((row, index) => {
+      const coSponsorCount = Number.parseInt(
+        firstValue(row, ["co_sponsor_count"]),
+        10
+      );
+      return {
+        billUid: firstValue(row, ["bill_uid"]).toUpperCase(),
+        billNumber: firstValue(row, ["bill_number"]) || null,
+        title: firstValue(row, ["title"]),
+        billKind: firstValue(row, ["bill_kind"]) || null,
+        proposerKind: firstValue(row, ["proposer_kind"]) || null,
+        committee: firstValue(row, ["committee"]) || null,
+        sessionName: firstValue(row, ["session"]) || null,
+        proposedDate: parseReferenceDate(firstValue(row, ["proposed_date"])),
+        decidedDate: parseReferenceDate(firstValue(row, ["decided_date"])),
+        status: firstValue(row, ["status"]) || null,
+        outcome: firstValue(row, ["outcome"]) || null,
+        leadSponsors: semicolonListValue(firstValue(row, ["lead_sponsors"])),
+        coSponsorCount: Number.isFinite(coSponsorCount) ? coSponsorCount : 0,
+        detailUrl: firstValue(row, ["detail_url"]),
+        sourceRow: index + 2
+      };
+    })
+    .filter((row) => row.billUid.length > 0 && row.title.length > 0);
+}
+
+export interface NormalizedCouncilBillSponsorRow {
+  billUid: string;
+  role: string;
+  memberName: string;
+  searchCode: string | null;
+  sourceRow: number;
+}
+
+export function normalizeCouncilBillSponsorRows(
+  decoded: DecodedCsv
+): NormalizedCouncilBillSponsorRow[] {
+  if (decoded.kind !== "council_bill_sponsor") return [];
+  return decoded.rows
+    .map((row, index) => ({
+      billUid: firstValue(row, ["bill_uid"]).toUpperCase(),
+      role: firstValue(row, ["role"]),
+      memberName: firstValue(row, ["member_name"]),
+      searchCode: firstValue(row, ["search_code"]) || null,
+      sourceRow: index + 2
+    }))
+    .filter((row) => row.billUid.length > 0 && row.memberName.length > 0);
 }

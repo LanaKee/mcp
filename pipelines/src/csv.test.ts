@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   inferRegionName,
   normalizeAnnualPopulation,
+  normalizeCouncilBillRows,
+  normalizeCouncilBillSponsorRows,
+  normalizeCouncilMemberRows,
   normalizeCouncilRows,
   normalizePressReleaseRows,
   normalizePopulationSnapshot,
@@ -144,6 +147,64 @@ describe("dataset CSV adapters", () => {
     );
     expect(decoded.kind).toBe("council_agenda");
     expect(normalizePressReleaseRows(decoded, "council.csv")).toEqual([]);
+  });
+
+  it("detects the three council CSV kinds from their header contracts", () => {
+    const members = parseKoreanCsv(
+      Buffer.from(
+        "search_code,site_member_id,name,party,district,position,office_phone,education,career,photo_url,homepage_url\n" +
+          "12009,852,김대진,국민의힘,안동시 제1선거구,문화환경위원회 위원장,054-880-5360,안동대학교 졸업,\"(전)안동시의회 의원\",,https://council.gb.go.kr/member/main?search_code=12009\n"
+      )
+    );
+    expect(members.kind).toBe("council_member");
+    expect(normalizeCouncilMemberRows(members)[0]).toMatchObject({
+      searchCode: "12009",
+      name: "김대진",
+      party: "국민의힘",
+      position: "문화환경위원회 위원장",
+      sourceRow: 2
+    });
+
+    const bills = parseKoreanCsv(
+      Buffer.from(
+        "bill_uid,bill_number,title,bill_kind,proposer_kind,committee,session,proposed_date,decided_date,status,outcome,lead_sponsors,co_sponsor_count,detail_url\n" +
+          "aa11bb22cc33dd44ee55ff6677889900,1327,경상북도 산림 조례안,조례안,의원,농수산위원회,제360회,2026-03-11,2026-03-20,처리완료,원안가결,김대진;도희재,2,https://council.gb.go.kr/detail\n"
+      )
+    );
+    expect(bills.kind).toBe("council_bill");
+    expect(normalizeCouncilBillRows(bills)[0]).toMatchObject({
+      // The site prints the uid in upper case in links but lower case in some
+      // exports; normalising here keeps the sponsor join working.
+      billUid: "AA11BB22CC33DD44EE55FF6677889900",
+      billKind: "조례안",
+      leadSponsors: ["김대진", "도희재"],
+      coSponsorCount: 2,
+      proposedDate: "2026-03-11"
+    });
+
+    const sponsors = parseKoreanCsv(
+      Buffer.from(
+        "bill_uid,role,member_name,search_code\n" +
+          "aa11bb22cc33dd44ee55ff6677889900,co,공승희,\n"
+      )
+    );
+    expect(sponsors.kind).toBe("council_bill_sponsor");
+    expect(normalizeCouncilBillSponsorRows(sponsors)[0]).toMatchObject({
+      billUid: "AA11BB22CC33DD44EE55FF6677889900",
+      role: "co",
+      memberName: "공승희",
+      searchCode: null
+    });
+  });
+
+  it("does not mistake a council bill CSV for a council agenda CSV", () => {
+    const decoded = parseKoreanCsv(
+      Buffer.from(
+        "bill_uid,title,detail_url\naa11bb22cc33dd44ee55ff6677889900,조례안,https://council.gb.go.kr/detail\n"
+      )
+    );
+    expect(decoded.kind).toBe("council_bill");
+    expect(normalizeCouncilRows(decoded, "bills.csv")).toEqual([]);
   });
 
   it("normalizes NFD filenames without exact filename matching", () => {

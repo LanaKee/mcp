@@ -233,7 +233,8 @@ export const MIGRATION_FILES = [
   "012_remove_demo_data.sql",
   "013_raw_intake_ledger.sql",
   "014_content_addressed_sources.sql",
-  "015_gyeongbuk_press_release.sql"
+  "015_gyeongbuk_press_release.sql",
+  "016_gyeongbuk_council_member_bill.sql"
 ] as const;
 
 export async function applyDatabaseSchema(client: Client): Promise<void> {
@@ -325,6 +326,15 @@ async function integrityCounts(client: Client): Promise<IntegrityCount[]> {
     UNION ALL
     SELECT 'press_release', data_status, count(*)::text
       FROM press_release GROUP BY data_status
+    UNION ALL
+    SELECT 'council_member', data_status, count(*)::text
+      FROM council_member GROUP BY data_status
+    UNION ALL
+    SELECT 'council_bill', data_status, count(*)::text
+      FROM council_bill GROUP BY data_status
+    UNION ALL
+    SELECT 'council_bill_sponsor', role, count(*)::text
+      FROM council_bill_sponsor GROUP BY role
     UNION ALL
     SELECT 'source_locator', entity_type, count(*)::text
       FROM source_locator GROUP BY entity_type
@@ -1300,6 +1310,167 @@ export async function loadDatabase(
           "content_classification",
           "metadata"
         ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "council_member",
+        columns: [
+          "council_member_id",
+          "council_name",
+          "search_code",
+          "site_member_id",
+          "name",
+          "party",
+          "district",
+          "region_id",
+          "position",
+          "office_phone",
+          "education",
+          "career",
+          "photo_url",
+          "homepage_url",
+          "source_id",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.councilMembers.map((row) => [
+          row.councilMemberId,
+          row.councilName,
+          row.searchCode,
+          row.siteMemberId,
+          row.name,
+          row.party,
+          row.district,
+          row.regionId,
+          row.position,
+          row.officePhone,
+          row.education,
+          row.career,
+          row.photoUrl,
+          row.homepageUrl,
+          sourceId(sourceIds, row.sourceKey),
+          ingestionRunId,
+          row.dataStatus,
+          JSON.stringify(row.metadata)
+        ]),
+        conflictColumns: ["council_member_id"],
+        updateColumns: [
+          "council_name",
+          "search_code",
+          "site_member_id",
+          "name",
+          "party",
+          "district",
+          "region_id",
+          "position",
+          "office_phone",
+          "education",
+          "career",
+          "photo_url",
+          "homepage_url",
+          "source_id",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "council_bill",
+        columns: [
+          "council_bill_id",
+          "council_name",
+          "bill_uid",
+          "bill_number",
+          "title",
+          "bill_kind",
+          "proposer_kind",
+          "committee",
+          "session_name",
+          "proposed_date",
+          "decided_date",
+          "status",
+          "outcome",
+          "lead_sponsor_count",
+          "co_sponsor_count",
+          "detail_url",
+          "source_id",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.councilBills.map((row) => [
+          row.councilBillId,
+          row.councilName,
+          row.billUid,
+          row.billNumber,
+          row.title,
+          row.billKind,
+          row.proposerKind,
+          row.committee,
+          row.sessionName,
+          row.proposedDate,
+          row.decidedDate,
+          row.status,
+          row.outcome,
+          row.leadSponsorCount,
+          row.coSponsorCount,
+          row.detailUrl,
+          sourceId(sourceIds, row.sourceKey),
+          ingestionRunId,
+          row.dataStatus,
+          JSON.stringify(row.metadata)
+        ]),
+        conflictColumns: ["council_bill_id"],
+        updateColumns: [
+          "council_name",
+          "bill_uid",
+          "bill_number",
+          "title",
+          "bill_kind",
+          "proposer_kind",
+          "committee",
+          "session_name",
+          "proposed_date",
+          "decided_date",
+          "status",
+          "outcome",
+          "lead_sponsor_count",
+          "co_sponsor_count",
+          "detail_url",
+          "source_id",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "council_bill_sponsor",
+        columns: [
+          "council_bill_id",
+          "role",
+          "member_name",
+          "council_member_id"
+        ],
+        rows: plan.councilBillSponsors.map((row) => [
+          row.councilBillId,
+          row.role,
+          row.memberName,
+          row.councilMemberId
+        ]),
+        conflictColumns: ["council_bill_id", "role", "member_name"],
+        updateColumns: ["council_member_id"]
       })
     );
 

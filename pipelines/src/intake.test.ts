@@ -272,6 +272,9 @@ describe("store routing", () => {
     expect(storeCategory("population_workbook", ".xlsx")).toBe("population");
     expect(storeCategory("council_agenda", ".csv")).toBe("council");
     expect(storeCategory("press_release", ".csv")).toBe("press-release");
+    expect(storeCategory("council_member", ".csv")).toBe("council");
+    expect(storeCategory("council_bill", ".csv")).toBe("council");
+    expect(storeCategory("council_bill_sponsor", ".csv")).toBe("council");
     expect(storeCategory("pdf_document", ".pdf")).toBe("documents");
     expect(storeCategory("other", ".xml")).toBe("misc");
   });

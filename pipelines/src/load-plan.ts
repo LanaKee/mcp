@@ -5,6 +5,9 @@ import { containsMarkupSource } from "./gb-press-release.js";
 import {
   type EtlResult,
   type OfficialCouncilRow,
+  type OfficialCouncilBillRow,
+  type OfficialCouncilBillSponsorRow,
+  type OfficialCouncilMemberRow,
   type OfficialPressReleaseRow,
   type OfficialPopulationRow
 } from "./etl.js";
@@ -180,6 +183,59 @@ export interface PlannedPressRelease {
   metadata: Record<string, unknown>;
 }
 
+export const GB_COUNCIL_NAME = "경상북도의회";
+
+export interface PlannedCouncilMember {
+  councilMemberId: string;
+  councilName: string;
+  searchCode: string;
+  siteMemberId: string | null;
+  name: string;
+  party: string | null;
+  district: string | null;
+  /** Null for proportional-representation seats, which have no district. */
+  regionId: string | null;
+  position: string | null;
+  officePhone: string | null;
+  education: string | null;
+  career: string | null;
+  photoUrl: string | null;
+  homepageUrl: string;
+  sourceKey: string;
+  dataStatus: "official_observed";
+  metadata: Record<string, unknown>;
+}
+
+export interface PlannedCouncilBill {
+  councilBillId: string;
+  councilName: string;
+  billUid: string;
+  billNumber: string | null;
+  title: string;
+  billKind: string | null;
+  proposerKind: string | null;
+  committee: string | null;
+  sessionName: string | null;
+  proposedDate: string | null;
+  decidedDate: string | null;
+  status: string | null;
+  outcome: string | null;
+  leadSponsorCount: number;
+  coSponsorCount: number;
+  detailUrl: string;
+  sourceKey: string;
+  dataStatus: "official_observed";
+  metadata: Record<string, unknown>;
+}
+
+export interface PlannedCouncilBillSponsor {
+  councilBillId: string;
+  role: "lead" | "co";
+  memberName: string;
+  /** Null when the sponsor is not on the current roster (e.g. a past term). */
+  councilMemberId: string | null;
+}
+
 export interface PlannedLocator {
   sourceKey: string;
   entityType: string;
@@ -216,6 +272,9 @@ export interface LoadPlan {
   policies: PlannedPolicy[];
   council: PlannedCouncil[];
   pressReleases: PlannedPressRelease[];
+  councilMembers: PlannedCouncilMember[];
+  councilBills: PlannedCouncilBill[];
+  councilBillSponsors: PlannedCouncilBillSponsor[];
   locators: PlannedLocator[];
   rejected: RejectedFact[];
   inputSha256: string;
@@ -573,6 +632,190 @@ function addOfficialPressRelease(
   });
 }
 
+export function councilMemberId(searchCode: string): string {
+  return `gb-council-member-${searchCode}`;
+}
+
+export function councilBillId(billUid: string): string {
+  return `gb-council-bill-${billUid.toLowerCase()}`;
+}
+
+/**
+ * Resolves the city or county an electoral district sits in.
+ *
+ * District names read like "안동시 제2선거구"; proportional-representation seats
+ * read "비례대표" and correctly resolve to nothing.
+ */
+function councilDistrictRegionId(district: string | null): string | null {
+  if (!district) return null;
+  if (district.includes("비례")) return null;
+  const head = district.split(/\s+/u)[0] ?? district;
+  return resolveGyeongbukRegion(head)?.regionId ?? null;
+}
+
+/**
+ * Plans the 경상북도의회 roster, bills and sponsorship links together.
+ *
+ * They are planned in one pass because sponsorship rows only become useful once
+ * both sides exist: a sponsor naming a member who is not on the current roster
+ * is kept with a null member id rather than dropped, so a bill's authorship
+ * stays complete even when a past-term member signed it.
+ */
+function addOfficialCouncilMembersAndBills(
+  etl: EtlResult,
+  plan: Omit<LoadPlan, "inputSha256">
+): void {
+  const requireSource = (
+    entityType: string,
+    sourceSha256: string,
+    sourcePath: string,
+    sourceRow: number
+  ): string | null => {
+    const sourceKey = officialSourceKey(sourceSha256);
+    if (plan.sources.some((source) => source.sourceKey === sourceKey)) {
+      return sourceKey;
+    }
+    plan.rejected.push({
+      entityType,
+      sourcePath,
+      sourceRow,
+      reason: "Source catalog entry is missing"
+    });
+    return null;
+  };
+
+  const memberIdBySearchCode = new Map<string, string>();
+  const memberIdByName = new Map<string, string>();
+  for (const row of etl.councilMember) {
+    const sourceKey = requireSource(
+      "council_member",
+      row.sourceSha256,
+      row.sourcePath,
+      row.sourceRow
+    );
+    if (!sourceKey) continue;
+    const id = councilMemberId(row.searchCode);
+    memberIdBySearchCode.set(row.searchCode, id);
+    if (!memberIdByName.has(row.name)) memberIdByName.set(row.name, id);
+    plan.councilMembers.push({
+      councilMemberId: id,
+      councilName: GB_COUNCIL_NAME,
+      searchCode: row.searchCode,
+      siteMemberId: row.siteMemberId,
+      name: row.name,
+      party: row.party,
+      district: row.district,
+      regionId: councilDistrictRegionId(row.district),
+      position: row.position,
+      officePhone: row.officePhone,
+      education: row.education,
+      career: row.career,
+      photoUrl: row.photoUrl,
+      homepageUrl: row.homepageUrl,
+      sourceKey,
+      dataStatus: "official_observed",
+      metadata: {
+        sourceRow: row.sourceRow,
+        recordType: "council_member",
+        evidenceRole: "narrative_context_only"
+      }
+    });
+    plan.locators.push({
+      sourceKey,
+      entityType: "council_member",
+      entityKey: id,
+      pageNumber: null,
+      rowNumber: row.sourceRow,
+      sectionName: null,
+      characterStart: null,
+      characterEnd: null,
+      locatorText: `${row.sourcePath}#row=${row.sourceRow}`
+    });
+  }
+
+  const billIdByUid = new Map<string, string>();
+  for (const row of etl.councilBill) {
+    const sourceKey = requireSource(
+      "council_bill",
+      row.sourceSha256,
+      row.sourcePath,
+      row.sourceRow
+    );
+    if (!sourceKey) continue;
+    const id = councilBillId(row.billUid);
+    billIdByUid.set(row.billUid, id);
+    plan.councilBills.push({
+      councilBillId: id,
+      councilName: GB_COUNCIL_NAME,
+      billUid: row.billUid,
+      billNumber: row.billNumber,
+      title: row.title,
+      billKind: row.billKind,
+      proposerKind: row.proposerKind,
+      committee: row.committee,
+      sessionName: row.sessionName,
+      proposedDate: row.proposedDate,
+      decidedDate: row.decidedDate,
+      status: row.status,
+      outcome: row.outcome,
+      leadSponsorCount: row.leadSponsors.length,
+      coSponsorCount: row.coSponsorCount,
+      detailUrl: row.detailUrl,
+      sourceKey,
+      dataStatus: "official_observed",
+      metadata: {
+        sourceRow: row.sourceRow,
+        leadSponsors: row.leadSponsors,
+        recordType: "council_bill",
+        evidenceRole: "narrative_context_only"
+      }
+    });
+    plan.locators.push({
+      sourceKey,
+      entityType: "council_bill",
+      entityKey: id,
+      pageNumber: null,
+      rowNumber: row.sourceRow,
+      sectionName: row.committee,
+      characterStart: null,
+      characterEnd: null,
+      locatorText: `${row.sourcePath}#row=${row.sourceRow}`
+    });
+  }
+
+  for (const row of etl.councilBillSponsor) {
+    const councilBillId_ = billIdByUid.get(row.billUid);
+    if (!councilBillId_) {
+      plan.rejected.push({
+        entityType: "council_bill_sponsor",
+        sourcePath: row.sourcePath,
+        sourceRow: row.sourceRow,
+        reason: `Sponsor references an unknown bill: ${row.billUid}`
+      });
+      continue;
+    }
+    if (row.role !== "lead" && row.role !== "co") {
+      plan.rejected.push({
+        entityType: "council_bill_sponsor",
+        sourcePath: row.sourcePath,
+        sourceRow: row.sourceRow,
+        reason: `Unknown sponsorship role: ${row.role}`
+      });
+      continue;
+    }
+    const memberId =
+      (row.searchCode ? memberIdBySearchCode.get(row.searchCode) : undefined) ??
+      memberIdByName.get(row.memberName) ??
+      null;
+    plan.councilBillSponsors.push({
+      councilBillId: councilBillId_,
+      role: row.role,
+      memberName: row.memberName,
+      councilMemberId: memberId
+    });
+  }
+}
+
 function taxEntityKey(
   entityType: string,
   sourceKey: string,
@@ -836,6 +1079,9 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
     policies: [],
     council: [],
     pressReleases: [],
+    councilMembers: [],
+    councilBills: [],
+    councilBillSponsors: [],
     locators: [],
     rejected: etl.errors.map((error) => ({
       entityType: "catalog",
@@ -848,9 +1094,19 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
   for (const row of etl.population) addOfficialPopulation(row, plan);
   for (const row of etl.council) addOfficialCouncil(row, plan);
   for (const row of etl.pressRelease) addOfficialPressRelease(row, plan);
+  addOfficialCouncilMembersAndBills(etl, plan);
   addOfficialTaxData(etl, plan);
 
   plan.sources = uniqueBy(plan.sources, (row) => row.sourceKey);
+  plan.councilMembers = uniqueBy(
+    plan.councilMembers,
+    (row) => row.councilMemberId
+  );
+  plan.councilBills = uniqueBy(plan.councilBills, (row) => row.councilBillId);
+  plan.councilBillSponsors = uniqueBy(
+    plan.councilBillSponsors,
+    (row) => `${row.councilBillId}:${row.role}:${row.memberName}`
+  );
   plan.population = uniqueBy(
     plan.population,
     (row) => `${row.regionId}:${row.referenceDate}:${row.sourceKey}`

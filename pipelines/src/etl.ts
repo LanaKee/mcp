@@ -5,10 +5,16 @@ import { buildCatalog, type CatalogEntry } from "./catalog.js";
 import {
   normalizeAnnualPopulation,
   normalizeCouncilRows,
+  normalizeCouncilBillRows,
+  normalizeCouncilBillSponsorRows,
+  normalizeCouncilMemberRows,
   normalizePressReleaseRows,
   normalizePopulationSnapshot,
   parseKoreanCsv,
   type NormalizedCouncilRow,
+  type NormalizedCouncilBillRow,
+  type NormalizedCouncilBillSponsorRow,
+  type NormalizedCouncilMemberRow,
   type NormalizedPressReleaseRow,
   type NormalizedPopulationRow
 } from "./csv.js";
@@ -63,11 +69,31 @@ export type OfficialPressReleaseRow = NormalizedPressReleaseRow & {
   dataStatus: "official_observed";
 };
 
+export type OfficialCouncilMemberRow = NormalizedCouncilMemberRow & {
+  sourcePath: string;
+  sourceSha256: string;
+  dataStatus: "official_observed";
+};
+
+export type OfficialCouncilBillRow = NormalizedCouncilBillRow & {
+  sourcePath: string;
+  sourceSha256: string;
+  dataStatus: "official_observed";
+};
+
+export type OfficialCouncilBillSponsorRow = NormalizedCouncilBillSponsorRow & {
+  sourcePath: string;
+  sourceSha256: string;
+};
+
 export interface EtlResult {
   catalog: CatalogEntry[];
   population: OfficialPopulationRow[];
   council: OfficialCouncilRow[];
   pressRelease: OfficialPressReleaseRow[];
+  councilMember: OfficialCouncilMemberRow[];
+  councilBill: OfficialCouncilBillRow[];
+  councilBillSponsor: OfficialCouncilBillSponsorRow[];
   localTax: LocalTaxNormalizationResult;
   errors: EtlError[];
 }
@@ -80,6 +106,9 @@ export interface EtlSummary {
   normalizedPopulationRows: number;
   normalizedCouncilRows: number;
   normalizedPressReleaseRows: number;
+  normalizedCouncilMemberRows: number;
+  normalizedCouncilBillRows: number;
+  normalizedCouncilBillSponsorRows: number;
   normalizedLocalTaxRows: Record<string, number>;
   localTaxQualityIssues: Record<string, number>;
   errors: EtlError[];
@@ -108,6 +137,9 @@ export async function collectEtlData(): Promise<EtlResult> {
   const population: OfficialPopulationRow[] = [];
   const council: OfficialCouncilRow[] = [];
   const pressRelease: OfficialPressReleaseRow[] = [];
+  const councilMember: OfficialCouncilMemberRow[] = [];
+  const councilBill: OfficialCouncilBillRow[] = [];
+  const councilBillSponsor: OfficialCouncilBillSponsorRow[] = [];
   const localTaxInputs: LocalTaxSourceInput[] = [];
   const localTaxYearbooks: LocalTaxNormalizationResult[] = [];
   const errors: EtlError[] = catalog
@@ -149,6 +181,29 @@ export async function collectEtlData(): Promise<EtlResult> {
             sourcePath: entry.path,
             sourceSha256: entry.sha256,
             dataStatus: "official_observed" as const
+          }))
+        );
+        councilMember.push(
+          ...normalizeCouncilMemberRows(parsed).map((row) => ({
+            ...row,
+            sourcePath: entry.path,
+            sourceSha256: entry.sha256,
+            dataStatus: "official_observed" as const
+          }))
+        );
+        councilBill.push(
+          ...normalizeCouncilBillRows(parsed).map((row) => ({
+            ...row,
+            sourcePath: entry.path,
+            sourceSha256: entry.sha256,
+            dataStatus: "official_observed" as const
+          }))
+        );
+        councilBillSponsor.push(
+          ...normalizeCouncilBillSponsorRows(parsed).map((row) => ({
+            ...row,
+            sourcePath: entry.path,
+            sourceSha256: entry.sha256
           }))
         );
         population.push(
@@ -235,7 +290,17 @@ export async function collectEtlData(): Promise<EtlResult> {
       }))
   );
 
-  return { catalog, population, council, pressRelease, localTax, errors };
+  return {
+    catalog,
+    population,
+    council,
+    pressRelease,
+    councilMember,
+    councilBill,
+    councilBillSponsor,
+    localTax,
+    errors
+  };
 }
 
 export async function runEtl(write: boolean): Promise<{
@@ -261,6 +326,9 @@ export async function runEtl(write: boolean): Promise<{
     normalizedPopulationRows: result.population.length,
     normalizedCouncilRows: result.council.length,
     normalizedPressReleaseRows: result.pressRelease.length,
+    normalizedCouncilMemberRows: result.councilMember.length,
+    normalizedCouncilBillRows: result.councilBill.length,
+    normalizedCouncilBillSponsorRows: result.councilBillSponsor.length,
     normalizedLocalTaxRows: {
       collection: result.localTax.collection.length,
       paymentMedia: result.localTax.paymentMedia.length,
@@ -300,6 +368,18 @@ export async function runEtl(write: boolean): Promise<{
       pressRelease: await writeIfChanged(
         resolve(generatedDirectory, "press-release.normalized.json"),
         result.pressRelease
+      ),
+      councilMember: await writeIfChanged(
+        resolve(generatedDirectory, "council-member.normalized.json"),
+        result.councilMember
+      ),
+      councilBill: await writeIfChanged(
+        resolve(generatedDirectory, "council-bill.normalized.json"),
+        result.councilBill
+      ),
+      councilBillSponsor: await writeIfChanged(
+        resolve(generatedDirectory, "council-bill-sponsor.normalized.json"),
+        result.councilBillSponsor
       ),
       localTax: await writeIfChanged(
         resolve(generatedDirectory, "local-tax.normalized.json"),

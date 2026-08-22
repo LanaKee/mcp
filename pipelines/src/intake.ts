@@ -321,7 +321,14 @@ export function storeCategory(
     return "local-tax";
   }
   if (contentKind.startsWith("population")) return "population";
-  if (contentKind === "council_agenda") return "council";
+  if (
+    contentKind === "council_agenda" ||
+    contentKind === "council_member" ||
+    contentKind === "council_bill" ||
+    contentKind === "council_bill_sponsor"
+  ) {
+    return "council";
+  }
   if (contentKind === "press_release") return "press-release";
   if (contentKind === "pdf_document" || extension === ".pdf") return "documents";
   return "misc";
