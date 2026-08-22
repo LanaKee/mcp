@@ -1,12 +1,12 @@
-# Raw RAG vs MCP — 10문항 차별성 실험
+# Raw Document Retrieval vs Structured Data Layer — 10문항 차별성 실험
 
 - 생성 시각: 2026-08-22T23:35:41.038Z
 - 모델: `gpt-4o-mini` (양 arm 동일)
 - raw corpus: 446 files / 257894 chunks / 527 skipped
-- Raw RAG: 등록된 원본 파일을 단순 lexical retrieval하여 모델에 전달
-- MCP: 정규화 + metadata + provenance + coverage + tool 계층
+- Raw Document Retrieval (RAG): 등록된 원본 파일을 단순 lexical retrieval하여 모델에 전달
+- Structured Data Layer (MCP): 정규화 + metadata + provenance + coverage + tool 계층
 
-| 지표 | Raw RAG | MCP |
+| 지표 | Raw Retrieval | Structured Layer |
 | --- | ---: | ---: |
 | 정확도 | 60.0% | 80.0% |
 | 답변 시도율 | 40.0% | 80.0% |

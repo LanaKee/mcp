@@ -74,6 +74,23 @@ describe("shipped Gyeongbuk suite", () => {
     expect(cases.length).toBeGreaterThanOrEqual(20);
   });
 
+  describe("Gyeongbuk v2 suite", () => {
+    const v1 = parseBenchmarkCases(
+      readFileSync(resolve(BENCHMARK_ROOT, "cases/gyeongbuk.jsonl"), "utf8")
+    );
+    const v2 = parseBenchmarkCases(
+      readFileSync(resolve(BENCHMARK_ROOT, "cases/gyeongbuk-v2.jsonl"), "utf8")
+    );
+
+    it("changes only the ambiguous policy abstention question", () => {
+      expect(v2).toHaveLength(v1.length);
+      expect(v2.filter((entry, index) => entry.question !== v1[index]?.question)).toHaveLength(1);
+      expect(v2.find((entry) => entry.id === "ab-policy-programs")?.question).toContain(
+        "공식 공고문"
+      );
+    });
+  });
+
   it("includes cases a general model can plausibly win", () => {
     // A suite composed only of questions the baseline cannot answer would be a
     // demonstration, not a measurement.

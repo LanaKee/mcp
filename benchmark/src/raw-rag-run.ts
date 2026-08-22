@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "pg";
 import {
@@ -76,7 +76,12 @@ async function main(): Promise<void> {
     : chatClientFromEnv();
   if (!selected) throw new Error("사용 가능한 LLM API key가 없습니다.");
 
-  const allCases = loadBenchmarkCases(resolve(BENCHMARK_ROOT, "cases/gyeongbuk.jsonl"));
+  const casesArgument = argument("--cases");
+  const casesPath = casesArgument
+    ? resolve(process.cwd(), casesArgument)
+    : resolve(BENCHMARK_ROOT, "cases/gyeongbuk.jsonl");
+  const suite = basename(casesPath, ".jsonl");
+  const allCases = loadBenchmarkCases(casesPath);
   const cases = allCases.filter((entry) => DEFAULT_CASE_IDS.has(entry.id));
   const truthSource = new PostgresTruthSource(databaseUrl);
   const repository = await createDataRepository();
@@ -125,11 +130,14 @@ async function main(): Promise<void> {
     const outDir = resolve(
       BENCHMARK_ROOT,
       "reports",
-      `raw-rag-vs-mcp-${selected.modelName.replace(/[^a-zA-Z0-9._-]+/g, "-")}`
+      `raw-rag-vs-mcp-${selected.modelName.replace(/[^a-zA-Z0-9._-]+/g, "-")}${
+        suite === "gyeongbuk" ? "" : `-${suite}`
+      }`
     );
     const report = {
       generatedAt,
       model: selected.modelName,
+      suite,
       cases: cases.length,
       corpus: {
         selection: "all data_source.file_path values; raw bytes only",
@@ -143,15 +151,15 @@ async function main(): Promise<void> {
       responses
     };
     const markdown = [
-      "# Raw RAG vs MCP — 10문항 차별성 실험",
+      `# Raw Document Retrieval vs Structured Data Layer — 10문항 차별성 실험 (${suite})`,
       "",
       `- 생성 시각: ${generatedAt}`,
       `- 모델: \`${selected.modelName}\` (양 arm 동일)`,
       `- raw corpus: ${rawCorpus.loadedFiles} files / ${rawCorpus.documents.length} chunks / ${rawCorpus.skippedFiles} skipped`,
-      "- Raw RAG: 등록된 원본 파일을 단순 lexical retrieval하여 모델에 전달",
-      "- MCP: 정규화 + metadata + provenance + coverage + tool 계층",
+      "- Raw Document Retrieval (RAG): 등록된 원본 파일을 단순 lexical retrieval하여 모델에 전달",
+      "- Structured Data Layer (MCP): 정규화 + metadata + provenance + coverage + tool 계층",
       "",
-      "| 지표 | Raw RAG | MCP |",
+      "| 지표 | Raw Retrieval | Structured Layer |",
       "| --- | ---: | ---: |",
       `| 정확도 | ${percent(raw.accuracy)} | ${percent(mcp.accuracy)} |`,
       `| 답변 시도율 | ${percent(raw.commitmentRate)} | ${percent(mcp.commitmentRate)} |`,

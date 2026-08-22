@@ -9,11 +9,11 @@
 2. 아직 비어 있는 PostgreSQL에 실제 이상 원본을 반입해 catalog와 원장에 저장하는 데
    얼마나 걸리는가?
 
-## Raw RAG vs MCP
+## Raw Document Retrieval vs Structured Data Layer
 
 ### 조건
 
-- 모델: `gpt-4o-mini`, 양 arm 동일
+- 모델: `gpt-4o-mini`, `gpt-5.6-luna` (각 실행 안에서 양 arm 동일)
 - 문항: 기존 22문항 중 정밀도 4, 부재 인지 3, 출처 2, 최신성 1의 총 10문항
 - 정답/채점: 기존 PostgreSQL ground truth와 결정론적 grader 재사용
 - Raw RAG corpus: 현재 `data_source.file_path`에 등록된 원본 446개
@@ -24,18 +24,25 @@ PDF 및 32MiB 초과 파일 등 527개는 raw parser 지원 범위 밖이라 건
 원본 corpus를 고르는 최소 curation은 필요하므로, 이 실험은 수집 자체가 아니라
 semantic 계층의 추가 효과를 비교한다.
 
-### 결과
+### 사전 정의 질문셋(v1) 결과
 
-| 지표 | Raw RAG | MCP |
-| --- | ---: | ---: |
-| 정확도 | 60.0% | 80.0% |
-| 답변 시도율 | 40.0% | 80.0% |
-| 환각률 (답변한 문항 대비) | 25.0% | 25.0% |
-| 부재 인지 정확도 | 100.0% | 66.7% |
-| 출처 검증 가능 비율 | 0.0% | 59.1% |
-| 중앙 지연 | 1,360ms | 2,771ms |
+| 모델 | 지표 | Raw Retrieval | Structured Layer |
+| --- | --- | ---: | ---: |
+| `gpt-4o-mini` | 정확도 | 60.0% | 80.0% |
+|  | 답변 시도율 | 40.0% | 80.0% |
+|  | 환각률 (답변 기준) | 25.0% | 25.0% |
+|  | 부재 인지 | 100.0% | 66.7% |
+|  | 출처 검증 가능 | 0.0% | 59.1% |
+|  | 중앙 지연 | 1,360ms | 2,771ms |
+| `gpt-5.6-luna` | 정확도 | 60.0% | 80.0% |
+|  | 답변 시도율 | 40.0% | 80.0% |
+|  | 환각률 (답변 기준) | 25.0% | 25.0% |
+|  | 부재 인지 | 100.0% | 66.7% |
+|  | 출처 검증 가능 | 0.0% | 50.0% |
+|  | 중앙 지연 | 2,830ms | 3,506ms |
 
-현재 계층은 정확도와 답변 가능 범위, 검증 가능한 provenance에서 우위였지만 모든 지표를
+두 모델에서 구조화 계층은 정확도와 답변 가능 범위, 검증 가능한 provenance에서
+일관되게 우위였지만 모든 지표를
 이기지는 않았다. Raw RAG는 부재 문항 3개를 모두 보류했고, MCP는 정책사업 부재 문항에서
 보도자료를 근거로 사업을 단정해 실패했다. 경산시 신고 기준 총 세부담액도 Raw RAG는
 정답이었지만 MCP는 다른 의미의 값을 반환했다. 따라서 이 결과는 "MCP 연결 자체"가
@@ -45,6 +52,8 @@ semantic 계층의 추가 효과를 비교한다.
 
 - `benchmark/reports/raw-rag-vs-mcp-gpt-4o-mini/report.md`
 - `benchmark/reports/raw-rag-vs-mcp-gpt-4o-mini/report.json`
+- `benchmark/reports/raw-rag-vs-mcp-gpt-5.6-luna/report.md`
+- `benchmark/reports/raw-rag-vs-mcp-gpt-5.6-luna/report.json`
 - 재실행: `pnpm benchmark:raw-rag -- --model gpt-4o-mini`
 
 ## 빈 DB onboarding 실측
