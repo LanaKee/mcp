@@ -49,6 +49,8 @@ const expensiveTools = new Set([
   // The pack fans out to six datasets in one call, so it is the most expensive
   // request the server accepts.
   "build_regional_evidence_pack",
+  "trace_policy_response",
+  "compare_peer_regions",
   "get_source_context",
   "draft_public_document"
 ]);

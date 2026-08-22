@@ -18,6 +18,7 @@ import {
   localTaxTrendPoints,
   populationTrendPoints,
   peerComparisonInputSchema,
+  policyTimelineInputSchema,
   populationTrendInputSchema,
   regionalEvidencePackInputSchema,
   sourceContextInputSchema,
@@ -34,6 +35,7 @@ import {
 } from "./repository.js";
 import { describeDataset, searchDatasets } from "./catalog-tools.js";
 import { buildRegionalEvidencePack } from "./evidence-pack.js";
+import { tracePolicyResponse } from "./policy-timeline.js";
 
 export type JsonSchema = Record<string, unknown>;
 export type ResponseDataStatus = DataStatus | "mixed" | "empty";
@@ -980,6 +982,33 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
           "근거 공백 목록은 '적재된 데이터로 답할 수 없다'는 뜻이며, 해당 자료가 세상에 없다는 뜻이 아닙니다.",
           ...pack.limitations
         ]
+      };
+    }
+  );
+
+  add(
+    "trace_policy_response",
+    "한 지역의 한 현안에 대해 계획 문서, 보도자료 발표, 의회 논의, 의안 발의를 시간순으로 정리합니다. 각 기록이 무엇을 입증하는지 명시하며, 성과 판정은 하지 않습니다.",
+    policyTimelineInputSchema,
+    objectSchema(
+      {
+        region: { type: "string", minLength: 1, maxLength: 80 },
+        issue: { type: "string", minLength: 1, maxLength: 200 },
+        dateFrom: { type: "string", format: "date" },
+        dateTo: { type: "string", format: "date" },
+        limitPerStage: { type: "integer", minimum: 1, maximum: 20, default: 5 },
+        dataStatuses: factStatusProperty
+      },
+      ["region", "issue"]
+    ),
+    async (input) => {
+      const timeline = await tracePolicyResponse(registry, input);
+      return {
+        data_status: responseStatus(timeline.dataStatuses as DataStatus[]),
+        data_statuses: timeline.dataStatuses as DataStatus[],
+        result: timeline,
+        sources: timeline.sources,
+        limitations: timeline.limitations
       };
     }
   );

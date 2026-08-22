@@ -205,6 +205,17 @@ export const peerComparisonInputSchema = z
     message: "startYear는 endYear보다 클 수 없습니다."
   });
 
+export const policyTimelineInputSchema = z
+  .object({
+    region: z.string().min(1).max(80),
+    issue: z.string().min(1).max(200),
+    dateFrom: z.string().date().optional(),
+    dateTo: z.string().date().optional(),
+    limitPerStage: z.number().int().min(1).max(20).default(5),
+    dataStatuses: factDataStatusesSchema
+  })
+  .strict();
+
 export const regionalEvidencePackInputSchema = z
   .object({
     region: z.string().min(1).max(80),
@@ -256,6 +267,7 @@ export type VerifyClaimInput = z.infer<typeof verifyClaimInputSchema>;
 export type DraftPublicDocumentInput = z.infer<
   typeof draftPublicDocumentInputSchema
 >;
+export type PolicyTimelineInput = z.infer<typeof policyTimelineInputSchema>;
 export type PeerComparisonInput = z.infer<typeof peerComparisonInputSchema>;
 export type RegionalEvidencePackInput = z.infer<
   typeof regionalEvidencePackInputSchema
