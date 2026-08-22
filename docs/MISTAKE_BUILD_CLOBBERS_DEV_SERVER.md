@@ -54,6 +54,18 @@ distDir: process.env.NEXT_DIST_DIR ?? ".next"
 기본값을 `.next`로 둔 것은 배포 파이프라인의 `pnpm build`가 그대로
 동작해야 하기 때문이다. 분리는 **검증할 때만** 켠다.
 
+### 알아 둘 것
+
+`build:verify`를 돌리면 Next가 `next-env.d.ts`와 `tsconfig.json`의 타입
+참조 경로를 `.next-verify` 쪽으로 다시 쓴다. 이 두 파일은 Next가 관리하는
+생성물이므로 **커밋하지 말고 되돌린다.**
+
+```
+git checkout prototype/next-env.d.ts prototype/tsconfig.json
+```
+
+되돌린 뒤 `pnpm --filter @gb/prototype typecheck`가 통과하면 정상이다.
+
 ## 남는 교훈
 
 빌드 산출물 디렉터리는 공유 자원이다. 같은 디렉터리를 쓰는 프로세스가 둘
