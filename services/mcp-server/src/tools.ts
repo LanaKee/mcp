@@ -9,6 +9,7 @@ import {
   evaluatePolicyEligibility,
   localTaxTrendInputSchema,
   policySearchInputSchema,
+  pressReleaseSearchInputSchema,
   localTaxTrendPoints,
   populationTrendPoints,
   populationTrendInputSchema,
@@ -465,6 +466,44 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         sources: loaded.sources,
         limitations: [
           "PDF text layer의 읽기 순서와 표 구조는 원문 페이지에서 재확인해야 합니다.",
+          ...statusLimitations(loaded.dataStatuses)
+        ]
+      };
+    }
+  );
+
+  add(
+    "search_press_releases",
+    "경상북도 보도자료 본문을 검색해 정책 배경·사업명·추진 계획의 서술적 맥락을 제공합니다. 수치 근거로는 사용할 수 없습니다.",
+    pressReleaseSearchInputSchema,
+    objectSchema(
+      {
+        query: { type: "string", minLength: 1, maxLength: 300 },
+        region,
+        department: { type: "string", maxLength: 100 },
+        dateFrom: { type: "string", format: "date" },
+        dateTo: { type: "string", format: "date" },
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 5 }
+      },
+      ["query"]
+    ),
+    async (input) => {
+      const loaded = await repository.searchPressReleases({
+        ...input,
+        limit: input.limit ?? 5
+      });
+      return {
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
+        result: {
+          matches: loaded.records,
+          evidence_role: "narrative_context_only"
+        },
+        sources: loaded.sources,
+        limitations: [
+          "보도자료는 경상북도가 발표한 서술형 announcement이며 관측된 통계가 아닙니다. 본문에 인용된 수치는 verify_claim_with_data의 근거로 사용할 수 없습니다.",
+          "보도자료는 발표 시점의 계획을 담고 있어 이후 변경되었을 수 있습니다. 집행 결과는 별도 통계로 확인해야 합니다.",
+          "metadata.mentionedRegions는 본문에 시군 이름이 등장했다는 뜻일 뿐, 해당 시군의 사업임을 보장하지 않습니다.",
           ...statusLimitations(loaded.dataStatuses)
         ]
       };

@@ -91,6 +91,22 @@ export const councilSearchInputSchema = z
   })
   .strict();
 
+/**
+ * Press releases are narrative announcements, so this search is deliberately
+ * separate from the statistical tools: nothing here may be quoted as a numeric
+ * measurement.
+ */
+export const pressReleaseSearchInputSchema = z
+  .object({
+    query: z.string().min(1).max(300),
+    region: z.string().min(1).max(80).optional(),
+    department: z.string().min(1).max(100).optional(),
+    dateFrom: z.string().date().optional(),
+    dateTo: z.string().date().optional(),
+    limit: z.number().int().min(1).max(20).default(5)
+  })
+  .strict();
+
 export const verifyClaimInputSchema = z
   .object({
     metric: z.enum(["population", "local_tax"]),
@@ -142,6 +158,9 @@ export type LocalTaxTrendInput = z.infer<typeof localTaxTrendInputSchema>;
 export type ComparisonInput = z.infer<typeof comparisonInputSchema>;
 export type PolicySearchInput = z.infer<typeof policySearchInputSchema>;
 export type CouncilSearchInput = z.infer<typeof councilSearchInputSchema>;
+export type PressReleaseSearchInput = z.infer<
+  typeof pressReleaseSearchInputSchema
+>;
 export type VerifyClaimInput = z.infer<typeof verifyClaimInputSchema>;
 export type DraftPublicDocumentInput = z.infer<
   typeof draftPublicDocumentInputSchema

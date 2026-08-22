@@ -78,6 +78,31 @@ describe("MCP tools", () => {
     expect(result.matches.every((item) => item.id !== "demo-council-2024")).toBe(true);
   });
 
+  it("labels press release results as narrative context, never as measurements", async () => {
+    const response = await executeTool(registry, "search_press_releases", {
+      query: "청년 창업",
+      limit: 5
+    });
+    const result = response.result as { evidence_role: string };
+    expect(result.evidence_role).toBe("narrative_context_only");
+    expect(
+      response.limitations.some((line) =>
+        line.includes("verify_claim_with_data")
+      )
+    ).toBe(true);
+  });
+
+  it("does not accept a dataStatuses override on press release search", async () => {
+    // Press releases are always official announcements, so offering a status
+    // filter would imply a demo variant exists and could be mixed in.
+    await expect(
+      executeTool(registry, "search_press_releases", {
+        query: "청년",
+        dataStatuses: ["demo_sample"]
+      })
+    ).rejects.toThrow();
+  });
+
   it("rejects demo evidence for a public document", async () => {
     await expect(
       executeTool(registry, "draft_public_document", {

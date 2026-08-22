@@ -20,6 +20,7 @@ import type {
   DocumentSearchHit,
   FactDataStatus,
   PolicyDocumentCoverage,
+  PressReleaseHit,
   RepositoryReadiness,
   RepositoryResult,
   SourceContext,
@@ -462,6 +463,138 @@ export class PostgresDataRepository implements DataRepository {
       [[...new Set(keys)].slice(0, 200)]
     );
     return uniqueSources(result.rows);
+  }
+
+  /**
+   * Full-text plus trigram search over 경상북도 press releases. Bodies flagged as
+   * unreadable are excluded so callers never receive mojibake as "context".
+   */
+  async searchPressReleases(input: {
+    query: string;
+    region?: string;
+    department?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+  }): Promise<RepositoryResult<PressReleaseHit>> {
+    const limit = boundedLimit(input.limit, 20);
+    const normalizedRegion = input.region ? normalizeRegionName(input.region) : null;
+    const result = await this.executor.query<
+      SourceRow & {
+        press_release_id: string;
+        press_title: string;
+        body: string;
+        region_name: string | null;
+        issuing_organization: string;
+        department: string | null;
+        published_date: string | null;
+        detail_url: string;
+        attachment_count: number | string;
+        mentioned_region_names: string[] | null;
+        locator_text: string | null;
+        score: number | string;
+      }
+    >(
+      `SELECT
+         p.press_release_id,
+         p.title AS press_title,
+         p.body,
+         r.region_name,
+         p.issuing_organization,
+         p.department,
+         p.published_date::text,
+         p.detail_url,
+         p.attachment_count,
+         coalesce(
+           (
+             SELECT array_agg(m.region_name ORDER BY m.region_name)
+             FROM dim_region m
+             WHERE m.region_id = ANY(p.mentioned_region_ids)
+           ),
+           ARRAY[]::text[]
+         ) AS mentioned_region_names,
+         coalesce(sl.locator_text, ds.file_path) AS locator_text,
+         (
+           ts_rank(to_tsvector('simple', p.title), to_tsquery('simple', $2)) * 4
+           + ts_rank(to_tsvector('simple', p.body), to_tsquery('simple', $2))
+           + similarity(p.title, $1)
+         )::double precision AS score,
+         p.data_status,
+         ds.source_key,
+         ds.title,
+         ds.provider,
+         ds.source_url,
+         ds.collected_at,
+         ds.is_official,
+         ds.file_path,
+         ds.license_note
+       FROM press_release p
+       LEFT JOIN dim_region r ON r.region_id = p.region_id
+       JOIN data_source ds ON ds.source_id = p.source_id
+       LEFT JOIN source_locator sl
+         ON sl.source_id = p.source_id
+        AND sl.entity_type = 'press_release'
+        AND sl.entity_key = p.press_release_id
+       WHERE p.content_classification = 'extracted_ok'
+         AND (
+           $3::text IS NULL
+           OR r.normalized_name = $3
+           OR EXISTS (
+             SELECT 1 FROM dim_region m
+             WHERE m.region_id = ANY(p.mentioned_region_ids)
+               AND (m.normalized_name = $3 OR m.region_name ILIKE ('%' || $3 || '%'))
+           )
+         )
+         AND ($4::text IS NULL OR p.department ILIKE ('%' || $4 || '%'))
+         AND ($5::date IS NULL OR p.published_date >= $5)
+         AND ($6::date IS NULL OR p.published_date <= $6)
+         AND (
+           to_tsvector('simple', p.title) @@ to_tsquery('simple', $2)
+           OR to_tsvector('simple', p.body) @@ to_tsquery('simple', $2)
+           OR p.title ILIKE ('%' || $1 || '%')
+           OR p.title % $1
+         )
+       ORDER BY score DESC, p.published_date DESC NULLS LAST, p.press_release_id
+       LIMIT $7`,
+      [
+        input.query,
+        ftsOrQuery(input.query),
+        normalizedRegion,
+        input.department ?? null,
+        input.dateFrom ?? null,
+        input.dateTo ?? null,
+        limit
+      ]
+    );
+    const terms = tokenizeKorean(input.query);
+    const records: PressReleaseHit[] = result.rows.map((row) => ({
+      id: row.press_release_id,
+      title: row.press_title,
+      text: row.body,
+      score: Number(row.score),
+      matchedTerms: terms.filter((term) =>
+        `${row.press_title} ${row.body}`.normalize("NFC").includes(term)
+      ),
+      metadata: {
+        region: row.region_name ?? "경상북도",
+        organization: row.issuing_organization,
+        department: row.department,
+        publishedDate: row.published_date ?? "",
+        sourceId: row.source_key,
+        locator: row.locator_text ?? row.file_path ?? "",
+        detailUrl: row.detail_url,
+        attachmentCount: Number(row.attachment_count),
+        mentionedRegions: row.mentioned_region_names ?? [],
+        dataStatus: row.data_status as FactDataStatus,
+        recordType: "press_release" as const,
+        evidenceRole: "narrative_context_only" as const
+      }
+    }));
+    return {
+      records,
+      sources: uniqueSources(result.rows),
+      dataStatuses: uniqueStatuses(result.rows)
+    };
   }
 
   async searchCouncil(input: {

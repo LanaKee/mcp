@@ -128,6 +128,43 @@ export interface CouncilRepository {
   }): Promise<RepositoryResult<CouncilSearchHit>>;
 }
 
+/**
+ * A press release hit. `recordType` is fixed so callers can never confuse this
+ * narrative material with an observed statistic.
+ */
+export interface PressReleaseHit {
+  id: string;
+  title: string;
+  text: string;
+  score: number;
+  matchedTerms: string[];
+  metadata: {
+    region: string;
+    organization: string;
+    department: string | null;
+    publishedDate: string;
+    sourceId: string;
+    locator: string;
+    detailUrl: string;
+    attachmentCount: number;
+    mentionedRegions: string[];
+    dataStatus: FactDataStatus;
+    recordType: "press_release";
+    evidenceRole: "narrative_context_only";
+  };
+}
+
+export interface PressReleaseRepository {
+  searchPressReleases(input: {
+    query: string;
+    region?: string;
+    department?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+  }): Promise<RepositoryResult<PressReleaseHit>>;
+}
+
 export interface SourceLocatorContext {
   entityType: string;
   entityKey: string;
@@ -218,6 +255,7 @@ export interface DataRepository
     PolicyRepository,
     CouncilRepository,
     DocumentRepository,
+    PressReleaseRepository,
     SourceRepository,
     ClaimRepository {
   readonly mode: "memory" | "postgres";
@@ -383,6 +421,21 @@ export class InMemoryDataRepository implements DataRepository {
       sources,
       dataStatuses: uniqueStatuses(hits.map((record) => record.metadata.dataStatus))
     };
+  }
+
+  /**
+   * The in-memory store carries no press releases; they only exist in the
+   * crawled PostgreSQL dataset.
+   */
+  async searchPressReleases(_input: {
+    query: string;
+    region?: string;
+    department?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+  }): Promise<RepositoryResult<PressReleaseHit>> {
+    return { records: [], sources: [], dataStatuses: [] };
   }
 
   async searchDocuments(_input: {
