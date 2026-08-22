@@ -144,20 +144,31 @@ export function scoreBenchmarkCase(
   const executedTools = new Set(observation.evidence.map((entry) => entry.tool));
   const checks: BenchmarkCheck[] = [];
 
-  // 1. Dataset discovery (semantic retrieval recall) — did the catalog surface
-  //    the right dataset at all? Everything downstream depends on this.
+  // 1. Retrieval recall@5 — did the catalog surface the right dataset among the
+  //    five candidates the planner is given? Everything downstream depends on
+  //    this, so it is reported with the rank each expected dataset landed at:
+  //    a dataset recalled at rank 5 is a weaker result than one at rank 1 even
+  //    though both pass, and a rank drift is the earliest warning that lexical
+  //    ranking is degrading.
   if (testCase.expectedDatasets.length > 0) {
-    const found = testCase.expectedDatasets.filter((id) => consideredIds.includes(id));
+    const ranks = testCase.expectedDatasets.map((id) => ({
+      id,
+      rank: consideredIds.indexOf(id) + 1
+    }));
+    const missing = ranks.filter((entry) => entry.rank === 0);
     checks.push({
-      name: "dataset_discovery",
-      passed: found.length === testCase.expectedDatasets.length,
-      detail: `후보 ${consideredIds.join(", ") || "없음"} / 기대 ${testCase.expectedDatasets.join(", ")}`
+      name: "dataset_recall_at_5",
+      passed: missing.length === 0,
+      detail:
+        missing.length === 0
+          ? `순위 ${ranks.map((entry) => `${entry.id}#${entry.rank}`).join(", ")}`
+          : `누락 ${missing.map((entry) => entry.id).join(", ")} / 후보 ${consideredIds.join(", ") || "없음"}`
     });
   } else {
     // For an out-of-scope question, surfacing no candidate is the correct
     // retrieval behaviour.
     checks.push({
-      name: "dataset_discovery",
+      name: "dataset_recall_at_5",
       passed: consideredIds.length === 0,
       detail: consideredIds.length === 0 ? "후보 없음 (정답)" : `불필요한 후보: ${consideredIds.join(", ")}`
     });

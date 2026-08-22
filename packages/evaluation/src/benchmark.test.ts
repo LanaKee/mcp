@@ -60,7 +60,7 @@ describe("scoreBenchmarkCase", () => {
   it("passes a fully correct single-dataset run", () => {
     const result = scoreBenchmarkCase(trendCase, observation(), 2500);
     expect(result.passed).toBe(true);
-    expect(check(result, "dataset_discovery")?.passed).toBe(true);
+    expect(check(result, "dataset_recall_at_5")?.passed).toBe(true);
     expect(check(result, "tool_selection")?.passed).toBe(true);
     expect(check(result, "citation_integrity")?.passed).toBe(true);
   });
@@ -71,7 +71,7 @@ describe("scoreBenchmarkCase", () => {
       observation({ consideredDatasets: [{ datasetId: "press_release" }] }),
       100
     );
-    expect(check(result, "dataset_discovery")?.passed).toBe(false);
+    expect(check(result, "dataset_recall_at_5")?.passed).toBe(false);
     expect(result.passed).toBe(false);
   });
 

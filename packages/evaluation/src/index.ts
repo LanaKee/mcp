@@ -1,40 +1,13 @@
-export interface EvaluationCase {
-  id: string;
-  question: string;
-  expectedTool: string;
-  requiredSourceIds?: string[];
-  expectedDataStatus?: "official_observed" | "demo_sample" | "catalog_only";
-  expectedDerivedStatisticsAvailable?: boolean;
-}
-
-export interface EvaluationResult {
-  id: string;
-  passed: boolean;
-  checks: Record<string, boolean>;
-}
-
-export function evaluateToolResult(
-  testCase: EvaluationCase,
-  actual: {
-    tool: string;
-    dataStatus?: string;
-    sourceIds?: string[];
-    derivedStatisticsAvailable?: boolean;
-  }
-): EvaluationResult {
-  const checks = {
-    tool: actual.tool === testCase.expectedTool,
-    dataStatus:
-      !testCase.expectedDataStatus || actual.dataStatus === testCase.expectedDataStatus,
-    derivedStatistics:
-      testCase.expectedDerivedStatisticsAvailable === undefined ||
-      actual.derivedStatisticsAvailable ===
-        testCase.expectedDerivedStatisticsAvailable,
-    sources:
-      !testCase.requiredSourceIds ||
-      testCase.requiredSourceIds.every((sourceId) => actual.sourceIds?.includes(sourceId))
-  };
-  return { id: testCase.id, passed: Object.values(checks).every(Boolean), checks };
-}
-
+/**
+ * Evaluation for this project lives entirely in `benchmark.ts`.
+ *
+ * An earlier `evaluateToolResult` asked only "did the expected tool run, with
+ * the expected status and source ids". Its case file (`evals/questions.jsonl`)
+ * still expected `demo_sample` and `demo-*` source ids long after operations
+ * moved to `official_observed` only, so it asserted behaviour the server no
+ * longer had and no runner read it. A green-looking check that contradicts the
+ * README is worse than no check, so both were removed rather than updated:
+ * `evals/benchmark.jsonl` already covers the same questions against the loaded
+ * official data and scores them on eleven metrics instead of three equalities.
+ */
 export * from "./benchmark.js";

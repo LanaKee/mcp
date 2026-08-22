@@ -136,21 +136,59 @@ function renderJoins(result) {
   );
 }
 
-/** The strongest status among the evidence, so the badge never overstates. */
+/**
+ * Data statuses in the reader's language.
+ *
+ * The raw values are internal vocabulary. `official_observed` shouted in caps
+ * tells a citizen nothing, and the markup previously shipped `DEMO SAMPLE` as
+ * the default badge, so a page that had not yet fetched anything claimed a data
+ * status it had never received.
+ */
+const STATUS_LABELS = {
+  official_observed: "공식 관측",
+  demo_sample: "데모 표본",
+  catalog_only: "목록만 등재",
+  incomparable: "비교 불가",
+  narrative_context_only: "서술 맥락",
+  mixed: "혼합",
+  empty: "근거 없음"
+};
+
+function statusLabel(value) {
+  return STATUS_LABELS[value] ?? value;
+}
+
+/** The status the answer actually rests on, so the badge never overstates. */
 function evidenceStatus(result) {
-  const statuses = new Set((result.evidence ?? []).map((item) => item.dataStatus));
-  if (statuses.size === 0) return "no data";
-  if (statuses.size === 1) return [...statuses][0];
-  return [...statuses].join(" + ");
+  const statuses = [...new Set((result.evidence ?? []).map((item) => item.dataStatus))];
+  if (statuses.length === 0) return "근거 없음";
+  return statuses.map(statusLabel).join(" + ");
+}
+
+/** A labelled bullet list of what a piece of evidence may or may not support. */
+function claimList(label, claims, tone) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `claim claim--${tone}`;
+  const heading = document.createElement("small");
+  text(heading, label);
+  const list = document.createElement("ul");
+  list.replaceChildren(
+    ...(claims ?? []).map((claim) => {
+      const item = document.createElement("li");
+      text(item, claim);
+      return item;
+    })
+  );
+  wrapper.append(heading, list);
+  return wrapper;
 }
 
 function renderResult(result) {
   text(document.querySelector("#result-question"), result.question);
   text(document.querySelector("#conclusion"), result.conclusion);
-  text(
-    document.querySelector("#status-badge"),
-    String(result.data_status ?? evidenceStatus(result)).toUpperCase()
-  );
+  const statusBadge = document.querySelector("#status-badge");
+  statusBadge.classList.remove("badge--pending");
+  text(statusBadge, evidenceStatus(result));
 
   const plannerBadge = document.querySelector("#planner-badge");
   if (result.planner) {
@@ -176,7 +214,7 @@ function renderResult(result) {
       if (item.dataStatus) {
         const badge = document.createElement("small");
         badge.className = `evidence-status evidence-status-${item.dataStatus}`;
-        text(badge, item.dataStatus);
+        text(badge, statusLabel(item.dataStatus));
         node.append(badge);
       }
       const statement = document.createElement("strong");
@@ -186,6 +224,21 @@ function renderResult(result) {
         const detail = document.createElement("p");
         text(detail, Array.isArray(item.detail) ? item.detail.join(" · ") : item.detail);
         node.append(detail);
+      }
+      // The claim boundary belongs next to the number it constrains. Left in a
+      // shared limitations list, a reader has to work out which caveat applies
+      // to which figure, which in practice means none of them do.
+      if (item.evidenceContract) {
+        node.append(claimList("이 근거로 말할 수 있는 것", item.evidenceContract.canClaim, "can"));
+        node.append(
+          claimList("이 근거로 말할 수 없는 것", item.evidenceContract.cannotClaim, "cannot")
+        );
+        if (item.evidenceContract.insteadUse) {
+          const instead = document.createElement("small");
+          instead.className = "claim-instead";
+          text(instead, `대신 필요한 자료: ${item.evidenceContract.insteadUse}`);
+          node.append(instead);
+        }
       }
     },
     "evidence-item"

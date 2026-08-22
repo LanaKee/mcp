@@ -160,6 +160,8 @@ export interface DatasetProfile {
   description: string;
   grain: string;
   evidenceRole: string;
+  /** What this dataset may and may not be cited for. */
+  evidenceContract: DatasetDefinition["evidenceContract"];
   measures: DatasetDefinition["measures"];
   dimensions: DatasetDefinition["dimensions"];
   tools: DatasetDefinition["tools"];
@@ -201,6 +203,7 @@ export async function describeDataset(
     description: dataset.description,
     grain: dataset.grain,
     evidenceRole: dataset.evidenceRole,
+    evidenceContract: dataset.evidenceContract,
     measures: dataset.measures,
     dimensions: dataset.dimensions,
     tools: dataset.tools,

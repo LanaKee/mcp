@@ -155,3 +155,42 @@ describe("place names are not topics", () => {
     expect(matched).toContain("population_observation");
   });
 });
+
+describe("evidence contracts", () => {
+  it("gives every dataset a contract that states both sides", () => {
+    // A contract with an empty `cannotClaim` is the dangerous case: it reads as
+    // "this dataset can support anything", which is never true here.
+    for (const dataset of DATASET_CATALOG) {
+      expect(dataset.evidenceContract.canClaim.length).toBeGreaterThan(0);
+      expect(dataset.evidenceContract.cannotClaim.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the contract role consistent with the dataset's evidence role", () => {
+    for (const dataset of DATASET_CATALOG) {
+      expect(dataset.evidenceContract.role).toBe(dataset.evidenceRole);
+    }
+  });
+
+  it("tells the reader where a forbidden claim must come from instead", () => {
+    // A contract that only says "you may not conclude this" leaves the user
+    // stuck; the point is to redirect them to the source that can answer it.
+    for (const dataset of DATASET_CATALOG) {
+      expect(dataset.evidenceContract.insteadUse).toBeTruthy();
+    }
+  });
+
+  it("forbids narrative datasets from supporting their own numbers", () => {
+    // This is the single most important line in the whole catalog: a press
+    // release quoting a target figure is the most likely thing to be mistaken
+    // for an observed statistic.
+    const narrative = DATASET_CATALOG.filter(
+      (dataset) => dataset.evidenceRole === "narrative_context_only"
+    );
+    expect(narrative.length).toBeGreaterThan(0);
+    for (const dataset of narrative) {
+      const forbidden = dataset.evidenceContract.cannotClaim.join(" ");
+      expect(forbidden).toMatch(/수치|공약|집행|성과/);
+    }
+  });
+});

@@ -445,3 +445,61 @@ footer {
     flex-direction: column;
   }
 }
+
+.badge--pending {
+  color: #5d5548;
+  background: #ece7db;
+  border-color: #b9b3a6;
+}
+
+.evidence-status-narrative_context_only,
+.evidence-status-catalog_only {
+  color: #3c4a42;
+  background: #e5ebe6;
+  border-color: #9db0a4;
+}
+
+.claim {
+  margin-top: 9px;
+  padding-left: 11px;
+  border-left: 3px solid #d8d2c3;
+}
+
+.claim small {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.claim ul {
+  margin: 3px 0 0;
+  padding-left: 17px;
+  color: #5d5548;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.claim--can {
+  border-left-color: #72a486;
+}
+
+.claim--can small {
+  color: #174f33;
+}
+
+.claim--cannot {
+  border-left-color: #c08a5a;
+}
+
+.claim--cannot small {
+  color: #8a3b12;
+}
+
+.claim-instead {
+  display: block;
+  margin-top: 8px;
+  color: #5d5548;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}

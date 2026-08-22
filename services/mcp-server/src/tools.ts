@@ -352,7 +352,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
 
   add(
     "search_policies",
-    "지역·나이·관심 분야·창업 단계에 맞는 정책과 자격 판단 근거를 찾습니다.",
+    "지역·나이·관심 분야·창업 단계와 관련된 정책 방향과 공식 문서를 찾습니다. 신청 자격을 판정하지 않으며, 실제 자격과 접수 여부는 개별 사업 공고문으로 확인해야 합니다.",
     policySearchInputSchema,
     objectSchema(
       {
@@ -417,7 +417,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
           coverage.sources
         ),
         limitations: [
-          "정책 신청 전 최신 공식 공고의 자격과 기간을 확인해야 합니다.",
+          "이 결과는 신청 자격 판정이 아니라 '확인해 볼 만한 사업' 안내입니다. 자격 판정 권한은 소관 기관에 있고, 실제 자격·접수 기간·예산은 개별 사업 공고문으로만 확인됩니다.",
           ...(matches.some(
             (match) => match.policy.dataStatus === "demo_sample"
           )

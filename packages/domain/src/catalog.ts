@@ -30,6 +30,32 @@ export type DatasetGrain =
  */
 export type EvidenceRole = "observed_fact" | "narrative_context_only";
 
+/**
+ * The claims a dataset is and is not allowed to support.
+ *
+ * `usageRules` already constrained *how* a dataset may be queried, but the
+ * question a reader actually has is "given this document, what am I entitled to
+ * conclude?". Leaving that to prose in a limitations list meant the boundary
+ * existed only in the reader's head: a press release stating a target figure
+ * and a statistical yearbook stating an observed figure both render as a number
+ * with a citation, and nothing on screen distinguishes a plan from a fact.
+ *
+ * Declaring it as data lets the same boundary be shown next to every number,
+ * returned by `describe_dataset`, and asserted in tests.
+ */
+export interface EvidenceContract {
+  role: EvidenceRole;
+  /** Claims this dataset can support on its own. */
+  canClaim: string[];
+  /** Claims this dataset must never be cited for, and why. */
+  cannotClaim: string[];
+  /**
+   * Where a claim in `cannotClaim` has to come from instead. Without this the
+   * contract only tells a user they are stuck.
+   */
+  insteadUse: string | null;
+}
+
 export interface DatasetMeasure {
   name: string;
   /** Human-facing label used when the agent renders a number. */
@@ -72,6 +98,8 @@ export interface DatasetDefinition {
   description: string;
   grain: DatasetGrain;
   evidenceRole: EvidenceRole;
+  /** What this dataset may and may not be cited for. */
+  evidenceContract: EvidenceContract;
   measures: DatasetMeasure[];
   dimensions: DatasetDimension[];
   /** Query terms a user might use that should match this dataset. */
@@ -121,6 +149,20 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       "경상북도 시군의 연도별 총인구. 주민등록 스냅샷, 통계연보 인구, 지방세 신고 기준 인구처럼 측정 기준이 서로 다른 값이 함께 들어 있으며, 각 행은 자신의 measurementBasis를 보존한다.",
     grain: "region_year",
     evidenceRole: "observed_fact",
+    evidenceContract: {
+      role: "observed_fact",
+      canClaim: [
+        "특정 시군의 특정 연도 총인구가 얼마였는지",
+        "measurementBasis가 동일한 두 시점 사이의 인구 증감과 증감률"
+      ],
+      cannotClaim: [
+        "인구가 줄어든 원인이나 특정 정책의 효과 (관측값일 뿐 인과를 담지 않는다)",
+        "측정 기준이 다른 두 값을 이어 붙인 추세 (정의 변화를 인구 변화로 오독하게 된다)",
+        "장래 인구 전망 (이 데이터셋은 과거 관측만 담는다)"
+      ],
+      insteadUse:
+        "원인·효과는 별도의 정책 평가 자료가, 장래 전망은 통계청 장래인구추계가 필요하다."
+    },
     measures: [
       {
         name: "populationTotal",
@@ -172,6 +214,20 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       "경상북도 시군의 회계연도별 지방세 세수. 징수 실적, 신고 기준 총세액, 통계연보 징수액 등 원천마다 금액의 의미(amountSemantics)와 원 단위(원/천원)가 달라 정규화 후에도 각 행이 자신의 의미를 보존한다.",
     grain: "region_year_tax_category",
     evidenceRole: "observed_fact",
+    evidenceContract: {
+      role: "observed_fact",
+      canClaim: [
+        "특정 시군·연도의 지방세 세수 금액",
+        "amountSemantics와 회계 기준이 동일한 두 시점 사이의 세수 증감"
+      ],
+      cannotClaim: [
+        "재정자립도나 재정 건전성 (세수는 세입의 일부일 뿐 세출과 이전재원을 담지 않는다)",
+        "징수액과 부과액처럼 의미가 다른 값의 비교",
+        "주민 1인당 세부담 (인구와 결합해도 납세자 수가 아니라 거주자 수로 나눈 값이다)"
+      ],
+      insteadUse:
+        "재정 상태는 지방재정 결산 자료가, 세부담은 납세자 통계가 필요하다."
+    },
     measures: [
       {
         name: "revenueAmountWon",
@@ -225,11 +281,24 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
   },
   {
     datasetId: "policy_program",
-    title: "정책·지원사업 자격 조건",
+    title: "정책·지원사업 안내",
     description:
-      "연령, 업종, 창업 단계 같은 구조화된 자격 조건을 가진 정책 프로그램. 자격 판정은 이 구조화 필드로만 수행하고, PDF 본문은 배경 설명으로만 쓴다.",
+      "연령, 업종, 창업 단계 같은 조건이 구조화된 정책 프로그램. 조건에 부합할 가능성이 있는 사업을 찾아 주는 안내용이며 신청 자격을 판정하지 않는다. 자격 판정 권한은 소관 기관에 있고 최종 근거는 개별 사업 공고문이다. 현재 적재된 원천은 도정 업무계획 계열 문서라 개별 공고의 접수 기간·예산·세부 요건을 담지 않는다.",
     grain: "region_policy",
     evidenceRole: "observed_fact",
+    evidenceContract: {
+      role: "observed_fact",
+      canClaim: [
+        "문서에 기재된 정책·지원사업의 명시적 조건 문구"
+      ],
+      cannotClaim: [
+        "특정 신청자가 실제로 자격을 갖췄는지 (판정 권한은 소관 기관에 있다)",
+        "현재 접수 중인지, 예산이 남아 있는지",
+        "기재되지 않은 조건이 없다는 것 (문서에 없는 조건이 공고문에는 있을 수 있다)"
+      ],
+      insteadUse:
+        "실제 신청 자격과 접수 여부는 해당 사업의 공식 공고문으로 확인해야 한다."
+    },
     measures: [],
     dimensions: [
       REGION_DIMENSION,
@@ -276,8 +345,9 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       }
     ],
     usageRules: [
-      "자격 판정 결과는 최종 결정이 아니라 공식 공고 확인이 필요한 참고 정보다.",
-      "부합 이유와 미충족 조건을 분리해서 제시한다."
+      "이 도구는 신청 자격을 판정하지 않는다. 결과는 '확인해 볼 만한 사업' 목록이며 최종 자격은 공고문으로만 확인된다.",
+      "부합 이유와 미충족 조건을 분리해서 제시하고, 어느 쪽도 판정으로 서술하지 않는다.",
+      "업무계획 계열 문서는 정책 방향이므로 개별 사업의 자격 근거로 인용하지 않는다."
     ]
   },
   {
@@ -287,6 +357,20 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       "경상북도의회 회의록에서 추출한 발언·안건 기록. 특정 주제가 시간에 따라 어떻게 논의되었는지 추적하는 데 쓴다.",
     grain: "council_meeting_record",
     evidenceRole: "narrative_context_only",
+    evidenceContract: {
+      role: "narrative_context_only",
+      canClaim: [
+        "특정 사안이 언제 어느 회의에서 논의되었는지",
+        "누가 어떤 발언을 했는지 (발언 원문 인용)"
+      ],
+      cannotClaim: [
+        "회의에서 인용된 수치의 사실 여부 (발언은 발언일 뿐 관측이 아니다)",
+        "논의 결과가 실제로 집행되었는지",
+        "발언 빈도로 판단한 의원의 성과나 관심도"
+      ],
+      insteadUse:
+        "수치는 통계 데이터셋으로, 집행 여부는 결산·성과 자료로 확인해야 한다."
+    },
     measures: [],
     dimensions: [
       REGION_DIMENSION,
@@ -331,6 +415,20 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       "경상북도가 발행한 보도자료 전문. 정책의 발표 시점과 도정의 서술을 확인하는 데 쓰며, 수치 주장의 근거로는 쓸 수 없다.",
     grain: "press_release",
     evidenceRole: "narrative_context_only",
+    evidenceContract: {
+      role: "narrative_context_only",
+      canClaim: [
+        "도가 특정 시점에 무엇을 발표했는지",
+        "발표된 계획의 내용과 발표일"
+      ],
+      cannotClaim: [
+        "본문에 실린 수치 (발표 시점의 계획치·목표치이며 관측 통계가 아니다)",
+        "발표한 사업이 실제로 집행되었거나 성과를 냈는지",
+        "본문에 시군 이름이 나왔다는 이유로 그 시군의 사업이라는 것"
+      ],
+      insteadUse:
+        "수치 검증은 verify_claim_with_data와 통계 데이터셋이, 집행 결과는 별도 통계가 필요하다."
+    },
     measures: [],
     dimensions: [
       REGION_DIMENSION,
@@ -375,6 +473,20 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       "경상북도의회 의원별 대표발의·공동발의 의안과 처리 결과. 특정 의원 또는 특정 주제의 입법 활동을 추적한다.",
     grain: "council_bill",
     evidenceRole: "narrative_context_only",
+    evidenceContract: {
+      role: "narrative_context_only",
+      canClaim: [
+        "어떤 의안이 언제 발의되었고 누가 대표·공동발의했는지",
+        "의안의 처리 결과 (원안가결 등 의회 내 절차 결과)"
+      ],
+      cannotClaim: [
+        "선거 공약의 이행 여부 (경상북도의회는 공약을 공개하지 않는다)",
+        "발의 건수로 판단한 의정활동의 양이나 질 (예산 심의·행정사무감사는 포함되지 않는다)",
+        "가결된 조례가 실제로 집행되었는지"
+      ],
+      insteadUse:
+        "공약 원문은 중앙선거관리위원회 자료가, 집행 여부는 결산 자료가 필요하다."
+    },
     measures: [
       {
         name: "leadBillCount",
@@ -438,6 +550,19 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       "정책 계획서·공고문 PDF에서 페이지 단위로 추출한 본문. 모든 조각은 원본 문서와 페이지 번호를 보존하므로 인용 위치를 정확히 되짚을 수 있다.",
     grain: "document_chunk",
     evidenceRole: "narrative_context_only",
+    evidenceContract: {
+      role: "narrative_context_only",
+      canClaim: [
+        "공식 문서의 특정 페이지에 어떤 문장이 실려 있는지 (페이지 단위 원문 인용)"
+      ],
+      cannotClaim: [
+        "본문에 실린 수치를 관측 통계로 사용하는 것",
+        "업무계획에 적힌 방향을 개별 사업의 신청 자격으로 사용하는 것",
+        "검색되지 않았다는 이유로 해당 내용이 문서에 없다는 것 (검색은 lexical이라 동의어 recall을 보장하지 않는다)"
+      ],
+      insteadUse:
+        "수치는 통계 데이터셋이, 신청 자격은 공식 공고문이 근거가 되어야 한다."
+    },
     measures: [],
     dimensions: [
       REGION_DIMENSION,

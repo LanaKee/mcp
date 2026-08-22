@@ -1,4 +1,9 @@
-import { getDatasetDefinition, joinability, type SourceRef } from "@gb/domain";
+import {
+  getDatasetDefinition,
+  joinability,
+  type EvidenceContract,
+  type SourceRef
+} from "@gb/domain";
 import { searchDatasets, type DatasetSearchHit } from "./catalog-tools.js";
 import { extractEntities } from "./entities.js";
 import { yearWindowGap } from "./planner.js";
@@ -35,6 +40,13 @@ export interface AgentEvidence {
   tool: string;
   dataStatus: string;
   sourceIds: string[];
+  /**
+   * The claim boundary for the dataset this came from, carried per evidence
+   * item rather than left in a shared limitations list. A reader looking at one
+   * number needs to know what that number can support without reconciling it
+   * against a list at the bottom of the answer.
+   */
+  evidenceContract: EvidenceContract;
   detail?: unknown;
 }
 
@@ -222,6 +234,18 @@ export async function runAgent(
   const executedDatasets: string[] = [];
 
   for (const step of accepted) {
+    // Resolved before execution: a step whose dataset is not in the catalog has
+    // no evidence contract, so nothing it returns could be labelled with what it
+    // may claim. `validateStep` already rejects that case; this keeps the
+    // guarantee local instead of relying on a check made elsewhere.
+    const dataset = getDatasetDefinition(step.datasetId);
+    if (!dataset) {
+      rejectedSteps.push({
+        step,
+        reason: `${step.datasetId}은(는) 카탈로그에 없어 근거 계약을 붙일 수 없습니다.`
+      });
+      continue;
+    }
     try {
       const response = await executeTool(
         registry,
@@ -229,7 +253,6 @@ export async function runAgent(
         step.arguments,
         context
       );
-      const dataset = getDatasetDefinition(step.datasetId);
       // A tool can succeed and still return nothing that supports a claim: a
       // filter that matches no row yields `empty` with no sources. Counting
       // that as evidence would make the agent answer "collected evidence from
@@ -241,20 +264,21 @@ export async function runAgent(
           reason: `${step.tool} 호출은 성공했지만 조건에 맞는 데이터가 없어 근거로 쓰지 않았습니다.`
         });
         limitations.add(
-          `${dataset?.title ?? step.datasetId}에서 조건에 맞는 기록을 찾지 못했습니다.`
+          `${dataset.title}에서 조건에 맞는 기록을 찾지 못했습니다.`
         );
         continue;
       }
       executedDatasets.push(step.datasetId);
-      for (const rule of dataset?.usageRules ?? []) limitations.add(rule);
+      for (const rule of dataset.usageRules) limitations.add(rule);
       for (const limitation of response.limitations) limitations.add(limitation);
       sources.push(...response.sources);
       evidence.push({
-        statement: `${dataset?.title ?? step.datasetId}: ${step.reason}`,
+        statement: `${dataset.title}: ${step.reason}`,
         datasetId: step.datasetId,
         tool: step.tool,
         dataStatus: response.data_status,
         sourceIds: response.sources.map((source) => source.sourceId),
+        evidenceContract: dataset.evidenceContract,
         detail: response.result
       });
     } catch (caught) {
