@@ -31,7 +31,9 @@
     "start": "pnpm --filter @gb/mcp-server start:http",
     "gb:press:crawl": "pnpm --filter @gb/pipelines gb:press:crawl",
     "gb:council:crawl": "pnpm --filter @gb/pipelines gb:council:crawl",
-    "benchmark": "pnpm --filter @gb/mcp-server benchmark"
+    "benchmark": "pnpm --filter @gb/mcp-server benchmark",
+    "benchmark:compare": "pnpm --filter @gb/benchmark compare",
+    "benchmark:compare:dry-run": "pnpm --filter @gb/benchmark compare -- --dry-run"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

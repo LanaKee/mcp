@@ -23,6 +23,22 @@ importers:
 
   apps/web: {}
 
+  benchmark:
+    dependencies:
+      '@gb/domain':
+        specifier: workspace:*
+        version: link:../packages/domain
+      '@gb/mcp-server':
+        specifier: workspace:*
+        version: link:../services/mcp-server
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+
   packages/domain:
     dependencies:
       zod:
