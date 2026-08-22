@@ -230,7 +230,8 @@ export const MIGRATION_FILES = [
   "010_policy_document_text_quality.sql",
   "011_population_measurement_semantics.sql",
   "012_remove_demo_data.sql",
-  "013_raw_intake_ledger.sql"
+  "013_raw_intake_ledger.sql",
+  "014_content_addressed_sources.sql"
 ] as const;
 
 export async function applyDatabaseSchema(client: Client): Promise<void> {

@@ -201,8 +201,13 @@ function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export function officialSourceKey(path: string, fileSha256: string): string {
-  return `official:${path.normalize("NFC")}:${fileSha256}`;
+/**
+ * Official sources are content-addressed. The store already refuses to keep the
+ * same bytes twice, and keying on the digest means a file that is re-routed or
+ * copied cannot fork into a second source and duplicate its facts.
+ */
+export function officialSourceKey(fileSha256: string): string {
+  return `official:${fileSha256}`;
 }
 
 export function deterministicCouncilId(input: {
@@ -290,7 +295,7 @@ function addOfficialPopulation(
 ): void {
   const region = resolveGyeongbukRegion(row.regionName);
   const referenceDate = parseReferenceDate(row.referenceDate);
-  const sourceKey = officialSourceKey(row.sourcePath, row.sourceSha256);
+  const sourceKey = officialSourceKey(row.sourceSha256);
   if (!region || !referenceDate) {
     plan.rejected.push({
       entityType: "population_observation",
@@ -346,7 +351,7 @@ function addOfficialCouncil(
   plan: Omit<LoadPlan, "inputSha256">
 ): void {
   const region = resolveGyeongbukRegion(row.regionName);
-  const sourceKey = officialSourceKey(row.sourcePath, row.sourceSha256);
+  const sourceKey = officialSourceKey(row.sourceSha256);
   const meetingDate = row.meetingDate
     ? parseReferenceDate(row.meetingDate)
     : null;
@@ -458,7 +463,7 @@ function taxSourceKey(
   sourcePath: string,
   sourceSha256: string
 ): string | null {
-  const sourceKey = officialSourceKey(sourcePath, sourceSha256);
+  const sourceKey = officialSourceKey(sourceSha256);
   return plan.sources.some((source) => source.sourceKey === sourceKey)
     ? sourceKey
     : null;
@@ -625,7 +630,7 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
       normalizedName: region.regionName.replace(/\s+/g, "")
     })),
     sources: etl.catalog.map((entry) => ({
-      sourceKey: officialSourceKey(entry.path, entry.sha256),
+      sourceKey: officialSourceKey(entry.sha256),
       title: entry.fileNameNfc,
       provider: sourceProvider(entry.path),
       sourceUrl: officialSourceUrl(entry.path, entry.contentKind),

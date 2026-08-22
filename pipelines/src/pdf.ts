@@ -973,7 +973,7 @@ function documentIdentity(
 function sourceFromCatalog(entry: CatalogEntry): PlannedSource {
   const policyYear = policyYearFromPath(entry.path);
   return {
-    sourceKey: officialSourceKey(entry.path, entry.sha256),
+    sourceKey: officialSourceKey(entry.sha256),
     title: entry.fileNameNfc,
     provider:
       policyYear !== null

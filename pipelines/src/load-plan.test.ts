@@ -90,7 +90,7 @@ function fixture(): EtlResult {
 
 describe("database load plan", () => {
   it("keeps exact monthly population dates as distinct natural keys", async () => {
-    const plan = await createLoadPlan(fixture(), { includeDemo: false });
+    const plan = await createLoadPlan(fixture());
     expect(plan.population.map((row) => row.referenceDate)).toEqual([
       "2026-06-30",
       "2026-07-31"
@@ -98,15 +98,36 @@ describe("database load plan", () => {
     expect(new Set(plan.population.map((row) => row.referenceDate)).size).toBe(2);
   });
 
+  it("collapses identical bytes at two paths into a single source", async () => {
+    const etl = fixture();
+    const copyPath = "datasets/local-tax/복사본_안건_20260716.csv";
+    etl.catalog.push({ ...catalogEntry(), path: copyPath });
+    etl.population.push(
+      ...etl.population.map((row) => ({ ...row, sourcePath: copyPath }))
+    );
+
+    const plan = await createLoadPlan(etl);
+
+    expect(plan.sources).toHaveLength(1);
+    expect(plan.sources[0]?.sourceKey).toBe(officialSourceKey(sourceSha256));
+    // Facts are keyed by (source_id, source_row), so a forked source key used to
+    // duplicate every row it carried.
+    expect(plan.population).toHaveLength(2);
+    expect(
+      new Set(plan.population.map((row) => `${row.sourceKey}:${row.sourceRow}`))
+        .size
+    ).toBe(2);
+  });
+
   it("uses stable source-version keys and deterministic council IDs", async () => {
-    const first = await createLoadPlan(fixture(), { includeDemo: false });
-    const second = await createLoadPlan(fixture(), { includeDemo: false });
+    const first = await createLoadPlan(fixture());
+    const second = await createLoadPlan(fixture());
     expect(first.inputSha256).toBe(second.inputSha256);
     expect(first.council[0]?.councilRecordId).toBe(
       second.council[0]?.councilRecordId
     );
     expect(first.sources[0]?.sourceKey).toBe(
-      officialSourceKey(sourcePath, sourceSha256)
+      officialSourceKey(sourceSha256)
     );
     expect(
       deterministicCouncilId({
@@ -158,7 +179,7 @@ describe("database load plan", () => {
         }
       ]
     };
-    const plan = await createLoadPlan(etl, { includeDemo: false });
+    const plan = await createLoadPlan(etl);
     expect(plan.sources[0]).toMatchObject({
       provider: "포항시의회",
       sourceUrl: "https://council.pohang.go.kr/content/activity/billSearch.html"
@@ -176,7 +197,7 @@ describe("database load plan", () => {
   it("rejects unresolved factual rows instead of inventing region IDs", async () => {
     const etl = fixture();
     etl.population[0]!.regionName = "임의지역";
-    const plan = await createLoadPlan(etl, { includeDemo: false });
+    const plan = await createLoadPlan(etl);
     expect(plan.population).toHaveLength(1);
     expect(plan.rejected[0]).toMatchObject({
       entityType: "population_observation",
