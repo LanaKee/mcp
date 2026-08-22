@@ -142,14 +142,14 @@ describe("official local-tax normalization", () => {
         "local_tax_per_capita",
         ["시군구명", "자치단체코드", "과세년도", "주민1인당 부담금액", "세대당부담금액", "지방세 금액", "인구수", "세대수"],
         [{
-          시군구명: "청도군",
-          자치단체코드: "47820",
+          시군구명: "봉화군",
+          자치단체코드: "47920",
           과세년도: "2024",
-          "주민1인당 부담금액": "100",
-          세대당부담금액: "200",
-          "지방세 금액": "5000",
-          인구수: "50",
-          세대수: "25"
+          "주민1인당 부담금액": "1152975.163",
+          세대당부담금액: "2002842.879",
+          "지방세 금액": "33247191790",
+          인구수: "28836",
+          세대수: "16600"
         }]
       ),
       source(
@@ -224,12 +224,22 @@ describe("official local-tax normalization", () => {
     expect(result.exemption[0]?.fiscalYear).toBe(2014);
     expect(result.paymentMedia).toHaveLength(1);
     expect(result.perCapita).toHaveLength(1);
+    expect(result.perCapita[0]).toMatchObject({
+      perResidentAmountWon: 1152975,
+      perHouseholdAmountWon: 2002843,
+      totalLocalTaxAmountWon: 33247191790
+    });
+    expect(
+      result.qualityIssues.filter(
+        (item) => item.issueCode === "fractional_won_rounded"
+      )
+    ).toHaveLength(2);
     expect(populationRowsFromTaxPerCapita(result.perCapita)).toMatchObject([
       {
-        regionName: "청도군",
+        regionName: "봉화군",
         referenceDate: "2024-12-31",
-        populationTotal: 50,
-        householdCount: 25,
+        populationTotal: 28836,
+        householdCount: 16600,
         measurementBasis: "tax_year_reported_population",
         referenceDatePrecision: "year",
         metadata: {

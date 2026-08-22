@@ -556,6 +556,58 @@ function requiredMoney(
   return null;
 }
 
+function requiredRoundedMoney(
+  source: LocalTaxSourceInput,
+  row: Record<string, string>,
+  sourceRow: number,
+  issues: TaxQualityIssue[],
+  aliases: string[],
+  multiplier: 1 | 1000
+): number | null {
+  const raw = value(row, aliases);
+  const parsed = numeric(raw);
+  const scaled = parsed === null ? null : parsed * multiplier;
+  const rounded = scaled === null ? null : Math.round(scaled);
+  if (
+    parsed === null ||
+    parsed < 0 ||
+    scaled === null ||
+    !Number.isFinite(scaled) ||
+    rounded === null ||
+    !Number.isSafeInteger(rounded)
+  ) {
+    issue(issues, source, {
+      severity: "error",
+      issueCode: "invalid_money",
+      entityType: source.kind,
+      sourceRow,
+      fieldName: aliases[0]!,
+      message: "Expected a non-negative KRW amount roundable to a safe integer",
+      observed: raw,
+      expected: `Non-negative numeric amount x ${multiplier}`,
+      quarantined: true
+    });
+    return null;
+  }
+  if (!Number.isInteger(scaled)) {
+    issue(issues, source, {
+      severity: "info",
+      issueCode: "fractional_won_rounded",
+      entityType: source.kind,
+      sourceRow,
+      fieldName: aliases[0]!,
+      message: "Published fractional-won burden amount was rounded to the nearest won",
+      observed: raw,
+      expected: {
+        roundingRule: "nearest_won_half_toward_positive_infinity",
+        normalizedAmountWon: rounded
+      },
+      quarantined: false
+    });
+  }
+  return rounded;
+}
+
 function optionalInteger(
   source: LocalTaxSourceInput,
   row: Record<string, string>,
@@ -1091,7 +1143,7 @@ export function normalizeLocalTaxSources(
         result.qualityIssues,
         ["과세년도"]
       );
-      const perResidentAmountWon = requiredMoney(
+      const perResidentAmountWon = requiredRoundedMoney(
         source,
         row,
         sourceRow,
@@ -1099,7 +1151,7 @@ export function normalizeLocalTaxSources(
         ["주민1인당 부담금액"],
         unit.unitMultiplier
       );
-      const perHouseholdAmountWon = requiredMoney(
+      const perHouseholdAmountWon = requiredRoundedMoney(
         source,
         row,
         sourceRow,
