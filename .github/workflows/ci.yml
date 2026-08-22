@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.32.1
+  NODE_VERSION: 24
+
+jobs:
+  build-and-test:
+    name: Build, typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gyeongbuk
+          POSTGRES_USER: gyeongbuk
+          POSTGRES_PASSWORD: gyeongbuk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gyeongbuk -d gyeongbuk"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://gyeongbuk:gyeongbuk@localhost:5432/gyeongbuk
+      AUDIT_HASH_SALT: ci-test-salt-not-a-secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Apply database schema (migration smoke check)
+        run: pnpm db:schema
+
+      - name: Test (unit)
+        run: pnpm test
+
+  docker-build:
+    name: Docker build (no push)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: gyeongbuk-public-ai:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

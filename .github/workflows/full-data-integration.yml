@@ -1,0 +1,78 @@
+name: Full data integration
+
+# This workflow runs the real ETL/normalize pipeline (PDF extraction, chunking,
+# feature-hash embeddings) against a throwaway Postgres instance and then
+# executes the *.integration.test.ts suite against it. It is intentionally
+# kept out of the per-push CI job because pnpm db:normalize over the full
+# datasets/ corpus takes well beyond a typical PR feedback budget (multiple
+# tens of minutes). Run it on a schedule and on demand instead.
+
+on:
+  schedule:
+    - cron: "0 18 * * 0" # weekly, Sunday 03:00 KST
+  workflow_dispatch:
+
+concurrency:
+  group: full-data-integration
+  cancel-in-progress: false
+
+env:
+  PNPM_VERSION: 10.32.1
+  NODE_VERSION: 24
+
+jobs:
+  integration:
+    name: Normalize + integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gyeongbuk
+          POSTGRES_USER: gyeongbuk
+          POSTGRES_PASSWORD: gyeongbuk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gyeongbuk -d gyeongbuk"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://gyeongbuk:gyeongbuk@localhost:5432/gyeongbuk
+      TEST_DATABASE_URL: postgres://gyeongbuk:gyeongbuk@localhost:5432/gyeongbuk
+      AUDIT_HASH_SALT: ci-test-salt-not-a-secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Normalize (ETL + schema + hashed-embedding load)
+        run: pnpm db:normalize
+
+      - name: Test (unit + integration)
+        run: pnpm test
+
+      - name: Report lifecycle/storage status on failure
+        if: failure()
+        run: pnpm lifecycle:status || true
