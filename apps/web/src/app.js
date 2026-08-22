@@ -26,6 +26,12 @@ function renderResult(result) {
     document.querySelector("#evidence"),
     result.evidence ?? [],
     (node, item) => {
+      if (item.dataStatus) {
+        const badge = document.createElement("small");
+        badge.className = `evidence-status evidence-status-${item.dataStatus}`;
+        text(badge, item.dataStatus);
+        node.append(badge);
+      }
       const statement = document.createElement("strong");
       text(statement, item.statement);
       node.append(statement);

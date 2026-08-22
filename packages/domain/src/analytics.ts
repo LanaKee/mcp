@@ -1,4 +1,6 @@
 import type {
+  ComparableTrendAnalysis,
+  ComparableTrendPoint,
   LocalTaxRecord,
   PolicyMatch,
   PolicyRecord,
@@ -16,8 +18,8 @@ export function normalizeRegionName(value: string): string {
 }
 
 export function summarizeTrend(points: TrendPoint[]): TrendSummary {
-  if (points.length === 0) {
-    throw new Error("추세를 계산할 데이터가 없습니다.");
+  if (points.length < 2) {
+    throw new Error("추세를 계산하려면 비교 가능한 데이터가 두 건 이상 필요합니다.");
   }
   const sorted = [...points].sort((a, b) => a.year - b.year);
   const start = sorted[0];
@@ -27,15 +29,128 @@ export function summarizeTrend(points: TrendPoint[]): TrendSummary {
   }
   const absoluteChange = end.value - start.value;
   const changePercent =
-    start.value === 0 ? 0 : Number(((absoluteChange / start.value) * 100).toFixed(2));
+    start.value === 0
+      ? null
+      : Number(((absoluteChange / start.value) * 100).toFixed(2));
   return {
     startValue: start.value,
     endValue: end.value,
     absoluteChange,
     changePercent,
+    changePercentUnavailableReason:
+      start.value === 0 ? "zero_baseline" : null,
     direction:
       absoluteChange > 0 ? "increase" : absoluteChange < 0 ? "decrease" : "flat"
   };
+}
+
+function compatibilityKey(point: ComparableTrendPoint): string {
+  const value = point.compatibility;
+  return JSON.stringify([
+    value.dataStatus,
+    value.accountingBasis,
+    value.amountSemantics,
+    value.sourceGrain,
+    value.unitOriginal,
+    value.unitMultiplier
+  ]);
+}
+
+export function analyzeComparableTrend(
+  points: ComparableTrendPoint[]
+): ComparableTrendAnalysis {
+  const sorted = [...points].sort((left, right) => left.year - right.year);
+  const segments: ComparableTrendAnalysis["segments"] = [];
+  for (const point of sorted) {
+    const previous = segments.at(-1);
+    const previousKey = previous
+      ? JSON.stringify([
+          previous.compatibility.dataStatus,
+          previous.compatibility.accountingBasis,
+          previous.compatibility.amountSemantics,
+          previous.compatibility.sourceGrain,
+          previous.compatibility.unitOriginal,
+          previous.compatibility.unitMultiplier
+        ])
+      : null;
+    if (!previous || previousKey !== compatibilityKey(point)) {
+      segments.push({
+        compatibility: point.compatibility,
+        points: [
+          { year: point.year, value: point.value, sourceId: point.sourceId }
+        ],
+        summary: null,
+        summaryUnavailableReason: "insufficient_points"
+      });
+      continue;
+    }
+    previous.points.push({
+      year: point.year,
+      value: point.value,
+      sourceId: point.sourceId
+    });
+  }
+  for (const segment of segments) {
+    if (segment.points.length >= 2) {
+      segment.summary = summarizeTrend(segment.points);
+      segment.summaryUnavailableReason = null;
+    }
+  }
+  if (sorted.length < 2) {
+    return {
+      summary: null,
+      summaryUnavailableReason: "insufficient_points",
+      segments
+    };
+  }
+  if (new Set(sorted.map(compatibilityKey)).size !== 1) {
+    return {
+      summary: null,
+      summaryUnavailableReason: "incomparable_sources",
+      segments
+    };
+  }
+  return {
+    summary: summarizeTrend(sorted),
+    summaryUnavailableReason: null,
+    segments
+  };
+}
+
+export function populationTrendPoints(
+  records: PopulationRecord[]
+): ComparableTrendPoint[] {
+  return records.map((record) => ({
+    year: record.year,
+    value: record.populationTotal,
+    sourceId: record.sourceId,
+    compatibility: {
+      dataStatus: record.dataStatus,
+      accountingBasis: null,
+      amountSemantics: null,
+      sourceGrain: null,
+      unitOriginal: null,
+      unitMultiplier: null
+    }
+  }));
+}
+
+export function localTaxTrendPoints(
+  records: LocalTaxRecord[]
+): ComparableTrendPoint[] {
+  return records.map((record) => ({
+    year: record.fiscalYear,
+    value: record.revenueAmountWon,
+    sourceId: record.sourceId,
+    compatibility: {
+      dataStatus: record.dataStatus,
+      accountingBasis: record.accountingBasis,
+      amountSemantics: record.amountSemantics ?? null,
+      sourceGrain: record.sourceGrain ?? null,
+      unitOriginal: record.unitOriginal ?? null,
+      unitMultiplier: record.unitMultiplier ?? null
+    }
+  }));
 }
 
 export function comparePopulationAndTax(
@@ -46,7 +161,10 @@ export function comparePopulationAndTax(
   regionFilter?: string[]
 ) {
   const filters = regionFilter?.map(normalizeRegionName);
-  const regionIds = new Set(population.map((record) => record.regionId));
+  const regionIds = new Set([
+    ...population.map((record) => record.regionId),
+    ...taxes.map((record) => record.regionId)
+  ]);
 
   return [...regionIds]
     .map((regionId) => {
@@ -63,46 +181,68 @@ export function comparePopulationAndTax(
           record.fiscalYear >= startYear &&
           record.fiscalYear <= endYear
       );
-      const regionName = populationRows[0]?.regionName ?? regionId;
+      const regionName =
+        populationRows[0]?.regionName ?? taxRows[0]?.regionName ?? regionId;
       if (
         filters &&
         !filters.some((filter) => normalizeRegionName(regionName).includes(filter))
       ) {
         return null;
       }
-      if (
-        !populationRows.some((record) => record.year === startYear) ||
-        !populationRows.some((record) => record.year === endYear) ||
-        !taxRows.some((record) => record.fiscalYear === startYear) ||
-        !taxRows.some((record) => record.fiscalYear === endYear)
-      ) {
-        return null;
-      }
-      const populationTrend = summarizeTrend(
-        populationRows.map((record) => ({
-          year: record.year,
-          value: record.populationTotal,
-          sourceId: record.sourceId
-        }))
+      const hasEndpoints =
+        populationRows.some((record) => record.year === startYear) &&
+        populationRows.some((record) => record.year === endYear) &&
+        taxRows.some((record) => record.fiscalYear === startYear) &&
+        taxRows.some((record) => record.fiscalYear === endYear);
+      const populationAnalysis = analyzeComparableTrend(
+        populationTrendPoints(populationRows)
       );
-      const taxTrend = summarizeTrend(
-        taxRows.map((record) => ({
-          year: record.fiscalYear,
-          value: record.revenueAmountWon,
-          sourceId: record.sourceId
-        }))
-      );
+      const taxAnalysis = analyzeComparableTrend(localTaxTrendPoints(taxRows));
+      const populationStatuses = [
+        ...new Set(populationRows.map((record) => record.dataStatus))
+      ];
+      const taxStatuses = [
+        ...new Set(taxRows.map((record) => record.dataStatus))
+      ];
+      const populationOfficial =
+        populationStatuses.length > 0 &&
+        populationStatuses.every((status) => status === "official_observed");
+      const taxOfficial =
+        taxStatuses.length > 0 &&
+        taxStatuses.every((status) => status === "official_observed");
+      const notEvaluableReason = !hasEndpoints
+        ? "missing_endpoints"
+        : populationAnalysis.summaryUnavailableReason ??
+          taxAnalysis.summaryUnavailableReason ??
+          (!populationOfficial || !taxOfficial
+            ? "non_official_data"
+            : null);
+      const evaluable = notEvaluableReason === null;
+      const populationTrend = populationOfficial
+        ? populationAnalysis.summary
+        : null;
+      const taxTrend = taxOfficial ? taxAnalysis.summary : null;
       return {
         regionId,
         regionName,
         populationTrend,
         taxTrend,
-        populationDataStatuses: [
-          ...new Set(populationRows.map((record) => record.dataStatus))
-        ],
-        taxDataStatuses: [
-          ...new Set(taxRows.map((record) => record.dataStatus))
-        ],
+        populationSeries: populationOfficial
+          ? populationAnalysis.segments
+          : populationAnalysis.segments.map((segment) => ({
+              ...segment,
+              summary: null,
+              summaryUnavailableReason: "non_official_data" as const
+            })),
+        taxSeries: taxOfficial
+          ? taxAnalysis.segments
+          : taxAnalysis.segments.map((segment) => ({
+              ...segment,
+              summary: null,
+              summaryUnavailableReason: "non_official_data" as const
+            })),
+        populationDataStatuses: populationStatuses,
+        taxDataStatuses: taxStatuses,
         taxAmountSemantics: [
           ...new Set(
             taxRows
@@ -117,13 +257,24 @@ export function comparePopulationAndTax(
               .filter((value): value is NonNullable<typeof value> => Boolean(value))
           )
         ],
-        matches: populationTrend.direction === "decrease" && taxTrend.direction === "increase"
+        populationSourceIds: [
+          ...new Set(populationRows.map((record) => record.sourceId))
+        ],
+        taxSourceIds: [...new Set(taxRows.map((record) => record.sourceId))],
+        evaluable,
+        notEvaluableReason,
+        matches:
+          evaluable && populationTrend && taxTrend
+            ? populationTrend.direction === "decrease" &&
+              taxTrend.direction === "increase"
+            : null
       };
     })
     .filter((value): value is NonNullable<typeof value> => value !== null)
     .sort((a, b) => {
-      if (a.matches !== b.matches) return a.matches ? -1 : 1;
-      return b.taxTrend.changePercent - a.taxTrend.changePercent;
+      if (a.matches !== b.matches) return a.matches === true ? -1 : 1;
+      if (a.evaluable !== b.evaluable) return a.evaluable ? -1 : 1;
+      return (b.taxTrend?.changePercent ?? 0) - (a.taxTrend?.changePercent ?? 0);
     });
 }
 

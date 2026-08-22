@@ -12,14 +12,30 @@ beforeAll(async () => {
 });
 
 describe("MCP tools", () => {
-  it("returns sample status and expected population/tax comparison", async () => {
+  it("returns demo context without a population/tax verdict", async () => {
     const response = await executeTool(registry, "compare_population_and_tax", {
       startYear: 2022,
       endYear: 2024
     });
     expect(response.data_status).toBe("demo_sample");
-    const result = response.result as { matches: Array<{ regionName: string }> };
-    expect(result.matches.map((item) => item.regionName)).toContain("포항시");
+    const result = response.result as {
+      matches: Array<{ regionName: string }>;
+      not_evaluable: Array<{
+        regionName: string;
+        notEvaluableReason: string;
+        matches: null;
+      }>;
+    };
+    expect(result.matches).toHaveLength(0);
+    expect(result.not_evaluable).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          regionName: "포항시",
+          notEvaluableReason: "non_official_data",
+          matches: null
+        })
+      ])
+    );
   });
 
   it("strictly rejects unknown input fields", async () => {
@@ -59,25 +75,26 @@ describe("MCP tools", () => {
     expect(result.matches.every((item) => item.id !== "demo-council-2024")).toBe(true);
   });
 
-  it("drafts only from a verified bundle", async () => {
-    const response = await executeTool(registry, "draft_public_document", {
-      documentType: "information_request",
-      title: "자료 요청",
-      verifiedAnalysis: {
-        conclusion: "포항시 데모에서 인구 감소가 관측되었습니다.",
-        evidence: [
-          {
-            statement: "2022~2024 인구 비교",
-            sourceIds: ["demo-population-2026"]
-          }
-        ],
-        sources: store.sources.filter(
-          (source) => source.sourceId === "demo-population-2026"
-        ),
-        limitations: ["데모 샘플"],
-        verified: true
-      }
-    });
-    expect(JSON.stringify(response)).toContain("검토가 필요한 초안");
+  it("rejects demo evidence for a public document", async () => {
+    await expect(
+      executeTool(registry, "draft_public_document", {
+        documentType: "information_request",
+        title: "자료 요청",
+        verifiedAnalysis: {
+          conclusion: "포항시 데모에서 인구 감소가 관측되었습니다.",
+          evidence: [
+            {
+              statement: "2022~2024 인구 비교",
+              sourceIds: ["demo-population-2026"]
+            }
+          ],
+          sources: store.sources.filter(
+            (source) => source.sourceId === "demo-population-2026"
+          ),
+          limitations: ["데모 샘플"],
+          verified: true
+        }
+      })
+    ).rejects.toThrow("demo_sample");
   });
 });

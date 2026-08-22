@@ -201,6 +201,30 @@ h2 {
   border-top: 0;
 }
 
+.evidence-status {
+  display: inline-block;
+  margin: 0 8px 5px 0;
+  padding: 2px 7px;
+  color: #33443a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid #8ca093;
+  border-radius: 999px;
+}
+
+.evidence-status-demo_sample,
+.evidence-status-incomparable {
+  color: #684417;
+  background: #fff1d8;
+  border-color: #bf965d;
+}
+
+.evidence-status-official_observed {
+  color: #174f33;
+  background: #e3f3e9;
+  border-color: #72a486;
+}
+
 .source-item small {
   display: block;
   color: #6d746f;
@@ -258,4 +282,3 @@ footer {
     margin-bottom: 18px;
   }
 }
-

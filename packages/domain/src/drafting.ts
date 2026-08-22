@@ -11,6 +11,15 @@ function evidenceLines(input: DraftPublicDocumentInput): string {
 
 export function draftPublicDocument(input: DraftPublicDocumentInput) {
   const sourceIds = new Set(input.verifiedAnalysis.sources.map((source) => source.sourceId));
+  if (
+    input.verifiedAnalysis.sources.some(
+      (source) => source.dataStatus === "demo_sample" || !source.isOfficial
+    )
+  ) {
+    throw new Error(
+      "demo_sample 또는 비공식 출처로 공공문서의 검증 근거를 만들 수 없습니다."
+    );
+  }
   for (const evidence of input.verifiedAnalysis.evidence) {
     for (const sourceId of evidence.sourceIds) {
       if (!sourceIds.has(sourceId)) {
@@ -28,11 +37,10 @@ export function draftPublicDocument(input: DraftPublicDocumentInput) {
     label: "검토가 필요한 초안",
     draft: `${body}\n\n5. 한계 및 확인사항\n- ${input.verifiedAnalysis.limitations.join("\n- ")}\n\n※ 본 문서는 제공된 검증 결과와 출처만으로 작성된 초안이며 제출 전 담당 기관 확인이 필요합니다.`,
     usedSourceIds: [...sourceIds],
-    dataStatus: input.verifiedAnalysis.sources.every(
-      (source) => source.dataStatus === "official_observed"
+    dataStatus: input.verifiedAnalysis.sources.some(
+      (source) => source.dataStatus === "catalog_only"
     )
-      ? ("official_observed" as const)
-      : ("demo_sample" as const)
+      ? ("catalog_only" as const)
+      : ("official_observed" as const)
   };
 }
-

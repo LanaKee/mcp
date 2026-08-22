@@ -54,5 +54,7 @@ describe("HTTP API", () => {
     expect(response.status).toBe(200);
     expect(value).toHaveProperty("conclusion");
     expect(value.data_status).toBe("demo_sample");
+    expect(value.conclusion).toContain("결론을 생성하지 않았습니다");
+    expect(JSON.stringify(value)).not.toContain("지방세 +");
   });
 });

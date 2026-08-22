@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+  analyzeComparableTrend,
   comparePopulationAndTax,
   comparisonInputSchema,
   councilSearchInputSchema,
@@ -8,9 +9,10 @@ import {
   evaluatePolicyEligibility,
   localTaxTrendInputSchema,
   policySearchInputSchema,
+  localTaxTrendPoints,
+  populationTrendPoints,
   populationTrendInputSchema,
   sourceContextInputSchema,
-  summarizeTrend,
   verifyClaimInputSchema,
   type DataStatus,
   type LocalTaxRecord,
@@ -107,12 +109,21 @@ function taxCoverageLimitations(rows: LocalTaxRecord[]): string[] {
       "요청한 지역·연도에는 공식 지방세가 없어 demo_sample만 반환했습니다."
     ];
   }
+
   if (statuses.length > 1) {
     return [
       "공식 자료가 없는 연도만 demo_sample을 사용했으며 각 점의 dataStatus를 반드시 구분해야 합니다."
     ];
   }
   return [];
+}
+
+function summaryUnavailableMessage(
+  reason: "insufficient_points" | "incomparable_sources"
+): string {
+  return reason === "incomparable_sources"
+    ? "상태·회계기준·금액 의미·원천 grain·단위가 다른 점을 가로질러 증감률을 계산하지 않았습니다."
+    : "비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.";
 }
 
 export function createToolRegistry(repository: DataRepository): ToolRegistry {
@@ -150,6 +161,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       });
       const rows = loaded.records.sort((left, right) => left.year - right.year);
       if (rows.length === 0) throw new Error("해당 지역·기간의 인구 데이터가 없습니다.");
+      const analysis = analyzeComparableTrend(populationTrendPoints(rows));
       return {
         data_status: responseStatus(loaded.dataStatuses),
         data_statuses: loaded.dataStatuses,
@@ -162,16 +174,17 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
             sourceId: row.sourceId,
             dataStatus: row.dataStatus
           })),
-          summary: summarizeTrend(
-            rows.map((row) => ({
-              year: row.year,
-              value: row.populationTotal,
-              sourceId: row.sourceId
-            }))
-          )
+          summary: analysis.summary,
+          summary_unavailable_reason: analysis.summaryUnavailableReason,
+          series_segments: analysis.segments
         },
         sources: loaded.sources,
-        limitations: statusLimitations(loaded.dataStatuses)
+        limitations: [
+          ...(analysis.summaryUnavailableReason
+            ? [summaryUnavailableMessage(analysis.summaryUnavailableReason)]
+            : []),
+          ...statusLimitations(loaded.dataStatuses)
+        ]
       };
     }
   );
@@ -209,6 +222,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       const sourceGrains = [
         ...new Set(rows.map((row) => row.sourceGrain).filter(Boolean))
       ];
+      const analysis = analyzeComparableTrend(localTaxTrendPoints(rows));
       return {
         data_status: responseStatus(loaded.dataStatuses),
         data_statuses: loaded.dataStatuses,
@@ -232,17 +246,16 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
             sourceUnit: row.unitOriginal ?? null,
             sourceUnitMultiplier: row.unitMultiplier ?? null
           })),
-          summary: summarizeTrend(
-            rows.map((row) => ({
-              year: row.fiscalYear,
-              value: row.revenueAmountWon,
-              sourceId: row.sourceId
-            }))
-          )
+          summary: analysis.summary,
+          summary_unavailable_reason: analysis.summaryUnavailableReason,
+          series_segments: analysis.segments
         },
         sources: loaded.sources,
         limitations: [
           "국세는 범위 밖입니다.",
+          ...(analysis.summaryUnavailableReason
+            ? [summaryUnavailableMessage(analysis.summaryUnavailableReason)]
+            : []),
           ...taxCoverageLimitations(rows),
           ...statusLimitations(loaded.dataStatuses)
         ]
@@ -291,12 +304,14 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       const mixedTaxCoverage = comparison.some(
         (item) => item.taxDataStatuses.length > 1
       );
+      const notEvaluable = comparison.filter((item) => !item.evaluable);
       return {
         data_status: responseStatus(usedStatuses),
         data_statuses: usedStatuses,
         result: {
           period: { start_year: input.startYear, end_year: input.endYear },
-          matches: comparison.filter((item) => item.matches),
+          matches: comparison.filter((item) => item.matches === true),
+          not_evaluable: notEvaluable,
           all_regions: comparison
         },
         sources: mergeSources(population.sources, taxes.sources),
@@ -305,6 +320,11 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
           ...(mixedTaxCoverage
             ? [
                 "일부 지역 추세는 공식 자료가 없는 연도에만 demo_sample을 사용하며 상태 배열로 명시합니다."
+              ]
+            : []),
+          ...(notEvaluable.length > 0
+            ? [
+                "비교 불가능하거나 비공식인 시계열에는 증감 방향과 일치 판정을 생성하지 않았습니다."
               ]
             : []),
           ...taxCoverageLimitations(taxes.records),
@@ -420,6 +440,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       const actualValue =
         "populationTotal" in row ? row.populationTotal : row.revenueAmountWon;
       const taxRow = "revenueAmountWon" in row ? row : null;
+      const officialEvidence = row.dataStatus === "official_observed";
       const difference = input.claimedValue - actualValue;
       const tolerancePercent = input.tolerancePercent ?? 1;
       const differencePercent =
@@ -430,12 +451,18 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         data_status: responseStatus(loaded.dataStatuses),
         data_statuses: loaded.dataStatuses,
         result: {
-          verdict:
-            differencePercent <= tolerancePercent ? "consistent" : "inconsistent",
+          verdict: officialEvidence
+            ? differencePercent <= tolerancePercent
+              ? "consistent"
+              : "inconsistent"
+            : "not_verifiable",
+          verification_unavailable_reason: officialEvidence
+            ? null
+            : "demo_data_not_evidence",
           claimed_value: input.claimedValue,
           actual_value: actualValue,
-          difference,
-          difference_percent: differencePercent,
+          difference: officialEvidence ? difference : null,
+          difference_percent: officialEvidence ? differencePercent : null,
           tolerance_percent: tolerancePercent,
           source_id: row.sourceId,
           record_data_status: row.dataStatus,
@@ -445,6 +472,11 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         },
         sources: loaded.sources,
         limitations: [
+          ...(!officialEvidence
+            ? [
+                "demo_sample 값은 주장 지지·반박 근거로 사용하지 않았습니다."
+              ]
+            : []),
           ...(taxRow ? taxCoverageLimitations([taxRow]) : []),
           ...statusLimitations(loaded.dataStatuses)
         ]

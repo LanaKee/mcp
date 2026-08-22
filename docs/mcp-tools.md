@@ -4,11 +4,15 @@
 `data_status`, `data_statuses`, `result`, `sources`, `limitations`를 갖는다. 아래 factual
 도구는 선택 `dataStatuses` 배열로 `official_observed`/`demo_sample`을 제한할 수 있다.
 기본은 둘 다이며 같은 연도/키가 충돌하면 공식 레코드를 우선한다.
+목록 반환과 파생 결론은 별개다. point는 삭제하지 않지만 비교 가능성 조건을 통과하지
+못하면 `summary`/verdict를 생성하지 않는다.
 
 ## `get_population_trend`
 
 - 입력: `region`, `startYear`, `endYear`, 선택 `dataStatuses`
-- 출력: 연도별 인구(명), 절대 증감, 증감률, 방향
+- 출력: 연도별 인구(명), nullable summary, `summary_unavailable_reason`,
+  homogeneous `series_segments`
+- 상태가 섞이거나 point가 한 건이면 전체 증감률을 계산하지 않는다.
 
 ```json
 {"region":"포항시","startYear":2022,"endYear":2024}
@@ -21,17 +25,23 @@
   `amountSemantics`, `sourceGrain`, 원단위/배수와 증감
 - 같은 지역·연도·세목에 공식과 샘플이 모두 있으면 공식만 선택한다.
 - 일부 연도만 공식인 추세는 각 point 상태와 limitation을 명시하며 상태가 다른 값을
-  합산하지 않는다. 공식이 전혀 없으면 `demo_sample` only 경고를 반환한다.
+  합산하지 않는다. 상태·회계기준·금액 의미·grain·원단위/배수 중 하나라도 다르면
+  `summary: null`, `incomparable_sources`다.
+- 한 점뿐이면 `summary: null`, `insufficient_points`다. segment 내부의 별도 summary는
+  해당 compatibility metadata와 함께 제공한다.
 - 국세는 지원하지 않는다.
 
 ## `compare_population_and_tax`
 
 - 입력: `startYear`, `endYear`, 선택 `regions`, `dataStatuses`
-- 출력: 모든 비교 가능 지역과 `인구 감소 && 지방세 증가` 일치 지역
+- 출력: 비교 가능한 공식 지역의 `matches`, 평가 불가능 지역의 `not_evaluable`,
+  전체 nullable 결과 `all_regions`
 - 각 지역 결과는 `populationDataStatuses`, `taxDataStatuses`,
   `taxAmountSemantics`, `taxSourceGrains`를 포함한다.
 - 공식 지방세가 있는 지역·연도는 공식 값을 사용하며 sample-only/mixed 구간을
   limitation에서 명시한다.
+- endpoint 누락, 혼합 source, demo가 한쪽이라도 있으면 `evaluable: false`,
+  `matches: null`이며 방향/상관 style verdict를 만들지 않는다.
 - 동시 변화는 인과관계가 아니다.
 
 ## `search_policies`
@@ -59,7 +69,8 @@
 
 - 입력: `metric`(`population`/`local_tax`), `region`, `year`,
   `claimedValue`, 선택 `tolerancePercent`, `dataStatuses`
-- 출력: `consistent`/`inconsistent`, 기준값, 차이, 차이율
+- 출력: 공식 기준이면 `consistent`/`inconsistent`, demo 기준이면
+  `not_verifiable`과 `demo_data_not_evidence`
 - 지방세 검증은 기준값의 `accounting_basis`, `amount_semantics`,
   `source_grain`, record 상태를 함께 반환한다.
 
@@ -77,6 +88,7 @@
 - `verifiedAnalysis`는 결론, 출처가 연결된 근거, 출처 묶음, 한계,
   `verified: true`를 포함해야 한다.
 - 근거의 source ID가 출처 묶음에 없으면 실패한다.
+- demo 또는 비공식 source가 포함되면 공공문서 검증 근거로 거절한다.
 - 출력은 항상 **검토가 필요한 초안**으로 표시한다.
 
 ## 오류

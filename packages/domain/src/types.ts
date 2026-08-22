@@ -72,8 +72,39 @@ export interface TrendSummary {
   startValue: number;
   endValue: number;
   absoluteChange: number;
-  changePercent: number;
+  changePercent: number | null;
+  changePercentUnavailableReason: "zero_baseline" | null;
   direction: "increase" | "decrease" | "flat";
+}
+
+export type TrendSummaryUnavailableReason =
+  | "insufficient_points"
+  | "incomparable_sources";
+
+export interface TrendCompatibility {
+  dataStatus: DataStatus;
+  accountingBasis: LocalTaxRecord["accountingBasis"] | null;
+  amountSemantics: LocalTaxRecord["amountSemantics"] | null;
+  sourceGrain: LocalTaxRecord["sourceGrain"] | null;
+  unitOriginal: LocalTaxRecord["unitOriginal"] | null;
+  unitMultiplier: LocalTaxRecord["unitMultiplier"] | null;
+}
+
+export interface ComparableTrendPoint extends TrendPoint {
+  compatibility: TrendCompatibility;
+}
+
+export interface TrendSeriesSegment {
+  compatibility: TrendCompatibility;
+  points: TrendPoint[];
+  summary: TrendSummary | null;
+  summaryUnavailableReason: "insufficient_points" | null;
+}
+
+export interface ComparableTrendAnalysis {
+  summary: TrendSummary | null;
+  summaryUnavailableReason: TrendSummaryUnavailableReason | null;
+  segments: TrendSeriesSegment[];
 }
 
 export interface ToolEnvelope<T> {

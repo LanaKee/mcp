@@ -75,6 +75,8 @@ flowchart LR
 ### 분석·검색
 
 - `@gb/domain`: 추세 수학, 시군 비교, 정책 조건 설명, 근거 제한형 초안
+- trend derivation은 status와 metric semantics/basis/grain/unit을 포함한 compatibility
+  key가 전체 point에서 같고 point가 두 개 이상일 때만 허용한다.
 - `@gb/retrieval`: 기존 in-memory 검색과 parameterized PostgreSQL hybrid repository
 - `services/mcp-server/src/repository.ts`: 인구·지방세·정책·의회·문서·출처·주장 검증
   repository 계약과 메모리 구현
@@ -116,8 +118,8 @@ flowchart LR
 4. 문서 본문은 기본 provider에서 외부로 전송하지 않는다.
 5. 외부 embedding은 provider 선택과 `--allow-external`을 모두 요구한다.
 6. 상태 필터 기본값은 공식+데모이며 실제 반환 상태가 섞이면 `data_status: mixed`와
-   `data_statuses`로 모호하지 않게 표시한다.
-7. 문서 초안은 `verified: true` 입력과 그 묶음 안의 source ID만 허용한다.
+   `data_statuses`로 표시하되 혼합 point의 summary/verdict는 NULL이다.
+7. 문서 초안은 `verified: true`, 묶음 안의 source ID, demo가 아닌 공식 source만 허용한다.
 8. 수치 동시 변화는 관측으로 표현하고 원인으로 단정하지 않는다.
 9. 감사 로그는 raw query/secret 대신 process salt 기반 hash와 필드 타입/길이만 저장한다.
 10. 감사 저장 실패는 경고하지만 read-only 도구 성공을 뒤집지 않는다.
@@ -135,6 +137,8 @@ flowchart LR
 19. 무표기 천원 판정은 명시적 천원 source와 3개 이상 exact category reconciliation이
     있어야 하며 filename 추정은 금지한다.
 20. 검증되지 않은 영천 열 교환은 자동 수정하지 않고 quality issue로 격리한다.
+21. demo 값은 claim을 지지·반박하지 않고, 비교 verdict는 양쪽 공식 homogeneous
+    series와 exact endpoint가 있어야 한다.
 
 ## 후속 확장
 

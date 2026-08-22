@@ -36,6 +36,11 @@
   23,795, page 11,712, 공식 인구 221, 공식 의회 46,596을 유지했다.
 - DB-backed 김천 합계 도구는 공식 수납액 107,720,311,000원을 371.4ms에 반환했고
   PDF 의회 검색은 page locator 포함 3건을 476.7ms에 반환했다. 두 호출 audit도 확인했다.
+- 독립 검증에서 김천 demo 2022~2023과 공식 2024를 가로지른 허위 `-54.36%` 감소가
+  발견됐다. compatibility guard 적용 뒤 동일 payload는 `summary: null`,
+  `incomparable_sources`, 비교는 `evaluable: false`를 반환한다.
+- 최종 token-auth PostgreSQL HTTP smoke는 trend 155.3ms, 비교 315.6ms였고 두 audit
+  correlation이 성공했다. 응답 문자열에 `-54.36`은 존재하지 않았다.
 
 ## 이번 P1에서 수정한 고신뢰 문제
 
@@ -102,6 +107,18 @@ detail 합계와 검증하고 세목 합산에서 중복 사용하지 않는다.
 영천 720행은 `세액=548`, `건수=6,969,586` 같은 규모 역전이 보여도 자동 swap하지 않고
 격리했다. 김천 일반건축물 40,694 data row는 주소 단위 재산 정보이므로 catalog만 남기고
 fact/search/embedding에서 제외했다. 문경 영치장소도 저장하지 않았다.
+
+### 혼합 series 파생 통계
+
+point별 status label만으로는 안전하지 않았다. demo 결산 2022~2023과 공식 수납 2024를
+단순 배열로 요약해 김천 `-54.36%`라는 존재하지 않는 감소 결론을 만들었다. 이제
+status, accounting basis, amount semantics, source grain, source unit/multiplier 중
+하나라도 다르면 전체 summary를 만들지 않는다. 인구도 status가 섞이면 같은 규칙을
+적용한다.
+
+비교 도구는 exact endpoint와 양쪽 공식 homogeneous series가 있어야 evaluable하다.
+demo claim은 검증하지 않고 demo/비공식 source의 공공문서 drafting은 거절한다. 대표
+demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 
 ## 영역별 남은 위험
 

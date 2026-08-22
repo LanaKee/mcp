@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { PostgresDataRepository } from "./postgres-repository.js";
+import { createToolRegistry, executeTool } from "./tools.js";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
@@ -42,6 +43,7 @@ describeDatabase("PostgresDataRepository integration", () => {
       taxCategory: "합계",
       dataStatuses: ["official_observed", "demo_sample"]
     });
+
     expect(taxes.records).toHaveLength(1);
     expect(taxes.records[0]).toMatchObject({
       regionId: "47150",
@@ -78,6 +80,57 @@ describeDatabase("PostgresDataRepository integration", () => {
       });
       expect(provenance.rows[0]!.source_row).toBe(
         provenance.rows[0]!.locator_row
+      );
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("does not derive the fabricated Kimcheon mixed-status trend", async () => {
+    const registry = createToolRegistry(repository!);
+    const correlationIds = [
+      `mixed-tax-${Date.now()}`,
+      `mixed-compare-${Date.now()}`
+    ];
+    const trend = await executeTool(
+      registry,
+      "get_local_tax_revenue_trend",
+      { region: "김천시", startYear: 2020, endYear: 2024 },
+      { correlationId: correlationIds[0] }
+    );
+    expect(trend.result).toMatchObject({
+      summary: null,
+      summary_unavailable_reason: "incomparable_sources"
+    });
+    expect(JSON.stringify(trend)).not.toContain("-54.36");
+
+    const comparison = await executeTool(
+      registry,
+      "compare_population_and_tax",
+      { regions: ["김천시"], startYear: 2022, endYear: 2024 },
+      { correlationId: correlationIds[1] }
+    );
+    const comparisonResult = comparison.result as {
+      matches: unknown[];
+      not_evaluable: Array<{
+        taxTrend: unknown;
+        matches: unknown;
+        notEvaluableReason: string;
+      }>;
+    };
+    expect(comparisonResult.matches).toHaveLength(0);
+    expect(comparisonResult.not_evaluable[0]).toMatchObject({
+      taxTrend: null,
+      matches: null,
+      notEvaluableReason: "incomparable_sources"
+    });
+    expect(JSON.stringify(comparison)).not.toContain("-54.36");
+
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      await pool.query(
+        "DELETE FROM mcp_tool_audit WHERE correlation_id = ANY($1::text[])",
+        [correlationIds]
       );
     } finally {
       await pool.end();

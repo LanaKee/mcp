@@ -137,7 +137,12 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
 `limitations`를 포함한다. 입력의 선택 `dataStatuses`로
 `official_observed`/`demo_sample`을 명시할 수 있고 기본값은 둘 다 허용한다. 실제
 반환 상태가 둘 이상이면 `data_status: "mixed"`이며 개별 상태는 `data_statuses`와
-레코드에 유지된다.
+레코드에 유지된다. 단, 파생 통계는 label만으로 안전하다고 간주하지 않는다.
+`dataStatus`와 지표의 회계 기준·금액 의미·source grain·원단위가 모두 같은 두 점
+이상에서만 `summary`를 계산한다. 그 외에는 원 point와 homogeneous
+`series_segments`를 유지하면서 `summary: null`과
+`summary_unavailable_reason`을 반환한다. 인구/지방세 일치 verdict는 양쪽이 비교 가능한
+공식 series일 때만 생성한다.
 
 ### HTTP 접근 제어
 
@@ -393,6 +398,8 @@ docs/                     설계·도구·데이터 사전·변경 기록
 - golden은 4개 local PDF의 5페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
+- demo와 공식, 또는 서로 다른 금액 의미/회계 기준/grain/단위를 가로지르는 증감률은
+  계산하지 않는다. demo 값은 claim 검증이나 공공문서 근거로 사용할 수 없다.
 - 공식 지방세 합계 시계열은 현재 경산·구미·김천·봉화·청도 5개 지역,
   29개 지역-연도에 한정된다. 다른 지역·연도는 샘플 상태를 확인해야 한다.
 - 영천 비과세·감면 720행은 금액/건수 열 의미가 검증되지 않아 적재하지 않았다.

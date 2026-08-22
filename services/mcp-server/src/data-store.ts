@@ -52,6 +52,10 @@ export async function loadDemoData(): Promise<DemoDataStore> {
     taxCategory: row.tax_category!,
     revenueAmountWon: Number(row.revenue_amount_won),
     accountingBasis: row.accounting_basis === "budget" ? "budget" : "settlement",
+    amountSemantics: "demo_settlement",
+    sourceGrain: "demo_sample",
+    unitOriginal: "KRW",
+    unitMultiplier: 1,
     sourceId: row.source_id!,
     dataStatus: dataStatusSchema.parse(row.data_status)
   }));
