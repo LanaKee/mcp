@@ -42,6 +42,10 @@ flowchart LR
 - `pipelines/src/gb-press-release.ts`: 경상북도 보도자료 목록/상세 파서와 크롤 loop.
   게시판이 앵글 브래킷을 제거한 채 서빙하는 HWP HTML 문서를 복구하고, 복구에
   실패하면 원본을 유지해 반쯤 정리된 본문을 색인하지 않는다
+- `pipelines/src/gb-council.ts`: 경상북도의회 의원 명부·의원별 발의의안 목록·의안 상세
+  파서와 크롤 loop. 명부 카드는 중첩 `div` 때문에 닫는 태그가 아니라 여는 태그
+  위치로 슬라이스하고, 의안 상세는 단계에 따라 표가 통째로 빠지므로 위치가 아니라
+  **캡션**으로 표를 찾는다. 대표발의/공동발의를 분리한 관계 CSV를 함께 낸다
 - `pipelines/src/load-plan.ts`: 공식/데모 데이터를 결정적 source/fact/locator 계획으로 변환
 - `pipelines/src/db.ts`: transaction, parameterized batch upsert, 실행 상태와 무결성 집계
 - `pipelines/src/pdf.ts`: PDF.js layout 추출, page 품질 점수, 고신뢰 반복 margin 정리,
@@ -81,6 +85,21 @@ flowchart LR
   heuristic이라는 점을 명시한 `mentioned_region_ids`에 따로 담는다.
 - 보도자료 식별자는 스냅샷 hash가 아니라 게시판 게시물 id에서 파생하므로
   재크롤이 행을 늘리지 않는다.
+- 경상북도의회 의원·의안도 fact 모델 밖의 `council_member` / `council_bill` /
+  `council_bill_sponsor`에 둔다. 의안 발의는 관측된 통계가 아니라 의정활동
+  기록이다.
+- 발의자는 `role CHECK IN ('lead','co')`로 대표발의와 공동발의를 분리한다. 둘을
+  합치면 동료 의안 12건에 서명한 의원이 12건을 발의한 것처럼 집계되므로,
+  어떤 소비자도 실수로 합산할 수 없도록 스키마 수준에서 갈라 둔다.
+- 지난 대수 의원이 남긴 발의자 기록은 현 명부에 없으므로 `council_member_id`가
+  null이지만 `member_name`은 보존한다. 삭제하면 의안의 발의자 명단이 사실과
+  달라진다. 24,178건 중 8,529건만 현 명부와 연결된다.
+- 의안 키는 사이트의 32-hex `bill_uid`다. 의안번호는 대수마다 재사용되므로
+  키로 쓸 수 없다.
+- 비례대표 의원의 `region_id`는 null이다. 임의로 지역을 배정하면 대표하지 않는
+  시·군을 대표하는 것처럼 집계된다.
+- 기존 `council_record`는 **포항시의회** 회의록으로 다른 기관이다. 마이그레이션
+  주석에 두 계열을 병합하지 말라고 명시했다.
 - PDF page는 raw/cleaned hash와 품질 지표를 가지며 현재 extractor 결과만 `is_current`다.
 - page/document는 `extracted_ok`, `mojibake_suspected`,
   `unusable_for_retrieval`, `empty`와 `native_pdf_text`, `none` extraction method를
@@ -122,6 +141,11 @@ flowchart LR
   `extracted_ok`인 행만 대상으로 한다. 응답은 `evidence_role`을
   `narrative_context_only`로 고정하고 `dataStatuses` 파라미터를 제공하지 않아
   통계 근거로 승격될 경로를 만들지 않는다.
+- `search_member_bills`는 의원명(trigram)과 의안명(FTS/trigram)으로 검색하며
+  `role` 필터로 대표발의/공동발의를 나눈다. `member`/`query` 중 하나가 반드시
+  있어야 하고, `member`가 아무도 매칭하지 않으면 의회 전체로 확장하지 않고 빈
+  결과를 낸다. 명부 요약(`result.members[]`)을 함께 반환해 동명이인이 조용히
+  병합되지 않게 한다. `evidence_role`은 `narrative_context_only`로 고정한다.
 - stale purge는 최소 보존기간, advisory lock, 정확한 candidate-set hash, bounded
   FK-safe batch를 요구하며 approved/current/provenance를 보호한다.
 - 기본 feature-hash는 lexical 신호이며 semantic provider가 아니다. OpenAI provider는

@@ -7,7 +7,8 @@
 목록 반환과 파생 결론은 별개다. point는 삭제하지 않지만 비교 가능성 조건을 통과하지
 못하면 `summary`/verdict를 생성하지 않는다.
 
-`search_press_releases`는 factual 도구가 아니므로 `dataStatuses`를 받지 않는다.
+`search_press_releases`와 `search_member_bills`는 factual 도구가 아니므로
+`dataStatuses`를 받지 않는다.
 
 ## `get_population_trend`
 
@@ -97,6 +98,45 @@
 ```json
 {"query":"청년 창업","region":"청도군","dateFrom":"2024-01-01"}
 ```
+
+## `search_member_bills`
+
+경상북도의회 의원이 발의한 의안을 검색한다. "이 의원이 무슨 조례를 냈나",
+"이 공약과 관련된 의안을 발의한 적이 있나" 같은 질문에 **근거를 제시**하되
+판정은 하지 않는다.
+
+- 입력: `member`, `query`, 선택 `role`(`lead`/`co`/`any`, 기본 `any`),
+  `party`, `committee`, `billKind`, `outcome`, `dateFrom`, `dateTo`, `limit`
+- `member`와 `query` 중 **최소 하나는 필수**다. 둘 다 없으면 의회 전체 의안을
+  나열하면서 질문에 답한 것처럼 보이므로 스키마에서 거절한다.
+- 출력:
+  - `result.members[]` — 이름이 일치하는 의원 명부 요약(정당, 선거구, 직위,
+    대표발의 수, 공동발의 수). 동명이인이 조용히 병합되지 않도록 항상 배열이다.
+  - `result.matches[]` — 의안. `title`, `metadata.memberRoles`(`lead`/`co`),
+    `metadata.leadSponsors`, `proposedDate`, `decidedDate`, `committee`,
+    `billKind`, `outcome`, `coSponsorCount`, `detailUrl`.
+  - `result.evidence_role`은 항상 `narrative_context_only`.
+- `member`/`party` 필터가 아무도 매칭하지 않으면 **빈 결과**를 반환한다. 의회
+  전체로 확장하지 않는다.
+
+```json
+{"member":"김대진","query":"산림","role":"lead","limit":5}
+```
+
+### 공약 이행 여부를 판정하지 않는 이유
+
+`limitations`에 매 호출 명시된다.
+
+1. 경상북도의회는 **선거 공약을 공개하지 않는다.** 공약 원문은 중앙선거관리
+   위원회 등 별도 출처에서 확인해야 한다. 매칭 대상 자체가 이 데이터에 없다.
+2. **공동발의는 저작이 아니다.** 동료 의안에 서명한 기록이므로 `role`을 확인
+   하지 않고 건수를 합산하면 의정활동이 크게 과대평가된다.
+3. 발의 기록은 의정활동의 **일부**다. 예산 심의, 행정사무감사, 5분 자유발언,
+   집행부 질의는 포함되지 않는다.
+4. `원안가결`은 의회를 통과했다는 뜻이지 조례가 실제로 **집행**되었다는 뜻이
+   아니다.
+5. 초선이나 재임 기간이 짧은 의원은 구조적으로 건수가 적다. 건수 비교는
+   재임 기간을 함께 보지 않으면 오도한다.
 
 ## `verify_claim_with_data`
 

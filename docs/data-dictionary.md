@@ -140,6 +140,58 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
 - `data_status`는 `official_observed`만 허용한다. demo 변형이 존재하지 않는다.
 - `metadata`에 `subheadings`, `attachmentNames`, `sourceRow`를 저장한다.
 
+### `council_member`
+
+경상북도의회(`council.gb.go.kr`) 제13대 의원 명부 64명.
+
+- `council_member_id`는 `gb-council-member-<search_code>` 형식이다.
+- `search_code`는 사이트의 의원 키로, 앞자리가 최초 당선 대수를 나타낸다.
+  **사람 단위로 안정적이지만 대수 식별자가 아니다.**
+- `region_id`는 선거구가 canonical 시·군으로 해석될 때만 채운다. 비례대표
+  8명은 null이다. 임의 배정하면 대표하지 않는 시·군을 대표하는 것처럼 집계된다.
+- `party`, `district`, `position`, `office_phone`, `education`, `career`,
+  `photo_url`, `homepage_url`은 명부·프로필 팝업 표기 그대로다.
+- **이메일 주소는 공개되어 있으나 저장하지 않는다.** 의정활동 분석에 불필요한
+  개인정보이며 수집 자체가 스팸 벡터가 된다.
+- `data_status`는 `official_observed`만 허용한다.
+- `UNIQUE (council_name, search_code)`.
+
+### `council_bill`
+
+의원이 발의한 의안 1,454건(2006-12-26 ~ 2026-08-14). 재선 의원이 이전 대수
+이력을 함께 갖고 있어 13대 이전 의안이 포함된다.
+
+- 자연키는 `bill_uid`(사이트의 32-hex 키)다. `bill_number`(의안번호)는 대수마다
+  재사용되므로 키로 쓸 수 없다.
+- `bill_kind`는 제목에서 추론한 의안 종류다(조례안 1,381 / 결의안 15 /
+  건의안 5 / 규칙안 2 / 동의안 1).
+- `proposer_kind`는 제안자 구분(의원, 도지사, 교육감, 위원회)이다.
+- `outcome`은 처리결과다(원안가결 1,307 / 수정가결 69 / 폐기 59 / 철회 5 /
+  부결 3). **`원안가결`은 의회 통과를 뜻할 뿐 조례가 실제로 집행되었다는 뜻이
+  아니다.**
+- `status`는 목록에 표시된 진행 상태(처리완료, 접수완료)로 `outcome`과 다르다.
+- `lead_sponsor_count` / `co_sponsor_count`는 발의자 수를 미리 집계한 값이다.
+- 제목에 FTS(`to_tsvector('simple', …)`)와 trigram 인덱스가 걸려 있다.
+- `UNIQUE (council_name, bill_uid)`.
+
+### `council_bill_sponsor`
+
+의안 ↔ 발의자 관계 24,178건. PK는 `(council_bill_id, role, member_name)`.
+
+- `role`은 `CHECK IN ('lead', 'co')`다. `lead`는 대표발의(1,449),
+  `co`는 공동발의(22,729)다.
+- **두 역할을 절대 합산하지 않는다.** 동료 의안 12건에 서명한 의원은 12건을
+  발의한 것이 아니다. 합산하면 의정활동이 심각하게 과대평가되므로 소비자가
+  실수할 수 없도록 컬럼 제약으로 분리했다.
+- `council_member_id`는 nullable FK다. 지난 대수 의원은 현 명부에 없어 id가
+  붙지 않지만 `member_name`은 보존한다. 삭제하면 의안의 발의자 명단이 사실과
+  달라진다. 24,178건 중 8,529건만 현 명부와 연결된다.
+- 대표발의자가 없는 의안 5건은 위원회안이거나 상세 페이지에 대표발의 표가 없다.
+
+> [!IMPORTANT]
+> `council_record`는 **포항시의회** 회의록이고 위 세 테이블은 **경상북도의회**다.
+> 기초의회와 광역의회는 다른 기관이므로 조인하거나 합산하면 안 된다.
+
 ### `document`
 
 정책·회의록·첨부문서의 source, 기관, 날짜, extraction 상태, page 수와 전체 cleaned
@@ -252,7 +304,8 @@ chunk, provider, model, version별 임베딩을 저장한다. `embedding`은 `re
 
 엔터티 키를 원본 페이지, 행, 절, 문자 범위 또는 사람이 읽을 수 있는 locator와
 연결한다. 현재 적재기는 공식/데모 인구, 의회 레코드, 공식 지방세 각 grain/headline의
-행 위치, PDF document/page/current chunk locator를 기록한다. repository는 stale
+행 위치, PDF document/page/current chunk locator, 보도자료와 경상북도의회
+의원(`council_member` 64건)·의안(`council_bill` 1,454건)을 기록한다. repository는 stale
 page/chunk locator를 source context에서 제외한다.
 
 ### `mcp_tool_audit`

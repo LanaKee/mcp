@@ -12,13 +12,15 @@
 - 반응형 한국어 웹 UI와 대표 질문 4개
 - 공식 `@modelcontextprotocol/sdk` 기반 MCP 서버(로컬 stdio + 호스팅용 Streamable HTTP)
 - 같은 도구를 호출하는 HTTP API와 데모 오케스트레이션
-- 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 보도자료 검색, 주장 검증,
-  출처 조회, 근거 제한형 행정문서 초안 등 9개 도구
+- 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 보도자료 검색,
+  의원별 의안 검색, 주장 검증, 출처 조회, 근거 제한형 행정문서 초안 등 10개 도구
 - NFD 파일명에 의존하지 않고 헤더/내용으로 판별하는 CP949·UTF-8 CSV 및 XLSX ETL
 - 9개 지방세 원천 grain과 행정안전부 HWPX 연감의 KRW 단위 정규화, 품질 검증,
   격리와 공식 우선 조회
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
 - 경상북도 보도자료 13,707건(2020~2026) 크롤과 서술적 맥락 전용 검색 도구
+- 경상북도의회 의원 64명·발의의안 1,454건·발의자 관계 24,178건 크롤과
+  대표발의/공동발의를 분리한 의원별 의안 검색 도구
 - PDF.js 기반 408개 회의록·감사·도정 업무계획 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - page-level 한국어 plausibility/mojibake 지표, 반복 머리말 제거, 발언자/표 경계
   chunk와 golden 회귀 평가
@@ -182,6 +184,12 @@ curl -X POST http://localhost:8787/api/tools/search_press_releases \
   -H "authorization: ******" \
   -H 'content-type: application/json' \
   -d '{"query":"청년 일자리","dateFrom":"2024-01-01","limit":5}'
+
+# 의원별 의안. 대표발의(lead)와 공동발의(co)는 절대 합산하지 않는다
+curl -X POST http://localhost:8787/api/tools/search_member_bills \
+  -H "authorization: ******" \
+  -H 'content-type: application/json' \
+  -d '{"member":"김대진","query":"산림","role":"lead","limit":5}'
 ```
 
 모든 사실 응답은 최상위 `data_status`, `data_statuses`, `sources`,
@@ -250,6 +258,9 @@ pnpm pohang:crawl -- --acknowledge-terms --acknowledge-robots-unavailable
 
 # 경상북도 보도자료 수집(서술적 맥락용; 통계 근거가 아님)
 pnpm gb:press:crawl --accept-terms --since=2020-01-01
+
+# 경상북도의회 의원 명부와 발의의안 수집(약 25분)
+pnpm gb:council:crawl --accept-terms
 
 # ETL 재생성 + 스키마 적용 + 구조화 데이터와 PDF 전체 적재
 pnpm db:normalize
@@ -321,12 +332,14 @@ ETL은 다음을 수행합니다.
 적재기는 다음을 보장합니다.
 
 - 경상북도와 현재 22개 시·군(군위군 제외)의 canonical 지역 키 사용
-- 경로+SHA-256 기반 출처 버전 보존. 현재 로컬 실행은 HWPX 연감, 별도 추가 PDF와
-  보도자료를 포함한 495개 원천을 카탈로그에 적재
+- 경로+SHA-256 기반 출처 버전 보존. 현재 실행은 HWPX 연감, 별도 추가 PDF,
+  보도자료와 의회 의안을 포함한 977개 원천을 카탈로그에 적재
 - 500행 단위 parameterized upsert와 단일 fact 트랜잭션
 - 일반 CSV는 원천 SHA/경로/행 번호, 포항 공개 의안은 원문 레코드 ID 기반의
   결정적 의회 레코드 ID와 인구·의회 `source_locator`
 - 보도자료는 게시판 게시물 id(`gb-press-<B_STEP>`)로 식별해 재크롤 시 행이 늘지 않음
+- 경상북도의회 의안은 사이트의 32-hex `bill_uid`로 식별한다. 의안번호는 대수마다
+  재사용되므로 키로 쓰지 않으며, 발의자는 `role`(`lead`/`co`)로 분리해 적재한다
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
 - 실패 시 fact 트랜잭션 rollback 및 가능한 경우 `ingestion_run.status = failed` 기록
 - 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
@@ -345,7 +358,7 @@ ETL은 다음을 수행합니다.
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 492 | 0 | 3 |
+| `data_source` | 972 | 0 | 5 |
 | `population_observation` | 272 | 0 | - |
 | `local_tax_revenue` | 544 | 0 | - |
 | `local_tax_collection_status` | 220 | 0 | - |
@@ -358,6 +371,8 @@ ETL은 다음을 수행합니다.
 | `local_tax_enforcement_statistic` | 90 | 0 | - |
 | `policy_program` | 0 | 0 | - |
 | `council_record` | 49,708 | 0 | - |
+| `council_member` | 64 | 0 | - |
+| `council_bill` | 1,454 | 0 | - |
 | `press_release` | 13,707 | 0 | - |
 | `document` | 405 | 0 | 3 |
 
@@ -390,6 +405,22 @@ catalog/provenance와 제외 근거만 보존하고 검색에는 넣지 않는�
 | `extracted_ok` (검색 대상) | 13,702 |
 | `unusable_for_retrieval` | 5 (빈 본문 4, 마크업 복구 불가 1) |
 | 첨부 보유 | 13,674 |
+
+경상북도의회 의원·의안도 통계 fact가 아니라 의정활동 기록이므로 별도
+`council_member` / `council_bill` / `council_bill_sponsor`에 저장한다.
+
+| 의회 항목 | 값 |
+|---|---|
+| 의원 | 64 (국민의힘 58 / 무소속 3 / 더불어민주당 3) |
+| 선거구 → `region_id` 해석 | 56 (비례대표 8명은 null) |
+| 의안 | 1,454 (2006-12-26 ~ 2026-08-14) |
+| 발의자 관계 | 24,178 (대표발의 1,449 / 공동발의 22,729) |
+| 현 명부와 연결된 발의자 | 8,529 (나머지는 지난 대수 의원, 이름만 보존) |
+
+> [!IMPORTANT]
+> 기존 `council_record`는 **포항시의회** 회의록이고 `council_*` 세 테이블은
+> **경상북도의회**다. 서로 다른 기관이므로 조인하거나 합산하면 안 된다.
+> 대표발의(`lead`)와 공동발의(`co`)도 합산하면 의정활동이 과대평가된다.
 
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
