@@ -1,0 +1,192 @@
+{
+  "measuredAt": "2026-08-22T23:46:01.355Z",
+  "elapsedMs": 6553,
+  "isolation": {
+    "emptyDatabases": 3,
+    "productionDatabaseModified": false,
+    "productionDatasetStoreModified": false,
+    "temporaryResourcesDeleted": true
+  },
+  "stress": {
+    "verdict": {
+      "scenarios": 8,
+      "handledCorrectly": 8,
+      "acceptedCorrectly": "2/2",
+      "duplicateDetected": "1/1",
+      "revisionPreserved": "1/1",
+      "invalidQuarantined": "2/2",
+      "unknownRegionFactRows": 0,
+      "duplicateFactsAfterReprocess": 0,
+      "silentOverwrites": 0,
+      "dataLoss": 0,
+      "wholePipelineFailure": false
+    },
+    "firstBatch": {
+      "counts": {
+        "accepted": 3,
+        "revision": 0,
+        "duplicate": 1,
+        "quarantined": 2
+      },
+      "decisions": [
+        {
+          "fileName": "01-경상북도_포항시_연도별인구_20241231.csv",
+          "action": "accepted",
+          "encoding": "utf8",
+          "contentKind": "population_annual",
+          "rejectionCode": null
+        },
+        {
+          "fileName": "02-동일내용_다른이름.csv",
+          "action": "duplicate",
+          "encoding": "utf8",
+          "contentKind": "population_annual",
+          "rejectionCode": null
+        },
+        {
+          "fileName": "03-fake-html.csv",
+          "action": "quarantined",
+          "encoding": null,
+          "contentKind": "unknown",
+          "rejectionCode": "html_error_page"
+        },
+        {
+          "fileName": "04-empty.csv",
+          "action": "quarantined",
+          "encoding": null,
+          "contentKind": "unknown",
+          "rejectionCode": "empty_file"
+        },
+        {
+          "fileName": "05-경상북도_김천시_연도별인구_20241231.csv",
+          "action": "accepted",
+          "encoding": "cp949",
+          "contentKind": "population_annual",
+          "rejectionCode": null
+        },
+        {
+          "fileName": "06-경상북도_없는시_연도별인구_20241231.csv",
+          "action": "accepted",
+          "encoding": "utf8",
+          "contentKind": "population_annual",
+          "rejectionCode": null
+        }
+      ]
+    },
+    "revision": {
+      "counts": {
+        "accepted": 0,
+        "revision": 1,
+        "duplicate": 0,
+        "quarantined": 0
+      },
+      "storedPath": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/stress/datasets/population/01-경상북도_포항시_연도별인구_20241231__r2.csv",
+      "originalPreserved": true,
+      "revisionPreserved": true
+    },
+    "identicalReprocess": {
+      "counts": {
+        "accepted": 0,
+        "revision": 0,
+        "duplicate": 1,
+        "quarantined": 0
+      },
+      "before": {
+        "storedFiles": 4,
+        "dataSources": 4,
+        "facts": 3,
+        "locators": 3,
+        "rawLedgerRows": 7
+      },
+      "after": {
+        "storedFiles": 4,
+        "dataSources": 4,
+        "facts": 3,
+        "locators": 3,
+        "rawLedgerRows": 8
+      }
+    }
+  },
+  "idempotency": {
+    "runs": [
+      {
+        "run": 1,
+        "action": "accepted",
+        "storedFiles": 1,
+        "dataSources": 1,
+        "facts": 1,
+        "locators": 1,
+        "rawLedgerRows": 1
+      },
+      {
+        "run": 2,
+        "action": "duplicate",
+        "storedFiles": 1,
+        "dataSources": 1,
+        "facts": 1,
+        "locators": 1,
+        "rawLedgerRows": 2
+      },
+      {
+        "run": 3,
+        "action": "duplicate",
+        "storedFiles": 1,
+        "dataSources": 1,
+        "facts": 1,
+        "locators": 1,
+        "rawLedgerRows": 3
+      },
+      {
+        "run": 4,
+        "action": "duplicate",
+        "storedFiles": 1,
+        "dataSources": 1,
+        "facts": 1,
+        "locators": 1,
+        "rawLedgerRows": 4
+      },
+      {
+        "run": 5,
+        "action": "duplicate",
+        "storedFiles": 1,
+        "dataSources": 1,
+        "facts": 1,
+        "locators": 1,
+        "rawLedgerRows": 5
+      }
+    ],
+    "duplicateFactDelta": 0,
+    "duplicateSourceDelta": 0,
+    "duplicateLocatorDelta": 0,
+    "stable": true
+  },
+  "lineage": {
+    "answer": "김천시 2024 지방세 수납액은 107,720,311,000원입니다.",
+    "answerValueWon": 107720311000,
+    "observedValueWon": 107720311000,
+    "valueMatches": true,
+    "fact": {
+      "id": "8",
+      "sourceRow": 9,
+      "normalizationRunId": "e201fe8e-e80b-4949-a122-d1bad990696e",
+      "normalizationPipeline": "gyeongbuk-normalized-loader"
+    },
+    "source": {
+      "id": "d06325ea-b9db-4af5-aff5-3b790aa2fcd4",
+      "filePath": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv",
+      "sha256": "4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca",
+      "sourceUrl": null
+    },
+    "locator": {
+      "id": "704eb728-4384-4da3-a7da-3a2242a76b83",
+      "text": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv#row=9"
+    },
+    "rawIntake": {
+      "id": "1",
+      "runId": "c5a49cec-f9f2-4b44-b78a-9962b1360646",
+      "pipeline": "dataset-intake",
+      "action": "accepted"
+    },
+    "complete": true
+  }
+}
