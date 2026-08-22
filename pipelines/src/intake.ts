@@ -322,6 +322,7 @@ export function storeCategory(
   }
   if (contentKind.startsWith("population")) return "population";
   if (contentKind === "council_agenda") return "council";
+  if (contentKind === "press_release") return "press-release";
   if (contentKind === "pdf_document" || extension === ".pdf") return "documents";
   return "misc";
 }

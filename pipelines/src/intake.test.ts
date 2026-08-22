@@ -271,6 +271,7 @@ describe("store routing", () => {
     expect(storeCategory("population_annual", ".csv")).toBe("population");
     expect(storeCategory("population_workbook", ".xlsx")).toBe("population");
     expect(storeCategory("council_agenda", ".csv")).toBe("council");
+    expect(storeCategory("press_release", ".csv")).toBe("press-release");
     expect(storeCategory("pdf_document", ".pdf")).toBe("documents");
     expect(storeCategory("other", ".xml")).toBe("misc");
   });
