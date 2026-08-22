@@ -15,7 +15,12 @@
 - 임시 Postgres 16 서비스 컨테이너에 `pnpm db:schema`만 적용해 **마이그레이션이
   깨지지 않는지**를 저비용으로 검증(스모크 체크). 실제 데이터 적재는 하지 않는다.
 - `TEST_DATABASE_URL`은 설정하지 않는다 → `*.integration.test.ts`는 기존 규약대로
-  self-skip하고 unit 테스트(209 passed / 40 skipped)만 빠르게 돈다.
+  self-skip하고 unit 테스트만 빠르게 돈다.
+- 임시 Redis 서비스 컨테이너와 `TEST_REDIS_URL`도 함께 제공해
+  `redis-rate-limiter.integration.test.ts`(다중 인스턴스 rate-limit 공유 검증,
+  `docs/CHANGES_DISTRIBUTED_RATE_LIMITING.md` 참고)까지 매 push/PR에서 돈다.
+  Redis는 기동이 빨라 무거운 PostgreSQL 통합 테스트와 달리 per-push 예산 안에
+  들어온다.
 - 이어서 `docker-build` job이 `Dockerfile`을 실제로 빌드해(push 없음) 이미지가
   항상 buildable한지 확인한다.
 

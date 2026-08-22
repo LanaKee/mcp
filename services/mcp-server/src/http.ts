@@ -17,7 +17,8 @@ import {
   loadHttpSecurityConfig,
   validateJsonShape,
   type HttpSecurityConfig,
-  type RateLimitGroup
+  type RateLimitGroup,
+  type RateLimiter
 } from "./http-security.js";
 import {
   handleMcpRequest,
@@ -48,7 +49,7 @@ const expensiveTools = new Set([
 
 export interface HttpAppOptions {
   security?: HttpSecurityConfig;
-  rateLimiter?: BoundedTokenBucketRateLimiter;
+  rateLimiter?: RateLimiter;
   /**
    * Hosted MCP sessions. Callers own this so they can drain it during a
    * graceful shutdown; omitting it builds one from the environment.
@@ -298,15 +299,15 @@ async function withinTimeout<T>(
   }
 }
 
-function rateLimit(
+async function rateLimit(
   request: IncomingMessage,
   response: ServerResponse,
   requestId: string,
   group: RateLimitGroup,
   config: HttpSecurityConfig,
-  limiter: BoundedTokenBucketRateLimiter
-): boolean {
-  const decision = limiter.consume(
+  limiter: RateLimiter
+): Promise<boolean> {
+  const decision = await limiter.consume(
     clientAddress(
       request,
       config.trustProxy,
@@ -462,7 +463,7 @@ export function createHttpApp(
 
       if (url.pathname === "/ready") {
         if (request.method !== "GET") throw methodNotAllowed("GET");
-        if (!rateLimit(request, response, requestId, group, config, limiter)) return;
+        if (!(await rateLimit(request, response, requestId, group, config, limiter))) return;
         const readiness = await withinTimeout(
           () => registry.repository.readiness(),
           operationTimeout(group, config)
@@ -476,7 +477,7 @@ export function createHttpApp(
       }
 
       if (url.pathname === MCP_ENDPOINT) {
-        if (!rateLimit(request, response, requestId, group, config, limiter)) return;
+        if (!(await rateLimit(request, response, requestId, group, config, limiter))) return;
         if (!isAuthorized(request.headers, config)) {
           throw new HttpError(401, "unauthorized", "Authentication required.", {
             "www-authenticate": '******"gyeongbuk-public-ai"'
@@ -498,7 +499,7 @@ export function createHttpApp(
         const callGroup = mcpRateLimitGroup(body, registry);
         if (
           callGroup === "expensive" &&
-          !rateLimit(request, response, requestId, callGroup, config, limiter)
+          !(await rateLimit(request, response, requestId, callGroup, config, limiter))
         ) {
           return;
         }
@@ -513,7 +514,7 @@ export function createHttpApp(
       }
 
       if (url.pathname.startsWith("/api/")) {
-        if (!rateLimit(request, response, requestId, group, config, limiter)) return;
+        if (!(await rateLimit(request, response, requestId, group, config, limiter))) return;
         if (!isAuthorized(request.headers, config)) {
           throw new HttpError(401, "unauthorized", "Authentication required.", {
             "www-authenticate": 'Bearer realm="gyeongbuk-public-ai"'

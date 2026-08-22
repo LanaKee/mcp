@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import { createHttpApp } from "./http.js";
-import { loadHttpSecurityConfig } from "./http-security.js";
+import { createRateLimiter, loadHttpSecurityConfig } from "./http-security.js";
 import { loadMcpHttpConfig, McpSessionManager } from "./mcp-http.js";
 import { startStdioServer } from "./mcp.js";
 import {
@@ -39,8 +39,12 @@ if (mode === "stdio") {
     Math.max(1000, Math.floor(mcpConfig.sessionIdleMs / 2))
   );
   sweep.unref();
+  const rateLimiterHandle = httpSecurity
+    ? await createRateLimiter(httpSecurity)
+    : undefined;
   const server = createHttpApp(registry, {
     security: httpSecurity,
+    rateLimiter: rateLimiterHandle?.limiter,
     mcpSessions
   });
   let shuttingDown = false;
@@ -52,6 +56,7 @@ if (mode === "stdio") {
     // closed before the listener will finish closing.
     await mcpSessions.closeAll().catch(() => undefined);
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rateLimiterHandle?.close().catch(() => undefined);
     await repository.close().catch(() => undefined);
   };
   process.once("SIGTERM", () => void shutdown());

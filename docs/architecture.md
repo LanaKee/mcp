@@ -170,6 +170,12 @@ flowchart LR
   `/mcp`는 auth와 rate limit을 모두 거치되, 경로가 아니라 JSON-RPC method로 비용을
   판단한다. 프로토콜 트래픽은 cheap 예산을, expensive tool의 `tools/call`만 추가로
   expensive 예산을 소비한다.
+- rate limiter는 `REDIS_URL`이 설정되면 `RedisTokenBucketRateLimiter`(Lua EVAL로
+  원자적 refill/consume, 여러 mcp-server 인스턴스가 상태 공유)를, 없으면 기존
+  단일 프로세스 `BoundedTokenBucketRateLimiter`를 그대로 쓴다. 두 구현 모두
+  동일한 refill/consume 산술을 쓰므로 백엔드를 바꿔도 관측되는 동작은 같다.
+  로드밸런서 뒤에 다중 인스턴스를 두는 수평 확장은 `REDIS_URL` 없이는 인스턴스별로
+  독립된 한도를 갖게 되어 사실상 한도가 인스턴스 수만큼 늘어나므로 위험하다.
 - `/api/**`는 선택 token auth를 거치고 PDF hybrid/데모/초안 route는 더 낮은 rate
   budget과 별도 operation timeout을 사용한다.
 - Node request/header timeout과 PostgreSQL statement/query timeout이 장시간 작업을
@@ -215,10 +221,9 @@ flowchart LR
 
 - 제외된 2020·2022·2024 업무계획의 source replacement 또는 별도 OCR 타당성 결정
 - 지역/연도/서식이 더 다양한 golden PDF와 실제 반복 footer 표본 확충
-- 승인된 scheduler/backup 정책과 operator-run stale purge/VACUUM window
 - corpus가 커질 때 모델별 pgvector partition/ANN index
 - 2024년 외 연도의 22개 시·군 동일 scope 공식 headline과 completeness 확충
 - 영천 비과세·감면 열 의미의 제공기관 확인 후 quarantine 해제 여부 결정
-- lifecycle/audit purge의 외부 scheduler와 경보 전달 채널
-- multi-instance 공용 rate-limit store와 tenant별 token/권한
+- tenant별 token/권한 분리(현재는 단일 admin token)
 - reverse proxy TLS, secret rotation, WAF 정책의 배포 자동 검증
+- DB 읽기 복제본 라우팅(현재는 단일 primary pool만 사용)

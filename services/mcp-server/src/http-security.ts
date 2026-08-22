@@ -1,6 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
+import { createClient } from "redis";
 
 export type HttpAuthMode = "off" | "token";
 export type TrustedProxyMode = "off" | "loopback" | "explicit";
@@ -29,6 +30,21 @@ export interface RateLimitDecision {
   limit: number;
   remaining: number;
   retryAfterSeconds: number;
+}
+
+/**
+ * Shared shape implemented by both the single-process in-memory limiter and
+ * the Redis-backed limiter, so `rateLimit()` in http.ts can treat either
+ * uniformly. `consume` may return synchronously (in-memory) or a Promise
+ * (Redis); `await`-ing a non-Promise value is a no-op in JS, so callers do
+ * not need to know which backend is active.
+ */
+export interface RateLimiter {
+  consume(
+    clientKey: string,
+    group: RateLimitGroup,
+    now?: number
+  ): RateLimitDecision | Promise<RateLimitDecision>;
 }
 
 interface TokenBucket {
@@ -278,7 +294,7 @@ export function clientAddress(
   return normalizedRemote;
 }
 
-export class BoundedTokenBucketRateLimiter {
+export class BoundedTokenBucketRateLimiter implements RateLimiter {
   private readonly buckets = new Map<string, TokenBucket>();
   private operations = 0;
 
@@ -351,6 +367,119 @@ export class BoundedTokenBucketRateLimiter {
     }
     if (oldestKey) this.buckets.delete(oldestKey);
   }
+}
+
+/**
+ * Minimal shape of the redis client this limiter needs, so tests can pass a
+ * fake without depending on a real Redis connection.
+ */
+export interface RedisEvalClient {
+  eval(
+    script: string,
+    options: { keys: string[]; arguments: string[] }
+  ): Promise<unknown>;
+}
+
+// Mirrors BoundedTokenBucketRateLimiter's refill/consume arithmetic exactly
+// (min(limit, tokens + elapsed*refillPerMs), then subtract 1 on success) so
+// switching backends does not change externally observable rate-limit
+// behaviour. Runs as a single EVAL for atomicity across concurrent
+// mcp-server instances sharing one Redis. PEXPIRE on every call means idle
+// buckets are reclaimed by Redis itself; there is no in-process bucket cap
+// to enforce because state does not live in this process.
+const TOKEN_BUCKET_SCRIPT = `
+local tokens = tonumber(redis.call('HGET', KEYS[1], 'tokens'))
+local updatedAt = tonumber(redis.call('HGET', KEYS[1], 'updatedAt'))
+local limit = tonumber(ARGV[1])
+local now = tonumber(ARGV[2])
+local idleTtlMs = tonumber(ARGV[3])
+if tokens == nil or updatedAt == nil then
+  tokens = limit
+  updatedAt = now
+end
+local refillPerMs = limit / 60000
+local elapsed = math.max(0, now - updatedAt)
+tokens = math.min(limit, tokens + elapsed * refillPerMs)
+local allowed = 0
+local retryAfterSeconds = 0
+if tokens < 1 then
+  retryAfterSeconds = math.max(1, math.ceil((1 - tokens) / refillPerMs / 1000))
+else
+  allowed = 1
+  tokens = tokens - 1
+end
+redis.call('HSET', KEYS[1], 'tokens', tostring(tokens), 'updatedAt', tostring(now))
+redis.call('PEXPIRE', KEYS[1], idleTtlMs)
+return {allowed, math.floor(tokens), retryAfterSeconds, limit}
+`;
+
+/**
+ * Shares rate-limit state across every mcp-server instance behind a load
+ * balancer via a single Redis. Only used when REDIS_URL is configured
+ * (see loadRateLimiterConfig); the default BoundedTokenBucketRateLimiter
+ * keeps working unmodified for single-instance deployments.
+ */
+export class RedisTokenBucketRateLimiter implements RateLimiter {
+  constructor(
+    private readonly client: RedisEvalClient,
+    private readonly config: HttpSecurityConfig,
+    private readonly keyPrefix = "gb:ratelimit"
+  ) {}
+
+  async consume(
+    clientKey: string,
+    group: RateLimitGroup,
+    now = Date.now()
+  ): Promise<RateLimitDecision> {
+    const limit = this.config.rateLimits[group];
+    const key = `${this.keyPrefix}:${group}:${clientKey}`;
+    const result = (await this.client.eval(TOKEN_BUCKET_SCRIPT, {
+      keys: [key],
+      arguments: [String(limit), String(now), String(this.config.rateLimitIdleMs)]
+    })) as [number, number, number, number];
+    const [allowed, remaining, retryAfterSeconds] = result;
+    return {
+      allowed: allowed === 1,
+      limit,
+      remaining,
+      retryAfterSeconds
+    };
+  }
+}
+
+export interface RateLimiterHandle {
+  limiter: RateLimiter;
+  close(): Promise<void>;
+}
+
+/**
+ * Builds the configured rate limiter: Redis-backed (shared across
+ * mcp-server instances) when REDIS_URL is set, otherwise the existing
+ * single-process in-memory limiter. `close()` releases whatever resources
+ * were opened and must be called during graceful shutdown.
+ */
+export async function createRateLimiter(
+  config: HttpSecurityConfig,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<RateLimiterHandle> {
+  const redisUrl = env.REDIS_URL;
+  if (!redisUrl) {
+    return {
+      limiter: new BoundedTokenBucketRateLimiter(config),
+      close: async () => undefined
+    };
+  }
+  const client = createClient({ url: redisUrl });
+  client.on("error", (error) => {
+    console.error("[rate-limiter] redis client error:", error);
+  });
+  await client.connect();
+  return {
+    limiter: new RedisTokenBucketRateLimiter(client, config),
+    close: async () => {
+      await client.quit().catch(() => undefined);
+    }
+  };
 }
 
 export class JsonShapeError extends Error {}

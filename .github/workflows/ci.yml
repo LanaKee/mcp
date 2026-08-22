@@ -35,10 +35,20 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     env:
       DATABASE_URL: postgres://gyeongbuk:gyeongbuk@localhost:5432/gyeongbuk
       AUDIT_HASH_SALT: ci-test-salt-not-a-secret
+      TEST_REDIS_URL: redis://localhost:6379
 
     steps:
       - name: Checkout
@@ -70,7 +80,7 @@ jobs:
       - name: Apply database schema (migration smoke check)
         run: pnpm db:schema
 
-      - name: Test (unit)
+      - name: Test (unit + Redis-backed rate limiter)
         run: pnpm test
 
   docker-build:

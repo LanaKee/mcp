@@ -26,7 +26,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      DATABASE_URL: ******postgres:5432/gyeongbuk
+      DATABASE_URL: postgres://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
     volumes:
@@ -39,6 +39,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Optional: shared rate-limit store for horizontal scaling. Not started by
+  # default `docker compose up`; enable with `--profile scale` once running
+  # more than one mcp-server replica behind a load balancer. A single
+  # instance works fine without this (falls back to the in-process limiter).
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ["scale"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   mcp-server:
     build: .
@@ -62,7 +77,11 @@ services:
       STORAGE_WARN_DATABASE_BYTES: 2147483648
       STORAGE_WARN_EMBEDDING_ROWS: 250000
       STORAGE_WARN_EXPIRED_AUDIT_ROWS: 10000
-      DATABASE_URL: postgresql://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
+      DATABASE_URL: postgres://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
+      # Set to redis://redis:6379 (and run with --profile scale) once
+      # scaling mcp-server to multiple replicas so rate limits are shared
+      # instead of being enforced independently per instance.
+      REDIS_URL: ${REDIS_URL:-}
     ports:
       - "8787:8787"
     healthcheck:
