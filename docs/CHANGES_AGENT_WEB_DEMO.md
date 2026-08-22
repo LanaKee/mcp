@@ -64,13 +64,17 @@ export const representativeQuestions = [
 | --- | --- | --- |
 | `population-tax` | 두 데이터셋을 선언된 join으로 결합 | 도구 2개, join 1개, caveat 2건 |
 | `uljin-population` | 지역별 커버리지 부족 시 거절 | 답변 거절, "2025~2026년만 적재" 고지 |
-| `press-depopulation` | 같은 주제어에서 문서 검색 | `search_press_releases`, 출처 1건 |
-| `council-depopulation` | 같은 주제어에서 의안 검색 | `search_member_bills` |
+| `press-population` | 같은 주제어에서 문서 검색 | `search_press_releases`, 출처 1건 |
+| `council-population` | 같은 주제어에서 의안 검색 | `search_member_bills`, 출처 2건 |
 | `youth-policy` | 빈 데이터셋 고지 | `policy_program` 0행 고지 후 보도자료로 답변 |
 | `mars-water` | 범위 밖 질문 거절 | 후보 0개, 계획 0개 |
 
-`press-depopulation`과 `council-depopulation`이 나란히 있는 이유는, 같은 "지방소멸"
-이라는 단어에서 서로 다른 도구로 갈라진다는 것을 보이기 위해서다.
+`press-population`과 `council-population`이 나란히 있는 이유는, 같은 "인구"라는
+단어에서 서로 다른 도구로 갈라진다는 것을 보이기 위해서다.
+
+처음에는 두 질문 모두 "지방소멸"을 썼는데, 의안 제목에는 그 표현이 없고
+`인구감소지역`으로 되어 있어 의안 검색이 0건이었다. 데모 질문은 실제 적재된 데이터에
+대해 실행해 확인해야 한다는 것을 다시 확인했다.
 
 ## 테스트
 
@@ -95,7 +99,24 @@ POST /api/demo       404
 GET  /                200  (새 UI)
 ```
 
-## 남은 것
+## 이 과정에서 드러난 결함
 
-`search_member_bills`가 근거는 반환하지만 `sources`가 비어 있다. 의안 검색 경로의
-출처 연결이 누락된 것으로 보이며 별도로 다룬다.
+데모를 실제로 돌려 보다가 `search_member_bills`가 근거를 반환하면서 출처는 0건인
+경우를 발견했다. 원인과 수정은
+[`MISTAKE_EMPTY_RESULT_COUNTED_AS_EVIDENCE.md`](./MISTAKE_EMPTY_RESULT_COUNTED_AS_EVIDENCE.md)에
+정리했다. 하드코딩된 분기를 걷어내지 않았다면 드러나지 않았을 결함이다.
+
+## 최종 확인
+
+여섯 개 대표 질문을 운영 DB와 실제 LLM에 대해 전부 실행했다.
+
+```
+population-tax     answered=true  plan=2 ev=2 src=2 joins=1  3.6s
+uljin-population   answered=false plan=1 ev=0 src=0 rej=1    5.1s
+press-population   answered=true  plan=1 ev=1 src=1          3.5s
+council-population answered=true  plan=1 ev=1 src=2          2.1s
+youth-policy       answered=true  plan=1 ev=1 src=1 unavail=1 4.4s
+mars-water         answered=false plan=0 ev=0 src=0          0.0s
+```
+
+답한 질문은 전부 출처가 1건 이상이고, 답하지 않은 질문은 그 이유를 말한다.
