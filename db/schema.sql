@@ -82,6 +82,18 @@ CREATE TABLE IF NOT EXISTS population_observation (
   population_female integer CHECK (population_female >= 0),
   household_count integer CHECK (household_count >= 0),
   foreign_population integer CHECK (foreign_population >= 0),
+  measurement_basis text NOT NULL CHECK (
+    measurement_basis IN (
+      'resident_registration_snapshot',
+      'tax_year_reported_population',
+      'annual_statistical_population',
+      'demo_annual_population'
+    )
+  ),
+  reference_date_precision text NOT NULL CHECK (
+    reference_date_precision IN ('day', 'month', 'year')
+  ),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   source_id uuid NOT NULL REFERENCES data_source(source_id),
   ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
   source_row integer,

@@ -22,6 +22,15 @@ function workbookBuffer(): Buffer {
     sheet,
     "1-3. 읍면동별 인구 및 세대현황"
   );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["1-2. 시군별 인구 및 세대현황(2026년 7월)"],
+      ["연도", "세대", "총계", "남", "여", "내국인", "남", "여", "외국인"],
+      ["2024년", 1291568, 2608152, 1330385, 1277767, 2531384, 1280547, 1250837, 76768]
+    ]),
+    "1-2. 시군별 인구 및 세대현황"
+  );
   return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
@@ -41,6 +50,11 @@ describe("population workbook adapter", () => {
         populationFemale: 1230899,
         householdCount: 1303639,
         foreignPopulation: null,
+        measurementBasis: "resident_registration_snapshot",
+        referenceDatePrecision: "month",
+        metadata: {
+          sourcePeriodLabel: "2026-07"
+        },
         sourceRow: 5
       },
       {
@@ -52,7 +66,31 @@ describe("population workbook adapter", () => {
         populationFemale: 240322,
         householdCount: 240438,
         foreignPopulation: null,
+        measurementBasis: "resident_registration_snapshot",
+        referenceDatePrecision: "month",
+        metadata: {
+          sourcePeriodLabel: "2026-07"
+        },
         sourceRow: 6
+      },
+      {
+        sheet: "1-2. 시군별 인구 및 세대현황",
+        regionName: "경상북도",
+        referenceDate: "2024-12-31",
+        populationTotal: 2608152,
+        populationMale: 1330385,
+        populationFemale: 1277767,
+        householdCount: 1291568,
+        foreignPopulation: 76768,
+        measurementBasis: "annual_statistical_population",
+        referenceDatePrecision: "year",
+        metadata: {
+          sourcePeriodLabel: "2024년",
+          referenceDateRole: "canonical_annual_period_end",
+          populationComposition:
+            "resident_registration_population_plus_registered_foreigners"
+        },
+        sourceRow: 3
       }
     ]);
   });

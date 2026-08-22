@@ -26,6 +26,10 @@ import {
   type NormalizedTaxpayerStatus,
   type TaxQualityIssue
 } from "./local-tax.js";
+import type {
+  PopulationMeasurementBasis,
+  ReferenceDatePrecision
+} from "./population.js";
 
 export type DataStatus = "official_observed" | "demo_sample" | "catalog_only";
 
@@ -61,6 +65,9 @@ export interface PlannedPopulation {
   populationFemale: number | null;
   householdCount: number | null;
   foreignPopulation: number | null;
+  measurementBasis: PopulationMeasurementBasis;
+  referenceDatePrecision: ReferenceDatePrecision;
+  metadata: Record<string, unknown>;
   sourceKey: string;
   sourceRow: number | null;
   dataStatus: "official_observed" | "demo_sample";
@@ -361,6 +368,10 @@ function addOfficialPopulation(
     populationFemale: row.populationFemale,
     householdCount: row.householdCount,
     foreignPopulation: row.foreignPopulation,
+    measurementBasis:
+      row.measurementBasis ?? "resident_registration_snapshot",
+    referenceDatePrecision: row.referenceDatePrecision ?? "month",
+    metadata: row.metadata ?? {},
     sourceKey,
     sourceRow: row.sourceRow,
     dataStatus: "official_observed"
@@ -710,6 +721,11 @@ async function addDemoData(plan: Omit<LoadPlan, "inputSha256">): Promise<void> {
       populationFemale: null,
       householdCount: null,
       foreignPopulation: null,
+      measurementBasis: "demo_annual_population",
+      referenceDatePrecision: "year",
+      metadata: {
+        referenceDateRole: "canonical_demo_year_period_end"
+      },
       sourceKey,
       sourceRow: index + 2,
       dataStatus: "demo_sample"

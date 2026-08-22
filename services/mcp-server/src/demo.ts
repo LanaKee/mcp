@@ -9,7 +9,7 @@ import {
 export const representativeQuestions = [
   {
     id: "population-tax",
-    question: "2022년부터 2024년까지 인구는 줄고 지방세 세수는 늘어난 시군이 있나?"
+    question: "2020년부터 2022년까지 인구는 줄고 지방세 세수는 늘어난 시군이 있나?"
   },
   {
     id: "smartfarm-policy",
@@ -44,13 +44,20 @@ export async function runRepresentativeDemo(
   registry: ToolRegistry,
   context: ToolExecutionContext = {}
 ): Promise<RepresentativeDemoResponse> {
+  const officialDerivedStatuses =
+    (await registry.repository.readiness()).mode === "postgres"
+      ? ["official_observed" as const]
+      : undefined;
   if (questionId === "population-tax") {
     const response = await executeTool(
       registry,
       "compare_population_and_tax",
       {
-        startYear: 2022,
-        endYear: 2024
+        startYear: 2020,
+        endYear: 2022,
+        ...(officialDerivedStatuses
+          ? { dataStatuses: officialDerivedStatuses }
+          : {})
       },
       context
     );
@@ -66,6 +73,7 @@ export async function runRepresentativeDemo(
         regionName: string;
         notEvaluableReason: string;
         populationDataStatuses: string[];
+        populationMeasurementBases: string[];
         taxDataStatuses: string[];
         taxAmountSemantics: string[];
         populationSourceIds: string[];
@@ -77,6 +85,7 @@ export async function runRepresentativeDemo(
       detail: [
         `사유: ${item.notEvaluableReason}`,
         `인구 상태: ${item.populationDataStatuses.join(", ") || "없음"}`,
+        `인구 측정기준: ${item.populationMeasurementBases.join(", ") || "없음"}`,
         `지방세 상태: ${item.taxDataStatuses.join(", ") || "없음"}`,
         `지방세 의미: ${item.taxAmountSemantics.join(", ") || "없음"}`
       ],
@@ -135,7 +144,7 @@ export async function runRepresentativeDemo(
     return {
       data_status: response.data_status,
       question: representativeQuestions[1].question,
-      conclusion: `${response.data_status === "demo_sample" ? "데모" : "반환 데이터"} 기준으로 ${eligible.length}개 정책이 입력 조건에 부합합니다.`,
+      conclusion: `demo_sample 구조화 정책 기준으로 ${eligible.length}개가 입력 조건에 부합합니다. 공식 문서 passage는 배경 근거이며 자격 판정에 사용하지 않았습니다.`,
       evidence: result.matches.map((item) => ({
         statement: `${item.policy.title}: ${item.eligible ? "조건 부합" : "추가 조건 확인"}`,
         detail: [...item.reasons, ...item.unmetConditions],
@@ -156,7 +165,10 @@ export async function runRepresentativeDemo(
         council: "경상북도의회",
         dateFrom: "2020-01-01",
         dateTo: "2024-12-31",
-        limit: 10
+        limit: 10,
+        ...(officialDerivedStatuses
+          ? { dataStatuses: officialDerivedStatuses }
+          : {})
       },
       context
     );

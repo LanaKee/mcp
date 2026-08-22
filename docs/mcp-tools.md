@@ -11,8 +11,9 @@
 
 - 입력: `region`, `startYear`, `endYear`, 선택 `dataStatuses`
 - 출력: 연도별 인구(명), nullable summary, `summary_unavailable_reason`,
-  homogeneous `series_segments`
-- 상태가 섞이거나 point가 한 건이면 전체 증감률을 계산하지 않는다.
+  `measurementBasis`, `referenceDatePrecision`, homogeneous `series_segments`
+- 상태·측정기준·날짜 정밀도가 섞이거나 point가 한 건이면 전체 증감률을 계산하지
+  않는다. 과세연도 보고 인구의 `12-31`은 실제 snapshot 날짜가 아니라 period key다.
 
 ```json
 {"region":"포항시","startYear":2022,"endYear":2024}
@@ -39,7 +40,7 @@
 - 출력: 비교 가능한 공식 지역의 `matches`, 평가 불가능 지역의 `not_evaluable`,
   전체 nullable 결과 `all_regions`
 - 각 지역 결과는 `populationDataStatuses`, `taxDataStatuses`,
-  `taxAmountSemantics`, `taxSourceGrains`를 포함한다.
+  `populationMeasurementBases`, `taxAmountSemantics`, `taxSourceGrains`를 포함한다.
 - 공식 지방세가 있는 지역·연도는 공식 값을 사용하며 sample-only/mixed 구간을
   limitation에서 명시한다.
 - endpoint 누락, 혼합 source, demo가 한쪽이라도 있으면 `evaluable: false`,

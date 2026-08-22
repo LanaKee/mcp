@@ -141,7 +141,8 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
 반환 상태가 둘 이상이면 `data_status: "mixed"`이며 개별 상태는 `data_statuses`와
 레코드에 유지된다. 단, 파생 통계는 label만으로 안전하다고 간주하지 않는다.
 `dataStatus`와 지표의 회계 기준·금액 의미·source grain·원단위가 모두 같은 두 점
-이상에서만 `summary`를 계산한다. 그 외에는 원 point와 homogeneous
+이상이고, 인구는 측정기준과 기준일 정밀도도 같을 때만 `summary`를 계산한다.
+그 외에는 원 point와 homogeneous
 `series_segments`를 유지하면서 `summary: null`과
 `summary_unavailable_reason`을 반환한다. 인구/지방세 일치 verdict는 양쪽이 비교 가능한
 공식 series일 때만 생성한다.
@@ -272,8 +273,8 @@ ETL은 다음을 수행합니다.
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 445 | 4 | 3 |
-| `population_observation` | 221 | 12 | - |
+| `data_source` | 454 | 4 | 3 |
+| `population_observation` | 264 | 12 | - |
 | `local_tax_revenue` | 544 | 12 | - |
 | `local_tax_collection_status` | 220 | 0 | - |
 | `local_tax_payment_media` | 1,131 | 0 | - |
@@ -290,6 +291,11 @@ ETL은 다음을 수행합니다.
 `datasets/extra/`의 2021·2023·2025·2026 도정 업무계획은 공식 page passage로
 검색된다. 2020·2022는 CID mojibake, 2024는 usable text layer가 없어
 catalog/provenance와 제외 근거만 보존하고 검색에는 넣지 않는다.
+
+공식 인구와 공식 headline 지방세의 중첩은 8개 지역-연도/4개 지역이다. 구미
+2023~2025와 청도 2020~2022는 과세연도 보고서에 명시된 인구로 공식 시계열을
+구성한다. 기존 대표 기간 2022~2024는 endpoint가 부족해 유지하지 않고, 공식 비교가
+가능한 2020~2022 청도 사례로 대표 질문을 변경했다.
 
 | PDF current 항목 | 건수 |
 |---|---:|

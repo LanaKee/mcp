@@ -1,17 +1,11 @@
 import * as XLSX from "xlsx";
 import { parseReferenceDate } from "./dates.js";
+import type { NormalizedPopulationObservation } from "./population.js";
 import { resolveGyeongbukRegion } from "./regions.js";
 
-export interface WorkbookPopulationRow {
+export interface WorkbookPopulationRow
+  extends NormalizedPopulationObservation {
   sheet: string;
-  regionName: string;
-  referenceDate: string;
-  populationTotal: number;
-  populationMale: number | null;
-  populationFemale: number | null;
-  householdCount: number | null;
-  foreignPopulation: null;
-  sourceRow: number;
 }
 
 function numeric(value: unknown): number | null {
@@ -55,12 +49,10 @@ export function parsePopulationWorkbook(buffer: Buffer): WorkbookPopulationRow[]
   const results: WorkbookPopulationRow[] = [];
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
-    if (
-      !sheet ||
-      !sheetName.normalize("NFC").includes("읍면동별 인구 및 세대현황")
-    ) {
+    if (!sheet) {
       continue;
     }
+    const normalizedSheetName = sheetName.normalize("NFC");
     const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
       header: 1,
       defval: null,
@@ -70,13 +62,49 @@ export function parsePopulationWorkbook(buffer: Buffer): WorkbookPopulationRow[]
       ? XLSX.utils.decode_range(sheet["!ref"]).s.r + 1
       : 1;
 
+    if (normalizedSheetName.includes("시군별 인구 및 세대현황")) {
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index] ?? [];
+        const match = text(row[0]).match(/^(\d{4})년$/u);
+        const populationTotal = numeric(row[2]);
+        if (!match || populationTotal === null || populationTotal <= 0) continue;
+        results.push({
+          sheet: normalizedSheetName,
+          regionName: "경상북도",
+          referenceDate: `${match[1]}-12-31`,
+          populationTotal: Math.trunc(populationTotal),
+          populationMale:
+            numeric(row[3]) === null ? null : Math.trunc(numeric(row[3])!),
+          populationFemale:
+            numeric(row[4]) === null ? null : Math.trunc(numeric(row[4])!),
+          householdCount:
+            numeric(row[1]) === null ? null : Math.trunc(numeric(row[1])!),
+          foreignPopulation:
+            numeric(row[8]) === null ? null : Math.trunc(numeric(row[8])!),
+          measurementBasis: "annual_statistical_population",
+          referenceDatePrecision: "year",
+          metadata: {
+            sourcePeriodLabel: text(row[0]),
+            referenceDateRole: "canonical_annual_period_end",
+            populationComposition:
+              "resident_registration_population_plus_registered_foreigners"
+          },
+          sourceRow: firstSheetRow + index
+        });
+      }
+      continue;
+    }
+    if (!normalizedSheetName.includes("읍면동별 인구 및 세대현황")) {
+      continue;
+    }
+
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index] ?? [];
       const region = resolveGyeongbukRegion(text(row[0]));
       const populationTotal = numeric(row[2]);
       if (!region || populationTotal === null || populationTotal <= 0) continue;
       results.push({
-        sheet: sheetName.normalize("NFC"),
+        sheet: normalizedSheetName,
         regionName: region.regionName,
         referenceDate,
         populationTotal: Math.trunc(populationTotal),
@@ -87,6 +115,11 @@ export function parsePopulationWorkbook(buffer: Buffer): WorkbookPopulationRow[]
         householdCount:
           numeric(row[1]) === null ? null : Math.trunc(numeric(row[1])!),
         foreignPopulation: null,
+        measurementBasis: "resident_registration_snapshot",
+        referenceDatePrecision: "month",
+        metadata: {
+          sourcePeriodLabel: referenceDate.slice(0, 7)
+        },
         sourceRow: firstSheetRow + index
       });
     }
@@ -96,7 +129,8 @@ export function parsePopulationWorkbook(buffer: Buffer): WorkbookPopulationRow[]
       all.findIndex(
         (candidate) =>
           candidate.regionName === row.regionName &&
-          candidate.referenceDate === row.referenceDate
+          candidate.referenceDate === row.referenceDate &&
+          candidate.measurementBasis === row.measurementBasis
       ) === index
   );
 }

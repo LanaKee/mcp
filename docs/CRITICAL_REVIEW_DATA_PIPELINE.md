@@ -43,8 +43,8 @@
   `statistical_yearbook_local_collection`을 반환했고 audit도 성공했다.
 - 지방세 세부 grain은 징수 220, 납부매체 1,131, 과세 57, 1인당 부담 15,
   납세자 378, 비과세·감면 96, 미환급 64, 영치 통계 90행이다.
-- 동일 generated artifact 재적재는 insert 0건으로 끝났고 current PDF chunk/embedding
-  23,795, page 11,712, 공식 인구 221, 공식 의회 46,596을 유지했다.
+- 동일 generated artifact 재적재는 중복 fact를 만들지 않는다. 현재 PDF
+  chunk/embedding은 24,565, 공식 인구 264, 공식 의회 49,708이다.
 - DB-backed 김천 합계 도구는 공식 수납액 107,720,311,000원을 371.4ms에 반환했고
   PDF 의회 검색은 page locator 포함 3건을 476.7ms에 반환했다. 두 호출 audit도 확인했다.
 - 독립 검증에서 김천 demo 2022~2023과 공식 2024를 가로지른 허위 `-54.36%` 감소가
@@ -135,12 +135,18 @@ fact/search/embedding에서 제외했다. 문경 영치장소도 저장하지 �
 point별 status label만으로는 안전하지 않았다. demo 결산 2022~2023과 공식 수납 2024를
 단순 배열로 요약해 김천 `-54.36%`라는 존재하지 않는 감소 결론을 만들었다. 이제
 status, accounting basis, amount semantics, source grain, source unit/multiplier 중
-하나라도 다르면 전체 summary를 만들지 않는다. 인구도 status가 섞이면 같은 규칙을
-적용한다.
+하나라도 다르면 전체 summary를 만들지 않는다. 인구도 status뿐 아니라
+measurement basis와 reference-date precision이 다르면 같은 규칙을 적용한다.
 
 비교 도구는 exact endpoint와 양쪽 공식 homogeneous series가 있어야 evaluable하다.
 demo claim은 검증하지 않고 demo/비공식 source의 공공문서 drafting은 거절한다. 대표
 demo와 UI는 공식/데모/비교불가 segment를 분리한다.
+
+공식 인구 coverage는 221행에서 264행으로 늘었고 공식 인구×공식 headline 지방세
+중첩은 1개에서 8개 지역-연도로 증가했다. 청도 2020~2022와 구미 2023~2025는
+과세연도 원천에 인구가 직접 명시된 동질 series다. 경산 인구는 지방세/1인당 금액으로
+역산하지 않았다. 기존 2022~2024 대표 기간은 endpoint 부족으로 계속 거절되므로,
+공식 중첩이 실제 존재하는 2020~2022를 대표 질문에 명시했다.
 
 ### Hangul 비율 mojibake blind spot
 

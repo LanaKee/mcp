@@ -5,6 +5,12 @@ export interface PopulationRecord {
   regionName: string;
   year: number;
   populationTotal: number;
+  measurementBasis:
+    | "resident_registration_snapshot"
+    | "tax_year_reported_population"
+    | "annual_statistical_population"
+    | "demo_annual_population";
+  referenceDatePrecision: "day" | "month" | "year";
   sourceId: string;
   dataStatus: DataStatus;
 }
@@ -84,6 +90,8 @@ export type TrendSummaryUnavailableReason =
 
 export interface TrendCompatibility {
   dataStatus: DataStatus;
+  populationMeasurementBasis: PopulationRecord["measurementBasis"] | null;
+  referenceDatePrecision: PopulationRecord["referenceDatePrecision"] | null;
   accountingBasis: LocalTaxRecord["accountingBasis"] | null;
   amountSemantics: LocalTaxRecord["amountSemantics"] | null;
   sourceGrain: LocalTaxRecord["sourceGrain"] | null;

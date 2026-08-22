@@ -131,7 +131,7 @@ function summaryUnavailableMessage(
   reason: "insufficient_points" | "incomparable_sources"
 ): string {
   return reason === "incomparable_sources"
-    ? "상태·회계기준·금액 의미·원천 grain·단위가 다른 점을 가로질러 증감률을 계산하지 않았습니다."
+    ? "상태·인구 측정기준/날짜 정밀도·회계기준·금액 의미·원천 grain·단위가 다른 점을 가로질러 증감률을 계산하지 않았습니다."
     : "비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.";
 }
 
@@ -181,7 +181,9 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
             year: row.year,
             value: row.populationTotal,
             sourceId: row.sourceId,
-            dataStatus: row.dataStatus
+            dataStatus: row.dataStatus,
+            measurementBasis: row.measurementBasis,
+            referenceDatePrecision: row.referenceDatePrecision
           })),
           summary: analysis.summary,
           summary_unavailable_reason: analysis.summaryUnavailableReason,

@@ -5,6 +5,7 @@ import {
   evaluatePolicyEligibility,
   localTaxTrendPoints,
   normalizeRegionName,
+  populationTrendPoints,
   summarizeTrend
 } from "./index.js";
 import type { LocalTaxRecord, PolicyRecord, PopulationRecord } from "./index.js";
@@ -169,6 +170,8 @@ describe("domain analytics", () => {
       regionName: "포항시",
       year,
       populationTotal: 500000 - index * 10000,
+      measurementBasis: "demo_annual_population",
+      referenceDatePrecision: "year",
       sourceId: "p",
       dataStatus: "demo_sample"
     }));
@@ -199,6 +202,8 @@ describe("domain analytics", () => {
       regionName: "포항시",
       year,
       populationTotal: 500000 - index * 10000,
+      measurementBasis: "resident_registration_snapshot",
+      referenceDatePrecision: "month",
       sourceId: `p-${year}`,
       dataStatus: "official_observed"
     }));
@@ -221,6 +226,37 @@ describe("domain analytics", () => {
       matches: true,
       notEvaluableReason: null
     });
+  });
+
+  it("rejects official population points with different measurement semantics", () => {
+      const populations: PopulationRecord[] = [
+        {
+          regionId: "47820",
+          regionName: "청도군",
+          year: 2022,
+          populationTotal: 41614,
+          measurementBasis: "tax_year_reported_population",
+          referenceDatePrecision: "year",
+          sourceId: "tax-report",
+          dataStatus: "official_observed"
+        },
+        {
+          regionId: "47820",
+          regionName: "청도군",
+          year: 2025,
+          populationTotal: 40778,
+          measurementBasis: "resident_registration_snapshot",
+          referenceDatePrecision: "day",
+          sourceId: "snapshot",
+          dataStatus: "official_observed"
+        }
+      ];
+      expect(
+        analyzeComparableTrend(populationTrendPoints(populations))
+      ).toMatchObject({
+        summary: null,
+        summaryUnavailableReason: "incomparable_sources"
+      });
   });
 
   it("explains age-34 smart farm eligibility", () => {

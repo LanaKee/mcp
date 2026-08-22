@@ -9,6 +9,7 @@ import {
   type LocalTaxCsvKind,
   type LocalTaxSourceInput
 } from "./local-tax.js";
+import { populationRowsFromTaxPerCapita } from "./population.js";
 
 const sha256 = "a".repeat(64);
 
@@ -223,6 +224,19 @@ describe("official local-tax normalization", () => {
     expect(result.exemption[0]?.fiscalYear).toBe(2014);
     expect(result.paymentMedia).toHaveLength(1);
     expect(result.perCapita).toHaveLength(1);
+    expect(populationRowsFromTaxPerCapita(result.perCapita)).toMatchObject([
+      {
+        regionName: "청도군",
+        referenceDate: "2024-12-31",
+        populationTotal: 50,
+        householdCount: 25,
+        measurementBasis: "tax_year_reported_population",
+        referenceDatePrecision: "year",
+        metadata: {
+          referenceDateRole: "canonical_tax_year_period_end"
+        }
+      }
+    ]);
     expect(result.taxpayer).toHaveLength(1);
     expect(result.unrefunded).toHaveLength(1);
     expect(result.enforcement[0]).not.toHaveProperty("location");

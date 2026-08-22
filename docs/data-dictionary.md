@@ -37,9 +37,17 @@ SHA-256을 포함하므로 같은 경로의 파일이 변경되어도 이전 버
 
 ### `population_observation`
 
-지역·정확한 기준일별 총인구, 성별 인구, 세대수, 외국인 수, 출처와 원본 행 번호를
-저장한다. 포항 CSV의 `년월`은 일자까지 유지하고, 2026년 7월 XLSX는 월말인
+지역·기준 period별 총인구, 성별 인구, 세대수, 외국인 수, 출처와 원본 행 번호를
+저장한다. day/month 원천은 원 기준일을 유지한다. 포항 CSV의 `년월`은 일자까지
+유지하고, 2026년 7월 XLSX는 월말인
 `2026-07-31`로 저장한다. 샘플 CSV의 `population_total` 단위는 명이다.
+
+- `measurement_basis`: `resident_registration_snapshot`,
+  `tax_year_reported_population`, `annual_statistical_population`,
+  `demo_annual_population`
+- `reference_date_precision`: `day`, `month`, `year`
+- `metadata`: 원 period label과 집계 grain. 과세연도 인구의 `12-31`은 정렬용
+  canonical period end이며 실제 관측일이 아니다.
 
 ### `local_tax_revenue`
 

@@ -45,6 +45,8 @@ class FakeRepository extends InMemoryDataRepository {
         regionName: "김천시",
         year,
         populationTotal: 490_000 - index * 1_000,
+        measurementBasis: "resident_registration_snapshot" as const,
+        referenceDatePrecision: "month" as const,
         sourceId: officialSource.sourceId,
         dataStatus: "official_observed"
       }))

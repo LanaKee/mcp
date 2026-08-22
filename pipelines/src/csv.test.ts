@@ -4,6 +4,7 @@ import {
   inferRegionName,
   normalizeAnnualPopulation,
   normalizeCouncilRows,
+  normalizePopulationSnapshot,
   parseKoreanCsv
 } from "./csv.js";
 
@@ -27,7 +28,74 @@ describe("dataset CSV adapters", () => {
         populationFemale: 239200,
         householdCount: null,
         foreignPopulation: 3000,
+        measurementBasis: "resident_registration_snapshot",
+        referenceDatePrecision: "month",
+        metadata: {
+          sourcePeriodField: "년월"
+        },
         sourceRow: 2
+      }
+    ]);
+  });
+
+  it("aggregates municipality snapshots and preserves their exact date", () => {
+    const decoded = parseKoreanCsv(
+      Buffer.from(
+        [
+          "구분,세대수,계,남,여,데이터기준일자",
+          "선산읍,10,21,11,10,2026-02-28",
+          "고아읍,20,42,20,22,2026-02-28"
+        ].join("\n")
+      )
+    );
+    expect(
+      normalizePopulationSnapshot(
+        decoded,
+        "경상북도_구미시_인구현황_20260228.csv",
+        "2026-02-28"
+      )
+    ).toEqual([
+      {
+        regionName: "구미시",
+        referenceDate: "2026-02-28",
+        populationTotal: 63,
+        populationMale: 31,
+        populationFemale: 32,
+        householdCount: 30,
+        foreignPopulation: null,
+        measurementBasis: "resident_registration_snapshot",
+        referenceDatePrecision: "day",
+        metadata: {
+          sourceGrain: "summed_submunicipal_rows",
+          sourceRowStart: 2,
+          sourceRowEnd: 3
+        },
+        sourceRow: 2
+      }
+    ]);
+  });
+
+  it("normalizes province municipality summary rows independently", () => {
+    const decoded = parseKoreanCsv(
+      Buffer.from("시군별,세대수,인구\n구미시,190000,404691\n청도군,23000,40778\n")
+    );
+    expect(decoded.kind).toBe("population_local");
+    expect(
+      normalizePopulationSnapshot(
+        decoded,
+        "경상북도_행정구역현황_20250930.csv",
+        "2025-09-30"
+      )
+    ).toMatchObject([
+      {
+        regionName: "구미시",
+        referenceDate: "2025-09-30",
+        populationTotal: 404691
+      },
+      {
+        regionName: "청도군",
+        referenceDate: "2025-09-30",
+        populationTotal: 40778
       }
     ]);
   });

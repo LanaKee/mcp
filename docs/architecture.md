@@ -67,6 +67,9 @@ flowchart LR
   `amount_semantics`, `source_grain`, 원단위/배수/판정근거, aggregate 여부로 보존한다.
 - address-level property valuation은 catalog governance만 저장하고 fact/search/embedding에
   넣지 않는다. 영치 장소 문자열도 저장하지 않는다.
+- 인구 fact는 `measurement_basis`와 `reference_date_precision`을 보존한다.
+  과세연도 보고 인구, 주민등록 snapshot, 연간 통계를 서로 바꿔 쓰지 않으며
+  동질 series가 아닐 때 파생 추세를 만들지 않는다.
 - PDF page는 raw/cleaned hash와 품질 지표를 가지며 현재 extractor 결과만 `is_current`다.
 - page/document는 `extracted_ok`, `mojibake_suspected`,
   `unusable_for_retrieval`, `empty`와 `native_pdf_text`, `none` extraction method를

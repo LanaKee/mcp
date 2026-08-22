@@ -5,6 +5,7 @@ import { buildCatalog, type CatalogEntry } from "./catalog.js";
 import {
   normalizeAnnualPopulation,
   normalizeCouncilRows,
+  normalizePopulationSnapshot,
   parseKoreanCsv,
   type NormalizedCouncilRow,
   type NormalizedPopulationRow
@@ -24,6 +25,10 @@ import {
   mergeLocalTaxNormalizations,
   normalizeLocalTaxYearbook
 } from "./local-tax-yearbook.js";
+import {
+  populationRowsFromTaxPerCapita,
+  type NormalizedPopulationObservation
+} from "./population.js";
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const generatedDirectory = resolve(repositoryRoot, "data/generated");
@@ -37,6 +42,7 @@ export interface EtlError {
 export type OfficialPopulationRow = (
   | NormalizedPopulationRow
   | WorkbookPopulationRow
+  | NormalizedPopulationObservation
 ) & {
   sourcePath: string;
   sourceSha256: string;
@@ -120,9 +126,14 @@ export async function collectEtlData(): Promise<EtlResult> {
           });
         }
         const populationRows = normalizeAnnualPopulation(parsed, entry.fileNameNfc);
+        const populationSnapshotRows = normalizePopulationSnapshot(
+          parsed,
+          entry.fileNameNfc,
+          entry.referenceDate
+        );
         const councilRows = normalizeCouncilRows(parsed, entry.fileNameNfc);
         population.push(
-          ...populationRows.map((row) => ({
+          ...[...populationRows, ...populationSnapshotRows].map((row) => ({
             ...row,
             sourcePath: entry.path,
             sourceSha256: entry.sha256,
@@ -138,9 +149,14 @@ export async function collectEtlData(): Promise<EtlResult> {
           }))
         );
         if (
-          (parsed.kind === "population_annual" || parsed.kind === "council_agenda") &&
+          (parsed.kind === "population_annual" ||
+            parsed.kind === "population_local" ||
+            parsed.kind === "council_agenda") &&
           parsed.rows.length > 0 &&
-          populationRows.length + councilRows.length === 0
+          populationRows.length +
+              populationSnapshotRows.length +
+              councilRows.length ===
+            0
         ) {
           errors.push({
             path: entry.path,
@@ -183,6 +199,12 @@ export async function collectEtlData(): Promise<EtlResult> {
       : emptyLocalTaxNormalization(),
     ...localTaxYearbooks
   ]);
+  population.push(
+    ...populationRowsFromTaxPerCapita(localTax.perCapita).map((row) => ({
+      ...row,
+      dataStatus: "official_observed" as const
+    }))
+  );
   errors.push(
     ...localTax.qualityIssues
       .filter((issue) => issue.severity === "error")

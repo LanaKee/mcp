@@ -177,6 +177,8 @@ export class PostgresDataRepository implements DataRepository {
         region_name: string;
         year: number;
         population_total: number;
+        measurement_basis: PopulationRecord["measurementBasis"];
+        reference_date_precision: PopulationRecord["referenceDatePrecision"];
       }
     >(
       `WITH ranked AS (
@@ -185,6 +187,8 @@ export class PostgresDataRepository implements DataRepository {
            r.region_name,
            p.year,
            p.population_total,
+           p.measurement_basis,
+           p.reference_date_precision,
            p.data_status,
            ds.source_key,
            ds.title,
@@ -221,6 +225,8 @@ export class PostgresDataRepository implements DataRepository {
         regionName: row.region_name,
         year: Number(row.year),
         populationTotal: Number(row.population_total),
+        measurementBasis: row.measurement_basis,
+        referenceDatePrecision: row.reference_date_precision,
         sourceId: row.source_key,
         dataStatus: row.data_status
       })),

@@ -42,6 +42,8 @@ export async function loadDemoData(): Promise<DemoDataStore> {
     regionName: row.region_name!,
     year: Number(row.year),
     populationTotal: Number(row.population_total),
+    measurementBasis: "demo_annual_population",
+    referenceDatePrecision: "year",
     sourceId: row.source_id!,
     dataStatus: dataStatusSchema.parse(row.data_status)
   }));

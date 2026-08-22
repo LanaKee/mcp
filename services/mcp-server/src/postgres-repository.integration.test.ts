@@ -76,6 +76,102 @@ describeDatabase("PostgresDataRepository integration", () => {
     }
   });
 
+  it("serves comparable official population series for Cheongdo and Gumi", async () => {
+        for (const [region, startYear, endYear, basis] of [
+          ["청도군", 2020, 2022, "tax_year_reported_population"],
+          ["구미시", 2023, 2025, "tax_year_reported_population"]
+        ] as const) {
+          const response = await executeTool(
+            createToolRegistry(repository!),
+            "get_population_trend",
+            {
+              region,
+              startYear,
+              endYear,
+              dataStatuses: ["official_observed"]
+            }
+          );
+          const result = response.result as {
+            points: Array<{
+              dataStatus: string;
+              measurementBasis: string;
+            }>;
+            summary: { direction: string } | null;
+            summary_unavailable_reason: string | null;
+          };
+          expect(result.points).toHaveLength(endYear - startYear + 1);
+          expect(result.points.every((point) => point.dataStatus === "official_observed"))
+            .toBe(true);
+          expect(result.points.every((point) => point.measurementBasis === basis))
+            .toBe(true);
+          expect(result.summary).not.toBeNull();
+          expect(result.summary_unavailable_reason).toBeNull();
+        }
+  });
+
+  it("finds the official Cheongdo population-decrease and tax-increase match", async () => {
+        const response = await executeTool(
+          createToolRegistry(repository!),
+          "compare_population_and_tax",
+          {
+            regions: ["청도군"],
+            startYear: 2020,
+            endYear: 2022,
+            dataStatuses: ["official_observed"]
+          }
+        );
+        const result = response.result as {
+          matches: Array<{
+            regionName: string;
+            populationDataStatuses: string[];
+            taxDataStatuses: string[];
+          }>;
+          not_evaluable: unknown[];
+        };
+        expect(result.matches).toEqual([
+          expect.objectContaining({
+            regionName: "청도군",
+            populationDataStatuses: ["official_observed"],
+            taxDataStatuses: ["official_observed"]
+          })
+        ]);
+        expect(result.not_evaluable).toEqual([]);
+  });
+
+  it("has the measured official population and tax region-year overlap", async () => {
+        const pool = new Pool({ connectionString, max: 1 });
+        try {
+          const result = await pool.query<{
+            region_years: number;
+            regions: number;
+          }>(
+            `WITH population AS (
+               SELECT DISTINCT region_id, year
+               FROM population_observation
+               WHERE data_status = 'official_observed'
+             ),
+             tax AS (
+               SELECT DISTINCT region_id, fiscal_year AS year
+               FROM local_tax_revenue
+               WHERE data_status = 'official_observed'
+                 AND tax_category = '합계'
+                 AND COALESCE(metadata->>'headlineEligible', 'true') = 'true'
+             )
+             SELECT
+               count(*)::integer AS region_years,
+               count(DISTINCT population.region_id)::integer AS regions
+             FROM population
+             JOIN tax USING (region_id, year)`
+          );
+          expect(result.rows[0]).toEqual({
+            region_years: 8,
+            regions: 4
+      });
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("catalogs unusable policy files without chunks or OCR infrastructure", async () => {
     const pool = new Pool({ connectionString, max: 1 });
     try {

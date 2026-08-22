@@ -5,6 +5,7 @@ import {
   detectLocalTaxCsvKind,
   type LocalTaxCsvKind
 } from "./local-tax.js";
+import type { NormalizedPopulationObservation } from "./population.js";
 import { inferGyeongbukRegion } from "./regions.js";
 
 export type CsvKind =
@@ -47,6 +48,13 @@ export function detectCsvKind(headers: string[]): CsvKind {
   if (
     (compact.includes("인구수") || compact.includes("|계|")) &&
     (compact.includes("읍면") || compact.includes("행정기관") || compact.includes("구분"))
+  ) {
+    return "population_local";
+  }
+  if (
+    compact.includes("시군별") &&
+    compact.includes("세대수") &&
+    compact.includes("인구")
   ) {
     return "population_local";
   }
@@ -105,16 +113,7 @@ function objectArrayValue(value: string): Record<string, unknown>[] {
 
 const numberValue = (value: string) => Number(value.replace(/[,\s]/g, "")) || 0;
 
-export interface NormalizedPopulationRow {
-  regionName: string;
-  referenceDate: string;
-  populationTotal: number;
-  populationMale: number;
-  populationFemale: number;
-  householdCount: number | null;
-  foreignPopulation: number;
-  sourceRow: number;
-}
+export type NormalizedPopulationRow = NormalizedPopulationObservation;
 
 export function inferRegionName(pathName: string): string | null {
   return inferGyeongbukRegion(pathName)?.regionName ?? null;
@@ -127,8 +126,7 @@ export function normalizeAnnualPopulation(
   if (decoded.kind !== "population_annual") return [];
   const regionName = inferRegionName(pathName);
   if (!regionName) return [];
-  return decoded.rows
-    .map((row, index) => {
+  return decoded.rows.flatMap((row, index) => {
       const referenceDate = parseReferenceDate(
         firstValue(row, ["년월", "연월", "기준연월"])
       );
@@ -138,7 +136,8 @@ export function normalizeAnnualPopulation(
       const foreignFemale = numberValue(firstValue(row, ["외국인여"]));
       const populationMale = koreanMale + foreignMale;
       const populationFemale = koreanFemale + foreignFemale;
-      return {
+      return referenceDate && populationMale + populationFemale > 0
+        ? [{
         regionName,
         referenceDate,
         populationTotal: populationMale + populationFemale,
@@ -146,13 +145,119 @@ export function normalizeAnnualPopulation(
         populationFemale,
         householdCount: numberValue(firstValue(row, ["세대수"])) || null,
         foreignPopulation: foreignMale + foreignFemale,
+        measurementBasis: "resident_registration_snapshot" as const,
+        referenceDatePrecision: "month" as const,
+        metadata: {
+          sourcePeriodField: "년월"
+        },
         sourceRow: index + 2
-      };
-    })
-    .filter(
-      (row): row is NormalizedPopulationRow =>
-        row.referenceDate !== null && row.populationTotal > 0
+          }]
+        : [];
+    });
+}
+
+export function normalizePopulationSnapshot(
+  decoded: DecodedCsv,
+  pathName: string,
+  catalogReferenceDate: string | null
+): NormalizedPopulationRow[] {
+  if (decoded.kind !== "population_local") return [];
+  const isMunicipalityTable = decoded.headers.some(
+    (header) => clean(header) === "시군별"
+  );
+  if (isMunicipalityTable) {
+    return decoded.rows.flatMap((row, index) => {
+      const region = inferGyeongbukRegion(firstValue(row, ["시군별"]));
+      const populationTotal = numberValue(firstValue(row, ["인구"]));
+      const referenceDate = catalogReferenceDate
+        ? parseReferenceDate(catalogReferenceDate)
+        : null;
+      return region && referenceDate && populationTotal > 0
+        ? [{
+            regionName: region.regionName,
+            referenceDate,
+            populationTotal,
+            populationMale: null,
+            populationFemale: null,
+            householdCount:
+              numberValue(firstValue(row, ["세대수"])) || null,
+            foreignPopulation: null,
+            measurementBasis: "resident_registration_snapshot" as const,
+            referenceDatePrecision: "day" as const,
+            metadata: {
+              sourceGrain: "municipality_summary_row"
+            },
+            sourceRow: index + 2
+          }]
+        : [];
+    });
+  }
+
+  const regionName = inferRegionName(pathName);
+  if (!regionName) return [];
+  const rowDates = [
+    ...new Set(
+      decoded.rows
+        .map((row) =>
+          parseReferenceDate(
+            firstValue(row, ["데이터기준일자", "데이터기준일"])
+          )
+        )
+        .filter((value): value is string => value !== null)
+    )
+  ];
+  if (rowDates.length > 1) return [];
+  const referenceDate =
+    rowDates.length === 1
+      ? rowDates[0]!
+      : catalogReferenceDate
+        ? parseReferenceDate(catalogReferenceDate)
+        : null;
+  if (!referenceDate) return [];
+
+  let populationTotal = 0;
+  let populationMale = 0;
+  let populationFemale = 0;
+  let householdCount = 0;
+  let hasMale = false;
+  let hasFemale = false;
+  let hasHouseholds = false;
+  for (const row of decoded.rows) {
+    populationTotal += numberValue(
+      firstValue(row, ["총인구수", "계", "인구수", "인구"])
     );
+    const male = numberValue(
+      firstValue(row, ["남자수", "남", "인구수_남", "인구수(남)"])
+    );
+    const female = numberValue(
+      firstValue(row, ["여자수", "여", "인구수_여", "인구수(여)"])
+    );
+    const households = numberValue(firstValue(row, ["세대수", "세대"]));
+    populationMale += male;
+    populationFemale += female;
+    householdCount += households;
+    hasMale ||= male > 0;
+    hasFemale ||= female > 0;
+    hasHouseholds ||= households > 0;
+  }
+  if (populationTotal <= 0) return [];
+  return [{
+    regionName,
+    referenceDate,
+    populationTotal,
+    populationMale: hasMale ? populationMale : null,
+    populationFemale: hasFemale ? populationFemale : null,
+    householdCount: hasHouseholds ? householdCount : null,
+    foreignPopulation: null,
+    measurementBasis: "resident_registration_snapshot",
+    referenceDatePrecision: "day",
+    metadata: {
+      sourceGrain: "summed_submunicipal_rows",
+      sourceRowStart: 2,
+      sourceRowEnd: decoded.rows.length + 1
+    },
+    sourceRow: 2
+  }];
 }
 
 export interface NormalizedCouncilRow {

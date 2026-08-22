@@ -142,6 +142,26 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
+export function dataSourceConflictUpdateColumns(
+  mediaType: string
+): string[] {
+  const common = [
+    "title",
+    "provider",
+    "source_url",
+    "license_note",
+    "file_path",
+    "file_sha256",
+    "collected_at",
+    "reference_date",
+    "media_type",
+    "is_official"
+  ];
+  return mediaType === "application/pdf"
+    ? common
+    : [...common, "data_status", "metadata"];
+}
+
 export async function upsertRows(
   client: Client,
   options: {
@@ -238,6 +258,13 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     ),
     "utf8"
   );
+  const populationMeasurementMigration = await readFile(
+    resolve(
+      repositoryRoot,
+      "db/migrations/011_population_measurement_semantics.sql"
+    ),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
@@ -251,6 +278,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(officialLocalTaxMigration);
     await client.query(localTaxYearbookMigration);
     await client.query(policyDocumentQualityMigration);
+    await client.query(populationMeasurementMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
@@ -263,6 +291,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(officialLocalTaxMigration);
     await client.query(localTaxYearbookMigration);
     await client.query(policyDocumentQualityMigration);
+    await client.query(populationMeasurementMigration);
   }
 }
 
@@ -405,24 +434,23 @@ export async function loadDatabase(
       })
     );
 
-    const sourceResult = await upsertRows(client, {
-      table: "data_source",
-      columns: [
-        "source_key",
-        "title",
-        "provider",
-        "source_url",
-        "license_note",
-        "file_path",
-        "file_sha256",
-        "collected_at",
-        "reference_date",
-        "media_type",
-        "data_status",
-        "is_official",
-        "metadata"
-      ],
-      rows: plan.sources.map((row) => [
+    const sourceColumns = [
+      "source_key",
+      "title",
+      "provider",
+      "source_url",
+      "license_note",
+      "file_path",
+      "file_sha256",
+      "collected_at",
+      "reference_date",
+      "media_type",
+      "data_status",
+      "is_official",
+      "metadata"
+    ];
+    const sourceRows = (sources: LoadPlan["sources"]) =>
+      sources.map((row) => [
         row.sourceKey,
         row.title,
         row.provider,
@@ -436,25 +464,37 @@ export async function loadDatabase(
         row.dataStatus,
         row.isOfficial,
         JSON.stringify(row.metadata)
-      ]),
+      ]);
+    const pdfSources = plan.sources.filter(
+      (source) => source.mediaType === "application/pdf"
+    );
+    const structuredSources = plan.sources.filter(
+      (source) => source.mediaType !== "application/pdf"
+    );
+    const structuredSourceResult = await upsertRows(client, {
+      table: "data_source",
+      columns: sourceColumns,
+      rows: sourceRows(structuredSources),
       conflictColumns: ["source_key"],
-      updateColumns: [
-        "title",
-        "provider",
-        "source_url",
-        "license_note",
-        "file_path",
-        "file_sha256",
-        "collected_at",
-        "reference_date",
-        "media_type",
-        "data_status",
-        "is_official",
-        "metadata"
-      ],
+      updateColumns: dataSourceConflictUpdateColumns("text/csv"),
       returningColumns: ["source_key", "source_id"]
     });
-    addCounts(totals, sourceResult);
+    const pdfSourceResult = await upsertRows(client, {
+      table: "data_source",
+      columns: sourceColumns,
+      rows: sourceRows(pdfSources),
+      conflictColumns: ["source_key"],
+      updateColumns: dataSourceConflictUpdateColumns("application/pdf"),
+      returningColumns: ["source_key", "source_id"]
+    });
+    addCounts(totals, structuredSourceResult);
+    addCounts(totals, pdfSourceResult);
+    const sourceResult = {
+      returned: [
+        ...structuredSourceResult.returned,
+        ...pdfSourceResult.returned
+      ]
+    };
     const sourceIds = new Map(
       sourceResult.returned.map((row) => [
         String(row.source_key),
@@ -474,6 +514,9 @@ export async function loadDatabase(
           "population_female",
           "household_count",
           "foreign_population",
+          "measurement_basis",
+          "reference_date_precision",
+          "metadata",
           "source_id",
           "ingestion_run_id",
           "source_row",
@@ -487,6 +530,9 @@ export async function loadDatabase(
           row.populationFemale,
           row.householdCount,
           row.foreignPopulation,
+          row.measurementBasis,
+          row.referenceDatePrecision,
+          JSON.stringify(row.metadata),
           sourceId(sourceIds, row.sourceKey),
           ingestionRunId,
           row.sourceRow,
@@ -499,6 +545,9 @@ export async function loadDatabase(
           "population_female",
           "household_count",
           "foreign_population",
+          "measurement_basis",
+          "reference_date_precision",
+          "metadata",
           "ingestion_run_id",
           "source_row",
           "data_status"

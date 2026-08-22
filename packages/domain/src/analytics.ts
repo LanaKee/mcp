@@ -48,6 +48,8 @@ function compatibilityKey(point: ComparableTrendPoint): string {
   const value = point.compatibility;
   return JSON.stringify([
     value.dataStatus,
+    value.populationMeasurementBasis,
+    value.referenceDatePrecision,
     value.accountingBasis,
     value.amountSemantics,
     value.sourceGrain,
@@ -66,6 +68,8 @@ export function analyzeComparableTrend(
     const previousKey = previous
       ? JSON.stringify([
           previous.compatibility.dataStatus,
+          previous.compatibility.populationMeasurementBasis,
+          previous.compatibility.referenceDatePrecision,
           previous.compatibility.accountingBasis,
           previous.compatibility.amountSemantics,
           previous.compatibility.sourceGrain,
@@ -126,6 +130,8 @@ export function populationTrendPoints(
     sourceId: record.sourceId,
     compatibility: {
       dataStatus: record.dataStatus,
+      populationMeasurementBasis: record.measurementBasis,
+      referenceDatePrecision: record.referenceDatePrecision,
       accountingBasis: null,
       amountSemantics: null,
       sourceGrain: null,
@@ -144,6 +150,8 @@ export function localTaxTrendPoints(
     sourceId: record.sourceId,
     compatibility: {
       dataStatus: record.dataStatus,
+      populationMeasurementBasis: null,
+      referenceDatePrecision: null,
       accountingBasis: record.accountingBasis,
       amountSemantics: record.amountSemantics ?? null,
       sourceGrain: record.sourceGrain ?? null,
@@ -242,6 +250,11 @@ export function comparePopulationAndTax(
               summaryUnavailableReason: "non_official_data" as const
             })),
         populationDataStatuses: populationStatuses,
+        populationMeasurementBases: [
+          ...new Set(
+            populationRows.map((record) => record.measurementBasis)
+          )
+        ],
         taxDataStatuses: taxStatuses,
         taxAmountSemantics: [
           ...new Set(
