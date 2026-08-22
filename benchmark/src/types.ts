@@ -172,9 +172,28 @@ export interface ArmSummary {
   errors: number;
 }
 
+/**
+ * An arm's response as stored in the report, tagged with the case it answers.
+ *
+ * The arms themselves are not told the case id — they only ever see a question —
+ * so the runner stamps it on the way out. Without it the stored responses cannot
+ * be matched back to their verdicts, which is the whole point of storing them.
+ */
+export type RecordedResponse = ArmResponse & { caseId: string };
+
 export interface BenchmarkReport {
   generatedAt: string;
   model: string;
+  /** Which vendor served the model, since the model id alone is ambiguous. */
+  provider?: string;
+  /**
+   * Whether sampling temperature could be pinned to 0.
+   *
+   * Reasoning-tuned models refuse an explicit temperature, so their runs are
+   * inherently less repeatable than a pinned one. Recorded because it changes
+   * how much weight a single run's small-category numbers can carry.
+   */
+  temperaturePinned?: boolean;
   mode: "live" | "offline";
   cases: number;
   arms: ArmSummary[];
@@ -186,7 +205,7 @@ export interface BenchmarkReport {
   }>;
   scores: CaseScore[];
   groundTruth: Array<{ caseId: string; resolved: ResolvedGroundTruth }>;
-  responses: ArmResponse[];
+  responses: RecordedResponse[];
   /** Analyst hours the MCP arm's correct answers stand in for. */
   minutesSavedOnCorrect: number;
 }

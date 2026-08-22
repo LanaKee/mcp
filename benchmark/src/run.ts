@@ -13,9 +13,13 @@ import { fileURLToPath } from "node:url";
 import { runAgent } from "../../services/mcp-server/src/agent.js";
 import type { Planner } from "../../services/mcp-server/src/agent.js";
 import {
+  chatClientFor,
   chatClientFromEnv,
+  AnthropicChat,
   LlmPlanner,
-  type ChatCompletion
+  OpenAiCompatibleChat,
+  type ChatCompletion,
+  type ChatProvider
 } from "../../services/mcp-server/src/llm-planner.js";
 import { HeuristicPlanner } from "../../services/mcp-server/src/planner.js";
 import {
@@ -30,7 +34,7 @@ import { gradeResponse, summarizeArm } from "./grade.js";
 import { PostgresTruthSource, type TruthSource } from "./ground-truth.js";
 import { renderMarkdownReport } from "./report.js";
 import type {
-  ArmResponse,
+  RecordedResponse,
   BenchmarkCase,
   BenchmarkReport,
   CaseCategory,
@@ -42,22 +46,39 @@ import type {
 // package directory as cwd, and the cases live beside this source tree.
 const BENCHMARK_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 
+/**
+ * How many calls in a row may fail before the run is abandoned.
+ *
+ * Set above a single case's two arms so one flaky call, or one case both arms
+ * happen to fail, does not end an otherwise healthy run.
+ */
+export const CONSECUTIVE_FAILURE_LIMIT = 6;
+
 interface Options {
   casesPath: string;
-  outDir: string;
+  /** Null means "derive from the model name" so runs never clobber each other. */
+  outDir: string | null;
   limit: number | null;
   /** Skips the model entirely and only checks that truth resolution works. */
   dryRun: boolean;
   planner: "auto" | "heuristic" | "llm";
+  /** Explicit model id; null falls back to key precedence. */
+  model: string | null;
+}
+
+/** Makes a model id safe for a directory name without losing which model it was. */
+export function modelSlug(model: string): string {
+  return model.replace(/[^a-zA-Z0-9._-]+/gu, "-");
 }
 
 export function parseArgs(argv: string[]): Options {
   const options: Options = {
     casesPath: resolve(BENCHMARK_ROOT, "cases/gyeongbuk.jsonl"),
-    outDir: resolve(BENCHMARK_ROOT, "reports"),
+    outDir: null,
     limit: null,
     dryRun: false,
-    planner: "auto"
+    planner: "auto",
+    model: null
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -66,6 +87,9 @@ export function parseArgs(argv: string[]): Options {
       index += 1;
     } else if (arg === "--out" && argv[index + 1]) {
       options.outDir = resolve(process.cwd(), argv[index + 1] as string);
+      index += 1;
+    } else if (arg === "--model" && argv[index + 1]) {
+      options.model = argv[index + 1] as string;
       index += 1;
     } else if (arg === "--limit" && argv[index + 1]) {
       const parsed = Number(argv[index + 1]);
@@ -189,20 +213,38 @@ async function main(): Promise<void> {
       return;
     }
 
-    const chat = chatClientFromEnv();
-    if (chat === null) {
+    const selected =
+      options.model === null
+        ? chatClientFromEnv()
+        : // Reasoning-tuned models routinely exceed the 30s default, and a
+          // timeout or a rate limit would be recorded as the model failing to
+          // answer rather than as the harness giving up on it.
+          chatClientFor(options.model, process.env, {
+            timeoutMs: 180_000,
+            maxRetries: 4
+          });
+    if (selected === null) {
       throw new Error(
-        "OPENAI_API_KEY, GROK_API_KEY, GEMINI_API_KEY 중 하나가 필요합니다. 두 arm은 반드시 동일 모델을 사용합니다."
+        "OPENAI_API_KEY, GROK_API_KEY, GEMINI_API_KEY, CLAUDE_API_KEY 중 하나가 필요합니다. 두 arm은 반드시 동일 모델을 사용합니다."
       );
     }
+    const chat: {
+      client: ChatCompletion;
+      modelName: string;
+      provider?: ChatProvider;
+    } = selected;
+    const provider = chat.provider;
     console.log(`[benchmark] 모델: ${chat.modelName} (두 arm 공통)`);
+    const outDir =
+      options.outDir ?? resolve(BENCHMARK_ROOT, "reports", modelSlug(chat.modelName));
 
     const repository = await createDataRepository();
     const registry = createToolRegistry(repository);
     const planner = selectPlanner(options.planner, chat.client, chat.modelName);
 
-    const responses: ArmResponse[] = [];
+    const responses: RecordedResponse[] = [];
     const scores: CaseScore[] = [];
+    let consecutiveFailures = 0;
 
     for (const [index, entry] of cases.entries()) {
       console.log(`[benchmark] (${index + 1}/${cases.length}) ${entry.id}`);
@@ -216,7 +258,7 @@ async function main(): Promise<void> {
 
       for (const response of [vanilla, mcp]) {
         const verified = await truthSource.verifySourceIds(response.citedSourceIds);
-        responses.push(response);
+        responses.push({ ...response, caseId: entry.id });
         scores.push(
           gradeResponse({
             benchmarkCase: entry,
@@ -224,6 +266,19 @@ async function main(): Promise<void> {
             response,
             verifiedSourceIds: verified
           })
+        );
+        consecutiveFailures = response.error ? consecutiveFailures + 1 : 0;
+      }
+
+      // A run whose calls are all failing is measuring the account's quota, not
+      // the model. Finishing it would burn half an hour to produce a report
+      // that must be thrown away, and — worse — one that looks like a score.
+      if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
+        await repository.close();
+        throw new Error(
+          `호출이 ${consecutiveFailures}회 연속 실패하여 중단했습니다. 마지막 오류: ${
+            responses[responses.length - 1]?.error ?? "알 수 없음"
+          }\n모델 성능이 아니라 호출 실패를 측정하게 되므로 리포트를 남기지 않습니다.`
         );
       }
     }
@@ -233,6 +288,13 @@ async function main(): Promise<void> {
     const report: BenchmarkReport = {
       generatedAt: new Date().toISOString(),
       model: chat.modelName,
+      ...(provider ? { provider } : {}),
+      // Read after the run: the client only learns a temperature is refused by
+      // being refused once, so this must be sampled at the end, not the start.
+      temperaturePinned:
+        chat.client instanceof OpenAiCompatibleChat || chat.client instanceof AnthropicChat
+          ? !chat.client.usedDefaultTemperature
+          : true,
       mode: "live",
       cases: cases.length,
       arms: [
@@ -255,14 +317,14 @@ async function main(): Promise<void> {
         )
     };
 
-    await mkdir(options.outDir, { recursive: true });
+    await mkdir(outDir, { recursive: true });
     await writeFile(
-      resolve(options.outDir, "report.json"),
+      resolve(outDir, "report.json"),
       `${JSON.stringify(report, null, 2)}\n`,
       "utf8"
     );
     await writeFile(
-      resolve(options.outDir, "report.md"),
+      resolve(outDir, "report.md"),
       renderMarkdownReport(report, cases),
       "utf8"
     );
@@ -273,13 +335,18 @@ async function main(): Promise<void> {
     console.log(`  환각률       vanilla ${((vanillaSummary?.hallucinationRate ?? 0) * 100).toFixed(1)}%  |  MCP ${((mcpSummary?.hallucinationRate ?? 0) * 100).toFixed(1)}%`);
     console.log(`  출처검증     vanilla ${((vanillaSummary?.citationVerifiability ?? 0) * 100).toFixed(1)}%  |  MCP ${((mcpSummary?.citationVerifiability ?? 0) * 100).toFixed(1)}%`);
     console.log("");
-    console.log(`[benchmark] 리포트: ${resolve(options.outDir, "report.md")}`);
+    console.log(`[benchmark] 리포트: ${resolve(outDir, "report.md")}`);
   } finally {
     await truthSource.close();
   }
 }
 
-const invokedDirectly = process.argv[1] !== undefined && import.meta.url.endsWith("run.ts");
+// Compares the resolved script path, not a filename suffix: a suffix check is
+// also true when a test merely imports this module, which would fire a live
+// benchmark run — API calls and all — as an import side effect.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
   main().catch((error: unknown) => {
     console.error(`[benchmark] 실패: ${(error as Error).message}`);

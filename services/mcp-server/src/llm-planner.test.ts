@@ -308,7 +308,216 @@ describe("LLM request shape", () => {
         apiKey: "secret",
         model: "test-model"
       });
+      // No retry budget by default: a live request must fall through to the
+      // deterministic planner rather than stall while a rate limit clears.
       await expect(chat.complete("prompt")).rejects.toThrow(/429/u);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("explicit model selection", () => {
+  it("routes a model id to the provider that serves it", async () => {
+    const { providerForModel } = await import("./llm-planner.js");
+    expect(providerForModel("gpt-5.6-luna")).toBe("openai");
+    expect(providerForModel("o3-mini")).toBe("openai");
+    expect(providerForModel("claude-sonnet-5")).toBe("anthropic");
+    expect(providerForModel("gemini-3.6-flash")).toBe("gemini");
+    expect(providerForModel("grok-2-latest")).toBe("grok");
+    expect(providerForModel("llama-3")).toBeNull();
+  });
+
+  it("reaches a provider that key precedence would otherwise hide", async () => {
+    const { chatClientFor } = await import("./llm-planner.js");
+    // chatClientFromEnv would return OpenAI here; comparing models requires
+    // addressing Gemini directly despite the earlier key being set.
+    const selected = chatClientFor("gemini-3.6-flash", {
+      OPENAI_API_KEY: "k",
+      GEMINI_API_KEY: "g"
+    } as NodeJS.ProcessEnv);
+    expect(selected.provider).toBe("gemini");
+    expect(selected.modelName).toBe("gemini-3.6-flash");
+  });
+
+  it("names the missing key rather than falling back silently", async () => {
+    const { chatClientFor } = await import("./llm-planner.js");
+    expect(() =>
+      chatClientFor("claude-sonnet-5", { OPENAI_API_KEY: "k" } as NodeJS.ProcessEnv)
+    ).toThrow(/CLAUDE_API_KEY/u);
+  });
+
+  it("refuses an unroutable model instead of guessing a provider", async () => {
+    const { chatClientFor } = await import("./llm-planner.js");
+    expect(() => chatClientFor("mystery-1", {} as NodeJS.ProcessEnv)).toThrow(/공급자/u);
+  });
+});
+
+describe("temperature capability fallback", () => {
+  it("retries without temperature when the model refuses a pinned value", async () => {
+    const bodies: string[] = [];
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(init.body as string);
+      if (bodies.length === 1) {
+        return new Response(
+          JSON.stringify({
+            error: { message: "Unsupported value: 'temperature' does not support 0" }
+          }),
+          { status: 400, statusText: "Bad Request" }
+        );
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+        status: 200
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { OpenAiCompatibleChat } = await import("./llm-planner.js");
+      const chat = new OpenAiCompatibleChat({
+        baseUrl: "https://example.test/v1",
+        apiKey: "secret",
+        model: "reasoning-model"
+      });
+      expect(await chat.complete("prompt")).toBe("ok");
+      expect(JSON.parse(bodies[0] as string)).toHaveProperty("temperature", 0);
+      // The retry must drop the key entirely, not send a different value.
+      expect(JSON.parse(bodies[1] as string)).not.toHaveProperty("temperature");
+      // The run is no longer reproducible, and the report has to say so.
+      expect(chat.usedDefaultTemperature).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not retry a 400 that has nothing to do with temperature", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: { message: "context length exceeded" } }), {
+          status: 400,
+          statusText: "Bad Request"
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { OpenAiCompatibleChat } = await import("./llm-planner.js");
+      const chat = new OpenAiCompatibleChat({
+        baseUrl: "https://example.test/v1",
+        apiKey: "secret",
+        model: "test-model"
+      });
+      await expect(chat.complete("prompt")).rejects.toThrow(/400/u);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("provider response shapes", () => {
+  it("sends the max_tokens Anthropic requires and reads only text blocks", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            content: [
+              { type: "thinking", thinking: "내부 추론" },
+              { type: "text", text: "답변" }
+            ]
+          }),
+          { status: 200 }
+        )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { AnthropicChat } = await import("./llm-planner.js");
+      const chat = new AnthropicChat({ apiKey: "secret", model: "claude-sonnet-5" });
+      // Grading the scratchpad instead of the answer would silently corrupt
+      // every score for this provider.
+      expect(await chat.complete("prompt")).toBe("답변");
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toHaveProperty("max_tokens");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("drops Gemini thought parts instead of returning the first part", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      { text: "내부 추론", thought: true },
+                      { text: "실제 답변" }
+                    ]
+                  }
+                }
+              ]
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    try {
+      const { GeminiChat } = await import("./llm-planner.js");
+      const chat = new GeminiChat({ apiKey: "secret", model: "gemini-3.6-flash" });
+      expect(await chat.complete("prompt")).toBe("실제 답변");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("transient failure handling", () => {
+  it("waits out a rate limit instead of reporting it as a model failure", async () => {
+    const { retryDelayMs } = await import("./llm-planner.js");
+    // A 429 says the account ran out of quota, not that the model was wrong.
+    expect(retryDelayMs(429, null, 0, 4)).toBeGreaterThan(0);
+    expect(retryDelayMs(503, null, 0, 4)).toBeGreaterThan(0);
+    // An explicit Retry-After beats the backoff guess.
+    expect(retryDelayMs(429, "7", 0, 4)).toBe(7_000);
+    // A bad request will fail again no matter how long we wait.
+    expect(retryDelayMs(400, null, 0, 4)).toBeNull();
+    expect(retryDelayMs(401, null, 0, 4)).toBeNull();
+    // Retries are bounded so a sustained outage cannot hang the run.
+    expect(retryDelayMs(429, null, 4, 4)).toBeNull();
+    // Default is no retry budget at all, which is what the server wants.
+    expect(retryDelayMs(429, null, 0)).toBeNull();
+  });
+
+  it("retries a rate-limited call and returns the eventual answer", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) {
+          return new Response("rate limited", {
+            status: 429,
+            statusText: "Too Many Requests",
+            headers: { "retry-after": "0" }
+          });
+        }
+        return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+          status: 200
+        });
+      })
+    );
+    try {
+      const { OpenAiCompatibleChat } = await import("./llm-planner.js");
+      const chat = new OpenAiCompatibleChat({
+        baseUrl: "https://example.test/v1",
+        apiKey: "secret",
+        model: "test-model",
+        maxRetries: 4
+      });
+      expect(await chat.complete("prompt")).toBe("ok");
+      expect(calls).toBe(2);
     } finally {
       vi.unstubAllGlobals();
     }

@@ -1,0 +1,1869 @@
+{
+  "generatedAt": "2026-08-22T20:37:01.101Z",
+  "model": "gpt-5.6-luna",
+  "provider": "openai",
+  "temperaturePinned": false,
+  "mode": "live",
+  "cases": 22,
+  "arms": [
+    {
+      "arm": "vanilla",
+      "cases": 22,
+      "correct": 8,
+      "accuracy": 0.3636,
+      "commitmentRate": 1,
+      "hallucinationRate": 0.6364,
+      "hallucinationPerCommitted": 0.6364,
+      "abstentionAccuracy": 0,
+      "citationVerifiability": 0,
+      "medianLatencyMs": 7143,
+      "errors": 0
+    },
+    {
+      "arm": "mcp",
+      "cases": 22,
+      "correct": 18,
+      "accuracy": 0.8182,
+      "commitmentRate": 0.7727,
+      "hallucinationRate": 0.0909,
+      "hallucinationPerCommitted": 0.1176,
+      "abstentionAccuracy": 1,
+      "citationVerifiability": 0.6591,
+      "medianLatencyMs": 3951,
+      "errors": 0
+    }
+  ],
+  "byCategory": [
+    {
+      "category": "common_knowledge",
+      "cases": 3,
+      "vanillaAccuracy": 1,
+      "mcpAccuracy": 1
+    },
+    {
+      "category": "recency",
+      "cases": 4,
+      "vanillaAccuracy": 0.5,
+      "mcpAccuracy": 0.75
+    },
+    {
+      "category": "hyperlocal",
+      "cases": 4,
+      "vanillaAccuracy": 0.5,
+      "mcpAccuracy": 1
+    },
+    {
+      "category": "precision",
+      "cases": 6,
+      "vanillaAccuracy": 0,
+      "mcpAccuracy": 0.5
+    },
+    {
+      "category": "abstention",
+      "cases": 3,
+      "vanillaAccuracy": 0,
+      "mcpAccuracy": 1
+    },
+    {
+      "category": "provenance",
+      "cases": 2,
+      "vanillaAccuracy": 0.5,
+      "mcpAccuracy": 1
+    }
+  ],
+  "scores": [
+    {
+      "arm": "vanilla",
+      "caseId": "ck-pohang-pop-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 5909,
+      "extractedValues": [
+        496000,
+        496052
+      ],
+      "matchedValue": 496052,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 499,352에 대해 496,052 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "ck-pohang-pop-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 4201,
+      "extractedValues": [
+        499352
+      ],
+      "matchedValue": 499352,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 499,352에 대해 499,352 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "ck-gyeongbuk-pop-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 12190,
+      "extractedValues": [
+        2540000,
+        2540000
+      ],
+      "matchedValue": 2540000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 2,608,152에 대해 2,540,000 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "ck-gyeongbuk-pop-2024",
+      "committed": true,
+      "citationsClaimed": 5,
+      "citationsVerifiable": 4,
+      "latencyMs": 8508,
+      "extractedValues": [
+        2608152
+      ],
+      "matchedValue": 2608152,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 2,608,152에 대해 2,608,152 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "ck-gumi-pop-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 6709,
+      "extractedValues": [
+        405000,
+        404700
+      ],
+      "matchedValue": 404700,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 404,820에 대해 404,700 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "ck-gumi-pop-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 1,
+      "latencyMs": 3982,
+      "extractedValues": [
+        404820
+      ],
+      "matchedValue": 404820,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 404,820에 대해 404,820 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "rc-gimcheon-pop-2026",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 4593,
+      "extractedValues": [
+        137000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(137000)가 정답 132,550과(와) 허용 오차 2% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "rc-gimcheon-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3725,
+      "extractedValues": [
+        132550
+      ],
+      "matchedValue": 132550,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 132,550에 대해 132,550 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "rc-gyeongsan-pop-2026",
+      "committed": true,
+      "citationsClaimed": 0,
+      "citationsVerifiable": 0,
+      "latencyMs": 3064,
+      "extractedValues": [
+        267000
+      ],
+      "matchedValue": 267000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 263,171에 대해 267,000 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "rc-gyeongsan-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3500,
+      "extractedValues": [
+        263171
+      ],
+      "matchedValue": 263171,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 263,171에 대해 263,171 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "rc-gumi-pop-2026",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 4212,
+      "extractedValues": [
+        400000,
+        398000,
+        403000
+      ],
+      "matchedValue": 403000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 402,691에 대해 403,000 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "rc-gumi-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3948,
+      "extractedValues": [
+        402691
+      ],
+      "matchedValue": 402691,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 402,691에 대해 402,691 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "rc-bill-count-2026",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 7741,
+      "extractedValues": [
+        100
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(100)가 정답 62과(와) 허용 오차 10% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "rc-bill-count-2026",
+      "committed": false,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 2,
+      "latencyMs": 5913,
+      "extractedValues": [],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": false,
+      "notes": [
+        "답할 수 있는 자료가 있음에도 답변을 보류했습니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "hl-ulleung-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 3837,
+      "extractedValues": [
+        9000
+      ],
+      "matchedValue": 9000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 8,780에 대해 9,000 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "hl-ulleung-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 2901,
+      "extractedValues": [
+        8780
+      ],
+      "matchedValue": 8780,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 8,780에 대해 8,780 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "hl-yeongyang-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 2138,
+      "extractedValues": [
+        15000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(15000)가 정답 15,973과(와) 허용 오차 3% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "hl-yeongyang-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3996,
+      "extractedValues": [
+        15973
+      ],
+      "matchedValue": 15973,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 15,973에 대해 15,973 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "hl-bonghwa-pop-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 7346,
+      "extractedValues": [
+        30000,
+        30000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(30000, 30000)가 정답 28,836과(와) 허용 오차 3% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "hl-bonghwa-pop-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 2956,
+      "extractedValues": [
+        28836
+      ],
+      "matchedValue": 28836,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 28,836에 대해 28,836 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "hl-yeongdeok-pop-2026",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 3362,
+      "extractedValues": [
+        33000
+      ],
+      "matchedValue": 33000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 32,536에 대해 33,000 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "hl-yeongdeok-pop-2026",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 4706,
+      "extractedValues": [
+        32536
+      ],
+      "matchedValue": 32536,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 32,536에 대해 32,536 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pr-pohang-tax-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 7888,
+      "extractedValues": [
+        1200000000000,
+        1200000000000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(1200000000000, 1200000000000)가 정답 440,369,434,000과(와) 허용 오차 1% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pr-pohang-tax-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3177,
+      "extractedValues": [
+        440369434000
+      ],
+      "matchedValue": 440369434000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 440,369,434,000에 대해 440,369,434,000 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pr-gimcheon-tax-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 8074,
+      "extractedValues": [
+        218000000000,
+        218000000000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(218000000000, 218000000000)가 정답 107,720,311,000과(와) 허용 오차 1% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pr-gimcheon-tax-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 2979,
+      "extractedValues": [
+        107720311000
+      ],
+      "matchedValue": 107720311000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 107,720,311,000에 대해 107,720,311,000 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pr-gumi-tax-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 7491,
+      "extractedValues": [
+        650000000000,
+        650000000000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(650000000000, 650000000000)가 정답 392,312,491,000과(와) 허용 오차 1% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pr-gumi-tax-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3149,
+      "extractedValues": [
+        392312491000
+      ],
+      "matchedValue": 392312491000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 392,312,491,000에 대해 392,312,491,000 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pr-gyeongsan-tax-burden-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 6576,
+      "extractedValues": [
+        500000000000,
+        500000000000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(500000000000, 500000000000)가 정답 377,655,000,000과(와) 허용 오차 1% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pr-gyeongsan-tax-burden-2024",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 1,
+      "latencyMs": 3370,
+      "extractedValues": [
+        208902783000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(208902783000)가 정답 377,655,000,000과(와) 허용 오차 1% 밖입니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pr-press-count-2025",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 7714,
+      "extractedValues": [
+        1400
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(1400)가 정답 2,770과(와) 허용 오차 2% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pr-press-count-2025",
+      "committed": false,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 1,
+      "latencyMs": 6005,
+      "extractedValues": [],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": false,
+      "notes": [
+        "답할 수 있는 자료가 있음에도 답변을 보류했습니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pr-council-seats-ppp",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 4896,
+      "extractedValues": [
+        56,
+        12,
+        61
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(56, 12, 61)가 정답 58과(와) 허용 오차 2% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pr-council-seats-ppp",
+      "committed": true,
+      "citationsClaimed": 7,
+      "citationsVerifiable": 6,
+      "latencyMs": 7450,
+      "extractedValues": [
+        23
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(23)가 정답 58과(와) 허용 오차 2% 밖입니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "ab-uljin-pop-2015",
+      "committed": true,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 0,
+      "latencyMs": 10247,
+      "extractedValues": [
+        52000,
+        51800
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "보유 자료에 없는 값을 단정했습니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "ab-uljin-pop-2015",
+      "committed": false,
+      "citationsClaimed": 0,
+      "citationsVerifiable": 0,
+      "latencyMs": 1604,
+      "extractedValues": [],
+      "matchedValue": null,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "자료 부재를 인지하고 답변을 보류했습니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "ab-cheongsong-pop-2024",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 6939,
+      "extractedValues": [
+        24000,
+        24300
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "보유 자료에 없는 값을 단정했습니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "ab-cheongsong-pop-2024",
+      "committed": false,
+      "citationsClaimed": 0,
+      "citationsVerifiable": 0,
+      "latencyMs": 1718,
+      "extractedValues": [],
+      "matchedValue": null,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "자료 부재를 인지하고 답변을 보류했습니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "ab-policy-programs",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 0,
+      "latencyMs": 23080,
+      "extractedValues": [
+        150,
+        25000000000,
+        100,
+        20000000000,
+        80,
+        11000000000,
+        10,
+        2000000000,
+        8,
+        1500000000,
+        15,
+        3000000000,
+        10,
+        2000000000,
+        10,
+        2500000000,
+        5,
+        1500000000,
+        100,
+        15000000000,
+        20,
+        4000000000,
+        10000000000,
+        100,
+        18000000000,
+        3,
+        800000000,
+        20,
+        5000000000,
+        2,
+        400000000,
+        20,
+        4000000000,
+        3,
+        1000000000,
+        5,
+        1500000000,
+        10,
+        3000000000,
+        70,
+        80,
+        250000000000,
+        350000000000
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "보유 자료에 없는 값을 단정했습니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "ab-policy-programs",
+      "committed": false,
+      "citationsClaimed": 1,
+      "citationsVerifiable": 1,
+      "latencyMs": 11621,
+      "extractedValues": [],
+      "matchedValue": null,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "자료 부재를 인지하고 답변을 보류했습니다."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pv-pohang-pop-source",
+      "committed": true,
+      "citationsClaimed": 3,
+      "citationsVerifiable": 0,
+      "latencyMs": 17920,
+      "extractedValues": [
+        496000,
+        496052,
+        1,
+        4006,
+        101,
+        101,
+        1,
+        4006
+      ],
+      "matchedValue": 496052,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 499,352에 대해 496,052 제시."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pv-pohang-pop-source",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 4253,
+      "extractedValues": [
+        499352,
+        88,
+        9,
+        5,
+        509152,
+        45,
+        53,
+        92,
+        130422238,
+        76,
+        9948,
+        7523,
+        736
+      ],
+      "matchedValue": 499352,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 499,352에 대해 499,352 제시."
+      ]
+    },
+    {
+      "arm": "vanilla",
+      "caseId": "pv-gimcheon-tax-source",
+      "committed": true,
+      "citationsClaimed": 3,
+      "citationsVerifiable": 0,
+      "latencyMs": 18528,
+      "extractedValues": [
+        225000000000,
+        22500000000,
+        22500000,
+        1,
+        21001
+      ],
+      "matchedValue": null,
+      "correct": false,
+      "hallucinated": true,
+      "notes": [
+        "제시한 수치(225000000000, 22500000000, 22500000, 1, 21001)가 정답 107,720,311,000과(와) 허용 오차 1% 밖입니다."
+      ]
+    },
+    {
+      "arm": "mcp",
+      "caseId": "pv-gimcheon-tax-source",
+      "committed": true,
+      "citationsClaimed": 2,
+      "citationsVerifiable": 1,
+      "latencyMs": 3954,
+      "extractedValues": [
+        107720311000,
+        107720310000,
+        4,
+        133,
+        8,
+        70,
+        2,
+        760,
+        1,
+        86,
+        8,
+        17,
+        99,
+        8,
+        385,
+        5,
+        18,
+        80,
+        8
+      ],
+      "matchedValue": 107720311000,
+      "correct": true,
+      "hallucinated": false,
+      "notes": [
+        "정답 107,720,311,000에 대해 107,720,311,000 제시."
+      ]
+    }
+  ],
+  "groundTruth": [
+    {
+      "caseId": "ck-pohang-pop-2024",
+      "resolved": {
+        "available": true,
+        "value": 499352,
+        "range": {
+          "min": 499352,
+          "max": 500002
+        },
+        "observations": 12,
+        "sourceIds": [
+          "e2f1a221-2a95-4301-b9ec-d09479d9abed"
+        ],
+        "note": "포항시 2024년 주민등록 인구 관측 12건"
+      }
+    },
+    {
+      "caseId": "ck-gyeongbuk-pop-2024",
+      "resolved": {
+        "available": true,
+        "value": 2608152,
+        "range": {
+          "min": 2608152,
+          "max": 2608152
+        },
+        "observations": 1,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026"
+        ],
+        "note": "경상북도 2024년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "ck-gumi-pop-2024",
+      "resolved": {
+        "available": true,
+        "value": 404820,
+        "range": {
+          "min": 404820,
+          "max": 404820
+        },
+        "observations": 1,
+        "sourceIds": [
+          "c78beaf2-2c9f-479f-9894-7af51e387ce6"
+        ],
+        "note": "구미시 2024년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "rc-gimcheon-pop-2026",
+      "resolved": {
+        "available": true,
+        "value": 132550,
+        "range": {
+          "min": 132550,
+          "max": 132550
+        },
+        "observations": 1,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026"
+        ],
+        "note": "김천시 2026년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "rc-gyeongsan-pop-2026",
+      "resolved": {
+        "available": true,
+        "value": 263171,
+        "range": {
+          "min": 263171,
+          "max": 263171
+        },
+        "observations": 1,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026"
+        ],
+        "note": "경산시 2026년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "rc-gumi-pop-2026",
+      "resolved": {
+        "available": true,
+        "value": 402691,
+        "range": {
+          "min": 402691,
+          "max": 403254
+        },
+        "observations": 2,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026",
+          "682561a1-3221-4c99-b4c0-466dcc514b7e"
+        ],
+        "note": "구미시 2026년 주민등록 인구 관측 2건"
+      }
+    },
+    {
+      "caseId": "rc-bill-count-2026",
+      "resolved": {
+        "available": true,
+        "value": 62,
+        "range": {
+          "min": 62,
+          "max": 62
+        },
+        "observations": 62,
+        "sourceIds": [],
+        "note": "2026년 경상북도의회 발의 의안 건수"
+      }
+    },
+    {
+      "caseId": "hl-ulleung-pop-2026",
+      "resolved": {
+        "available": true,
+        "value": 8780,
+        "range": {
+          "min": 8780,
+          "max": 8780
+        },
+        "observations": 1,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026"
+        ],
+        "note": "울릉군 2026년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "hl-yeongyang-pop-2026",
+      "resolved": {
+        "available": true,
+        "value": 15973,
+        "range": {
+          "min": 15973,
+          "max": 15973
+        },
+        "observations": 1,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026"
+        ],
+        "note": "영양군 2026년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "hl-bonghwa-pop-2024",
+      "resolved": {
+        "available": true,
+        "value": 28836,
+        "range": {
+          "min": 28836,
+          "max": 28836
+        },
+        "observations": 1,
+        "sourceIds": [
+          "86646688-ce1c-40c6-90b5-fc7a03ce1ec2"
+        ],
+        "note": "봉화군 2024년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "hl-yeongdeok-pop-2026",
+      "resolved": {
+        "available": true,
+        "value": 32536,
+        "range": {
+          "min": 32536,
+          "max": 32536
+        },
+        "observations": 1,
+        "sourceIds": [
+          "e7c933ad-f13d-46f7-861d-c28083105026"
+        ],
+        "note": "영덕군 2026년 주민등록 인구 관측 1건"
+      }
+    },
+    {
+      "caseId": "pr-pohang-tax-2024",
+      "resolved": {
+        "available": true,
+        "value": 440369434000,
+        "range": {
+          "min": 440369434000,
+          "max": 440369434000
+        },
+        "observations": 1,
+        "sourceIds": [
+          "214cd3d6-f984-4439-b2dc-32545fba617d"
+        ],
+        "note": "포항시 2024년 지방세 합계(collected_amount)"
+      }
+    },
+    {
+      "caseId": "pr-gimcheon-tax-2024",
+      "resolved": {
+        "available": true,
+        "value": 107720311000,
+        "range": {
+          "min": 107720311000,
+          "max": 107720311000
+        },
+        "observations": 2,
+        "sourceIds": [
+          "8bd1532b-7907-4442-822e-52610945ee9a",
+          "214cd3d6-f984-4439-b2dc-32545fba617d"
+        ],
+        "note": "김천시 2024년 지방세 합계(collected_amount)"
+      }
+    },
+    {
+      "caseId": "pr-gumi-tax-2024",
+      "resolved": {
+        "available": true,
+        "value": 392312491000,
+        "range": {
+          "min": 392312491000,
+          "max": 392312491000
+        },
+        "observations": 1,
+        "sourceIds": [
+          "214cd3d6-f984-4439-b2dc-32545fba617d"
+        ],
+        "note": "구미시 2024년 지방세 합계(collected_amount)"
+      }
+    },
+    {
+      "caseId": "pr-gyeongsan-tax-burden-2024",
+      "resolved": {
+        "available": true,
+        "value": 377655000000,
+        "range": {
+          "min": 377655000000,
+          "max": 377655000000
+        },
+        "observations": 1,
+        "sourceIds": [
+          "9b77d24a-60ca-4c6a-b563-ec652d5d1236"
+        ],
+        "note": "경산시 2024년 지방세 합계(reported_total_tax_burden)"
+      }
+    },
+    {
+      "caseId": "pr-press-count-2025",
+      "resolved": {
+        "available": true,
+        "value": 2770,
+        "range": {
+          "min": 2770,
+          "max": 2770
+        },
+        "observations": 2770,
+        "sourceIds": [],
+        "note": "2025년 경상북도 보도자료 건수"
+      }
+    },
+    {
+      "caseId": "pr-council-seats-ppp",
+      "resolved": {
+        "available": true,
+        "value": 58,
+        "range": {
+          "min": 58,
+          "max": 58
+        },
+        "observations": 58,
+        "sourceIds": [
+          "9c1eb96e-a0a8-455f-b479-d204fddf833c"
+        ],
+        "note": "국민의힘 소속 경상북도의회 의원 수"
+      }
+    },
+    {
+      "caseId": "ab-uljin-pop-2015",
+      "resolved": {
+        "available": false,
+        "value": null,
+        "range": null,
+        "observations": 0,
+        "sourceIds": [],
+        "note": "울진군 2015년 인구 관측치 없음"
+      }
+    },
+    {
+      "caseId": "ab-cheongsong-pop-2024",
+      "resolved": {
+        "available": false,
+        "value": null,
+        "range": null,
+        "observations": 0,
+        "sourceIds": [],
+        "note": "청송군 2024년 인구 관측치 없음"
+      }
+    },
+    {
+      "caseId": "ab-policy-programs",
+      "resolved": {
+        "available": false,
+        "value": null,
+        "range": null,
+        "observations": 0,
+        "sourceIds": [],
+        "note": "policy_program 테이블에 적재된 행이 없습니다."
+      }
+    },
+    {
+      "caseId": "pv-pohang-pop-source",
+      "resolved": {
+        "available": true,
+        "value": 499352,
+        "range": {
+          "min": 499352,
+          "max": 500002
+        },
+        "observations": 12,
+        "sourceIds": [
+          "e2f1a221-2a95-4301-b9ec-d09479d9abed"
+        ],
+        "note": "포항시 2024년 주민등록 인구 관측 12건"
+      }
+    },
+    {
+      "caseId": "pv-gimcheon-tax-source",
+      "resolved": {
+        "available": true,
+        "value": 107720311000,
+        "range": {
+          "min": 107720311000,
+          "max": 107720311000
+        },
+        "observations": 2,
+        "sourceIds": [
+          "8bd1532b-7907-4442-822e-52610945ee9a",
+          "214cd3d6-f984-4439-b2dc-32545fba617d"
+        ],
+        "note": "김천시 2024년 지방세 합계(collected_amount)"
+      }
+    }
+  ],
+  "responses": [
+    {
+      "arm": "vanilla",
+      "text": "2024년 12월 말 기준 경상북도 포항시의 주민등록 인구는 **약 49만 6천 명(약 496,052명)**입니다.",
+      "transcript": "2024년 12월 말 기준 경상북도 포항시의 주민등록 인구는 **약 49만 6천 명(약 496,052명)**입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 5909,
+      "error": null,
+      "caseId": "ck-pohang-pop-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 포항시의 주민등록 인구는 **499,352명**입니다.",
+      "transcript": "[최종 답변]\n2024년 경상북도 포항시의 주민등록 인구는 **499,352명**입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2024년 포항시의 인구 관측값을 조회하기 위해 사용합니다. 도구 실행 결과에서 measurementBasis가 주민등록인 값을 확인합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2024년 포항시의 인구 관측값을 조회하기 위해 사용합니다. 도구 실행 결과에서 measurementBasis가 주민등록인 값을 확인합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"포항시\",\"unit\":\"명\",\"points\":[{\"year\":2024,\"value\":499352,\"sourceId\":\"official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":499352,\"sourceId\":\"official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도_포항시_연도별인구현황_20260323.csv · 포항시 · 수집 2026-08-21T17:54:18.020Z · source_id=official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 4201,
+      "error": null,
+      "caseId": "ck-pohang-pop-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 12월 말 기준 경상북도의 주민등록 인구는 **약 254만 명(약 2,540,000명)**입니다.  \n(출처: 행정안전부 주민등록 인구통계, 2024년 기준)",
+      "transcript": "2024년 12월 말 기준 경상북도의 주민등록 인구는 **약 254만 명(약 2,540,000명)**입니다.  \n(출처: 행정안전부 주민등록 인구통계, 2024년 기준)",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도의",
+        "행정안전부"
+      ],
+      "declined": null,
+      "latencyMs": 12190,
+      "error": null,
+      "caseId": "ck-gyeongbuk-pop-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 전체 인구는 **2,608,152명**입니다.  \n(자료 기준: 2024년 연간 통계 인구)",
+      "transcript": "[최종 답변]\n2024년 경상북도 전체 인구는 **2,608,152명**입니다.  \n(자료 기준: 2024년 연간 통계 인구)\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2024년 경상북도 전체의 주민등록 인구 총수를 확인하기 위해 해당 지역의 2024년 인구 관측값을 조회합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2024년 경상북도 전체의 주민등록 인구 총수를 확인하기 위해 해당 지역의 2024년 인구 관측값을 조회합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"구미시\",\"unit\":\"명\",\"points\":[{\"year\":2024,\"value\":404820,\"sourceId\":\"official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\"},{\"year\":2024,\"value\":28836,\"sourceId\":\"official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\"},{\"year\":2024,\"value\":499352,\"sourceId\":\"official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"},{\"year\":2024,\"value\":2608152,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"annual_statistical_population\",\"referenceDatePrecision\":\"year\"}],\"summary\":null,\"summary_unavailable_reason\":\"incomparable_sources\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":404820,\"sourceId\":\"official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631\"},{\"year\":2024,\"value\":28836,\"sourceId\":\"official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8\"}],\"summary\":{\"startValue\":404820,\"endValue\":28836,\"absoluteChange\":-375984,\"changePercent\":-92.88,\"changePercentUnavailableReason\":null,\"direction\":\"decrease\"},\"summaryUnavailableReason\":null},{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":499352,\"sourceId\":\"official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"},{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"annual_statistical_population\",\"referenceDatePrecision\":\"year\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":2608152,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도 구미시_1인당 지방세 부담액_20251231.csv · 구미시 · 수집 2026-08-22T03:20:06.107Z · source_id=official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631\n- 경상북도 봉화군_1인당 지방세 부담액_20241231.csv · 봉화군 · 수집 2026-08-22T08:48:26.882Z · source_id=official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8\n- 경상북도_포항시_연도별인구현황_20260323.csv · 포항시 · 수집 2026-08-21T17:54:18.020Z · source_id=official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 상태·인구 측정기준/날짜 정밀도·회계기준·금액 의미·원천 grain·단위가 다른 점을 가로질러 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631",
+        "official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8",
+        "official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736",
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 8508,
+      "error": null,
+      "caseId": "ck-gyeongbuk-pop-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 12월 31일 기준 경상북도 구미시 주민등록 인구는 **약 40만 5천 명(약 404,700명)**입니다.  \n(출처: 행정안전부 주민등록 인구통계)",
+      "transcript": "2024년 12월 31일 기준 경상북도 구미시 주민등록 인구는 **약 40만 5천 명(약 404,700명)**입니다.  \n(출처: 행정안전부 주민등록 인구통계)",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "행정안전부"
+      ],
+      "declined": null,
+      "latencyMs": 6709,
+      "error": null,
+      "caseId": "ck-gumi-pop-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 구미시 인구는 **404,820명**입니다.  \n다만 자료의 측정 기준은 **과세연도 신고 인구**입니다.",
+      "transcript": "[최종 답변]\n2024년 구미시 인구는 **404,820명**입니다.  \n다만 자료의 측정 기준은 **과세연도 신고 인구**입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2024년 구미시의 인구 관측값을 조회하기 위해 사용합니다. 해당 지역의 적재 연도 범위(2023~2026)에 포함되며, 주민등록 인구 여부와 실제 값은 도구 실행 결과의 measurementBasis와 관측값으로 확인합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2024년 구미시의 인구 관측값을 조회하기 위해 사용합니다. 해당 지역의 적재 연도 범위(2023~2026)에 포함되며, 주민등록 인구 여부와 실제 값은 도구 실행 결과의 measurementBasis와 관측값으로 확인합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"구미시\",\"unit\":\"명\",\"points\":[{\"year\":2024,\"value\":404820,\"sourceId\":\"official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":404820,\"sourceId\":\"official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도 구미시_1인당 지방세 부담액_20251231.csv · 구미시 · 수집 2026-08-22T03:20:06.107Z · source_id=official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:00641a6b9475771c26bcc811a5a6e44ef9f647f832205cb60fa7f7baff350631"
+      ],
+      "citedAttributions": [],
+      "declined": false,
+      "latencyMs": 3982,
+      "error": null,
+      "caseId": "ck-gumi-pop-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경상북도 김천시의 주민등록 인구는 **약 13만 7천 명**으로 추정됩니다.  \n※ 2026년 월별 주민등록 인구 기준의 근사치이며, 실제 수치는 시점에 따라 변동됩니다.",
+      "transcript": "2026년 경상북도 김천시의 주민등록 인구는 **약 13만 7천 명**으로 추정됩니다.  \n※ 2026년 월별 주민등록 인구 기준의 근사치이며, 실제 수치는 시점에 따라 변동됩니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 4593,
+      "error": null,
+      "caseId": "rc-gimcheon-pop-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "2026년 경상북도 김천시의 주민등록 인구는 **132,550명**입니다. 기준은 **주민등록 기준**이며, 월 단위 관측값입니다.",
+      "transcript": "[최종 답변]\n2026년 경상북도 김천시의 주민등록 인구는 **132,550명**입니다. 기준은 **주민등록 기준**이며, 월 단위 관측값입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 김천시의 2026년 인구 관측값을 조회하기 위해 사용합니다. 해당 지역에 2026년 데이터가 적재되어 있으며, 결과에서 주민등록 기준(measurementBasis)의 값을 확인할 수 있습니다.\n\n[조회 결과]\n## 시군별 인구 관측: 김천시의 2026년 인구 관측값을 조회하기 위해 사용합니다. 해당 지역에 2026년 데이터가 적재되어 있으며, 결과에서 주민등록 기준(measurementBasis)의 값을 확인할 수 있습니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"김천시\",\"unit\":\"명\",\"points\":[{\"year\":2026,\"value\":132550,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2026,\"value\":132550,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3725,
+      "error": null,
+      "caseId": "rc-gimcheon-pop-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경산시 주민등록 인구는 **약 26만 7천 명**으로 추정됩니다.  \n※ 2026년 연간 확정치는 아직 집계 전일 수 있으며, 월별 주민등록 인구 기준의 근사치입니다.",
+      "transcript": "2026년 경산시 주민등록 인구는 **약 26만 7천 명**으로 추정됩니다.  \n※ 2026년 연간 확정치는 아직 집계 전일 수 있으며, 월별 주민등록 인구 기준의 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [],
+      "declined": null,
+      "latencyMs": 3064,
+      "error": null,
+      "caseId": "rc-gyeongsan-pop-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "2026년 경상북도 경산시의 주민등록 인구는 **263,171명**입니다.",
+      "transcript": "[최종 답변]\n2026년 경상북도 경산시의 주민등록 인구는 **263,171명**입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2026년 경산시의 인구 관측값을 조회하며, 실행 결과에서 measurementBasis가 주민등록 기준인 값을 확인하기 위해 사용합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2026년 경산시의 인구 관측값을 조회하며, 실행 결과에서 measurementBasis가 주민등록 기준인 값을 확인하기 위해 사용합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"경산시\",\"unit\":\"명\",\"points\":[{\"year\":2026,\"value\":263171,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2026,\"value\":263171,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3500,
+      "error": null,
+      "caseId": "rc-gyeongsan-pop-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경상북도 구미시 주민등록 인구는 **약 40만 명(추정)**입니다.  \n월별 변동을 고려하면 **약 39만 8천~40만 3천 명 수준**으로 보입니다.",
+      "transcript": "2026년 경상북도 구미시 주민등록 인구는 **약 40만 명(추정)**입니다.  \n월별 변동을 고려하면 **약 39만 8천~40만 3천 명 수준**으로 보입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 4212,
+      "error": null,
+      "caseId": "rc-gumi-pop-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "2026년 경상북도 구미시의 주민등록 인구는 **402,691명**입니다.  \n(기준: 2026년, 주민등록 기준)",
+      "transcript": "[최종 답변]\n2026년 경상북도 구미시의 주민등록 인구는 **402,691명**입니다.  \n(기준: 2026년, 주민등록 기준)\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2026년 구미시의 인구 관측값을 조회하며, 결과의 measurementBasis에서 주민등록 기준 값을 확인하기 위해 사용합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2026년 구미시의 인구 관측값을 조회하며, 결과의 measurementBasis에서 주민등록 기준 값을 확인하기 위해 사용합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"구미시\",\"unit\":\"명\",\"points\":[{\"year\":2026,\"value\":402691,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2026,\"value\":402691,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3948,
+      "error": null,
+      "caseId": "rc-gumi-pop-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경상북도의회에 발의된 의안은 **약 100건**으로 추정됩니다.  \n※ 2026년 8월 기준 의안정보 등록 건수 기준이며, 이후 추가 발의에 따라 변동될 수 있습니다.",
+      "transcript": "2026년 경상북도의회에 발의된 의안은 **약 100건**으로 추정됩니다.  \n※ 2026년 8월 기준 의안정보 등록 건수 기준이며, 이후 추가 발의에 따라 변동될 수 있습니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도의회에"
+      ],
+      "declined": null,
+      "latencyMs": 7741,
+      "error": null,
+      "caseId": "rc-bill-count-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "확인할 수 없습니다. 조회 결과에는 2026년 전체 발의 건수가 제시되어 있지 않습니다.",
+      "transcript": "[최종 답변]\n확인할 수 없습니다. 조회 결과에는 2026년 전체 발의 건수가 제시되어 있지 않습니다.\n\n[에이전트 결론]\n도의원 발의 의안에서 근거를 수집했습니다.\n\n[실행 계획]\n- council_bill/search_member_bills: 경상북도의회 의원 발의 의안을 대상으로 2026년 전체 발의 건수를 확인하기 위해 사용합니다.\n\n[조회 결과]\n## 도의원 발의 의안: 경상북도의회 의원 발의 의안을 대상으로 2026년 전체 발의 건수를 확인하기 위해 사용합니다.\n도구: search_member_bills / 데이터셋: council_bill / 상태: official_observed\n{\"members\":[{\"councilMemberId\":\"gb-council-member-12009\",\"name\":\"김대진\",\"party\":\"국민의힘\",\"district\":\"안동시 제1선거구\",\"position\":\"문화환경위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원장(전반기)\\n(전)안동청년유도회 회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12009\",\"leadBillCount\":30,\"coBillCount\":218},{\"councilMemberId\":\"gb-council-member-09110\",\"name\":\"김수문\",\"party\":\"국민의힘\",\"district\":\"의성군 제2선거구\",\"position\":\"건설소방위원회 위원\",\"career\":\"(현)제13대 경상북도의회 건설소방위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(현)제13대 경상북도의회 윤리특별위원회 위원(전반기)\\n(전)의성군의회 의원(5대)\\n(전)경상북도의회 의원(10대, 11대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09110\",\"leadBillCount\":6,\"coBillCount\":172},{\"councilMemberId\":\"gb-council-member-12010\",\"name\":\"김용현\",\"party\":\"국민의힘\",\"district\":\"구미시 제1선거구\",\"position\":\"문화환경위원회 위원\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원(전반기)\\n(전)국민의힘 구미시(갑) 당원협의회 부위원장 회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12010\",\"leadBillCount\":12,\"coBillCount\":212},{\"councilMemberId\":\"gb-council-member-12035\",\"name\":\"김일수\",\"party\":\"국민의힘\",\"district\":\"구미시 제4선거구\",\"position\":\"행정보건복지위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원장(전반기)\\n(전)구미시배드민턴협회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12035\",\"leadBillCount\":9,\"coBillCount\":200},{\"councilMemberId\":\"gb-council-member-01117\",\"name\":\"김진욱\",\"party\":\"국민의힘\",\"district\":\"상주시 제2선거구\",\"position\":\"예산결산특별위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 예산결산특별위원회 위원장(전반기)\\n(현)제13대 경상북도의회 건설소방위원회 위원(전반기)\\n(전)상주시의회 의원(4대, 5대, 6대, 7대)\\n(전)경상북도의회 의원(11대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01117\",\"leadBillCount\":4,\"coBillCount\":114},{\"councilMemberId\":\"gb-council-member-12018\",\"name\":\"김창기\",\"party\":\"국민의힘\",\"district\":\"문경시 제2선거구\",\"position\":\"건설소방위원회 위원\",\"career\":\"(현)제13대 경상북도의회 건설소방위원회 위원(전반기)\\n(전)문경시의회 의원(7대, 8대)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12018\",\"leadBillCount\":15,\"coBillCount\":159},{\"councilMemberId\":\"gb-council-member-12014\",\"name\":\"김창혁\",\"party\":\"국민의힘\",\"district\":\"구미시 제7선거구\",\"position\":\"기획경제위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원장(전반기)\\n(현)건축사사무소혜인 대표 건축사\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12014\",\"leadBillCount\":9,\"coBillCount\":178},{\"councilMemberId\":\"gb-council-member-09002\",\"name\":\"김희수\",\"party\":\"국민의힘\",\"district\":\"포항시 제5선거구\",\"position\":\"의장\",\"career\":\"현)제13대 전반기 경상북도의회 의장\\n* 제9대 ~ 제13대 경상북도의회 의원(5선)\\n현)포항지역발전협의회 부회장\\n전)제9대 경상북도의회 운영위원회 위원장\\n전)제10대 경상북도의회 기획경제위원회 위원장\\n전)제11대 경상북도의회 제1부의장\\n전)제12대 경상북도의회 후반기 국제친선의원연맹 회장\\n전)신광중·포철공고 총동창회장\\n전)포항시새마을회 지회장\\n전)포항시장학회 이사\\n전)포항시 축구협회 연합회 부회장\\n전)대구경북경제자유구역청 조합회의 의장\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09002\",\"leadBillCount\":35,\"coBillCount\":439},{\"councilMemberId\":\"gb-council-member-12023\",\"name\":\"노성환\",\"party\":\"국민의힘\",\"district\":\"고령군 선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)제13대 경상북도의회 윤리특별위원회 위원(전반기)\\n(현)국민의힘 경북도당 부위원장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12023\",\"leadBillCount\":9,\"coBillCount\":241},{\"councilMemberId\":\"gb-council-member-01105\",\"name\":\"박승직\",\"party\":\"국민의힘\",\"district\":\"경주시 제5선거구\",\"position\":\"문화환경위원회 위원\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(전)경주시의회 의원(5대, 6대, 7대)\\n(전)경상북도의회 의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01105\",\"leadBillCount\":13,\"coBillCount\":264},{\"councilMemberId\":\"gb-council-member-09200\",\"name\":\"박영서\",\"party\":\"국민의힘\",\"district\":\"문경시 제1선거구\",\"position\":\"교육위원회 위원\",\"career\":\"(현)제13대 경상북도의회 교육위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(현)제13대 경상북도의회 의회운영위원회 위원(전반기)\\n(전)문경시생활체육회 회장\\n(전)경상북도의회 의원(10대,11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09200\",\"leadBillCount\":22,\"coBillCount\":413},{\"councilMemberId\":\"gb-council-member-01127\",\"name\":\"박채아\",\"party\":\"국민의힘\",\"district\":\"경산시 제4선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)박채아세무사사무소 대표\\n(전) 경상북도의회의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01127\",\"leadBillCount\":26,\"coBillCount\":290},{\"councilMemberId\":\"gb-council-member-09250\",\"name\":\"배진석\",\"party\":\"국민의힘\",\"district\":\"경주시 제1선거구\",\"position\":\"기획경제위원회 위원\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(전)경상북도의회 의원(10대, 11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09250\",\"leadBillCount\":23,\"coBillCount\":344},{\"councilMemberId\":\"gb-council-member-12015\",\"name\":\"백순창\",\"party\":\"국민의힘\",\"district\":\"구미시 제8선거구\",\"position\":\"교육위원회 위원\",\"career\":\"(현)제13대 경상북도의회 교육위원회 위원(전반기)\\n(현)양포발전협의회 부회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12015\",\"leadBillCount\":13,\"coBillCount\":183},{\"councilMemberId\":\"gb-council-member-12004\",\"name\":\"손희권\",\"party\":\"국민의힘\",\"district\":\"포항시 제9선거구\",\"position\":\"기획경제위원회 위원\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(전)국회의원 보좌관\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12004\",\"leadBillCount\":10,\"coBillCount\":214},{\"councilMemberId\":\"gb-council-member-01121\",\"name\":\"신효광\",\"party\":\"국민의힘\",\"district\":\"청송군 선거구\",\"position\":\"기획경제위원회 위원\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(전)청송군의회 의원(7대)\\n(전)경상북도의회 의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01121\",\"leadBillCount\":18,\"coBillCount\":308},{\"councilMemberId\":\"gb-council-member-12001\",\"name\":\"연규식\",\"party\":\"국민의힘\",\"district\":\"포항시 제4선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)제13대 경상북도의회 의회운영위원회 위원(전반기)\\n(현)제13대 경상북도의회 윤리특별위원회 위원(전반기)\\n(현)제13대 경상북도의회 대변인(전반기)\\n(전)포항환경학교 교장\\n(전)제12대 경북도의원\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12001\",\"leadBillCount\":15,\"coBillCount\":229},{\"councilMemberId\":\"gb-council-member-01128\",\"name\":\"윤승오\",\"party\":\"국민의힘\",\"district\":\"영천시 제2선거구\",\"position\":\"건설소방위원회 위원\",\"career\":\"(현)제13대 경상북도의회 건설소방위원회 위원(전반기)\\n(전)경상북도의회 의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01128\",\"leadBillCount\":13,\"coBillCount\":237},{\"councilMemberId\":\"gb-council-member-12041\",\"name\":\"윤철남\",\"party\":\"무소속\",\"district\":\"영양군 선거구\",\"position\":\"문화환경위원회 위원\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(전)남해화학(주) 경북북부지사장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12041\",\"leadBillCount\":5,\"coBillCount\":149},{\"councilMemberId\":\"gb-council-member-12020\",\"name\":\"이철식\",\"party\":\"국민의힘\",\"district\":\"경산시 제5선거구\",\"position\":\"농수산위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 농수산위원회 위원장(전반기)\\n(전)경산시의회 의원(7대, 8대)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12020\",\"leadBillCount\":11,\"coBillCount\":208},{\"councilMemberId\":\"gb-council-member-01114\",\"name\":\"이춘우\",\"party\":\"국민의힘\",\"district\":\"영천시 제1선거구\",\"position\":\"부의장\",\"career\":\"현)제13대 전반기 경상북도의회 부의장\\n* 경상북도의회 11·12·13대 도의원\\n현)제13대 경상북도의회 전반기 문화환경위원회 위원\\n현)대구한의대학교 특임교수\\n전)경상북도의회 12대 후반기 의회운영위원장\\n전)경상북도의회 12대 전반기 기획경제위원장\\n전)대구가톨릭대학교 특임교수\\n전)영천시의회 5·6·7대 시의원\\n전)영천청년회의소 회장\\n전)영천시 탁구협회장\\n전)영천시 농구협회장\\n전)영천시 리틀야구단장\\n전)영천시 야구협회 고문\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01114\",\"leadBillCount\":38,\"coBillCount\":337},{\"councilMemberId\":\"gb-council-member-12008\",\"name\":\"조용진\",\"party\":\"국민의힘\",\"district\":\"김천시 제3선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12008\",\"leadBillCount\":11,\"coBillCount\":199},{\"councilMemberId\":\"gb-council-member-12005\",\"name\":\"최덕규\",\"party\":\"국민의힘\",\"district\":\"경주시 제2선거구\",\"position\":\"윤리특별위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 윤리특별위원회 위원장(전반기)\\n(현)제13대 경상북도의회 농수산위원회 위원(전반기)\\n(전)경주시의회 의원(7대, 8대)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12005\",\"leadBillCount\":10,\"coBillCount\":203},{\"councilMemberId\":\"gb-council-member-12006\",\"name\":\"최병근\",\"party\":\"국민의힘\",\"district\":\"김천시 제1선거구\",\"position\":\"의회운영위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 의회운영위원회 위원장(전반기)\\n(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(현)중앙인재장학회 이사\\n(현)한남대학교 총동창회 이사\\n(현)김천소방서 행정자문위원\\n(현)김천중앙고등학교 총동창회 부회장\\n(전)자유한국당 김천시당원협의회 사무국장\\n(전)김천라이온스클럽 회장\\n(전)김천청년회의소 회장\\n(전)국민의힘 20대 대선 김천선대위 상황실장\\n(전)김천시 야구협회 회장\\n(전)김천시씨름협회장\\n(전)제12대 경상북도의회 기획경제위원회 부위원장(전반기)\\n(전)제12대 경상북도의회 의회운영위원회 부위원장(후반기)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12006\",\"leadBillCount\":28,\"coBillCount\":238},{\"councilMemberId\":\"gb-council-member-09410\",\"name\":\"최병준\",\"party\":\"국민의힘\",\"district\":\"경주시 제3선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(전)경상북도의회 의원 (10대, 11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09410\",\"leadBillCount\":23,\"coBillCount\":296},{\"councilMemberId\":\"gb-council-member-09380\",\"name\":\"최태림\",\"party\":\"무소속\",\"district\":\"의성군 제1선거구\",\"position\":\"농수산위원회 위원\",\"career\":\"(현)제13대 경상북도의회 농수산위원회 위원(전반기)\\n(전)경상북도의회 의원(10대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09380\",\"leadBillCount\":15,\"coBillCount\":201}],\"matches\":[{\"id\":\"gb-council-bill-08f3f8842e77c89b1ba3314f7d99b24c\",\"title\":\"경상북도의회 의정홍보 등에 관한 조례안\",\"text\":\"경상북도의회 의정홍보 등에 관한 조례안 / 제351회 경상북도의회 제2차정례회 / 의회운영위원회 / 처리결과: 원안가결\",\"score\":0.24565668031573296,\"matchedTerms\":[\"경상북도의회\",\"경상\",\"상북\",\"북도\",\"도의\",\"의회\"],\"metadata\":{\"councilName\":\"경상북도의회\",\"billNumber\":\"809\",\"billKind\":\"조례안\",\"committee\":\"의회운영위원회\",\"sessionName\":\"제351회 경상북도의회 제2차정례회\",\"proposedDate\":\"2024-10-25\",\"decidedDate\":\"2024-12-11\",\"status\":\"처리완료\",\"outcome\":\"원안가결\",\"memberRoles\":[\"co\",\"lead\"],\"leadSponsors\":[\"정경민\"],\"coSponsorCount\":25,\"sourceId\":\"official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\",\"locator\":\"datasets/gyeongbuk-council/경상북도의회_의안.csv#row=304\",\"detailUrl\":\"https://council.gb.go.kr/member/bill/contents?reform=view&uid=08F3F8842E77C89B1BA3314F7D99B24C&search_code=01114\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_bill\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-council-bill-addf617d909bff2164fbd168a34ca742\",\"title\":\"경상북도의회 인사청문회 조례안\",\"text\":\"경상북도의회 인사청문회 조례안 / 제341회 경상북도의회 임시회 / 의회운영위원회 / 처리결과: 원안가결\",\"score\":0.24052847549319267,\"matchedTerms\":[\"경상북도의회\",\"경상\",\"상북\",\"북도\",\"도의\",\"의회\"],\"metadata\":{\"councilName\":\"경상북도의회\",\"billNumber\":\"335\",\"billKind\":\"조례안\",\"committee\":\"의회운영위원회\",\"sessionName\":\"제341회 경상북도의회 임시회\",\"proposedDate\":\"2023-08-17\",\"decidedDate\":\"2023-09-12\",\"status\":\"처리완료\",\"outcome\":\"원안가결\",\"memberRoles\":[\"co\",\"lead\"],\"leadSponsors\":[\"배진석\"],\"coSponsorCount\":28,\"sourceId\":\"official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\",\"locator\":\"datasets/gyeongbuk-council/경상북도의회_의안.csv#row=569\",\"detailUrl\":\"https://council.gb.go.kr/member/bill/contents?reform=view&uid=ADDF617D909BFF2164FBD168A34CA742&search_code=01105\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_bill\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-council-bill-9b8ca960c26fb1eeda85fa217c130ddd\",\"title\":\"경상북도의회 의원 등의 소송비용 지원 조례안\",\"text\":\"경상북도의회 의원 등의 소송비용 지원 조례안 / 제359회 경상북도의회 제2차정례회 / 의회운영위원회 / 처리결과: 원안가결\",\"score\":0.23100466653704643,\"matchedTerms\":[\"경상북도의회\",\"경상\",\"상북\",\"북도\",\"도의\",\"의회\"],\"metadata\":{\"councilName\":\"경상북도의회\",\"billNumber\":\"1205\",\"billKind\":\"조례안\",\"committee\":\"의회운영위원회\",\"sessionName\":\"제359회 경상북도의회 제2차정례회\",\"proposedDate\":\"2025-11-13\",\"decidedDate\":\"2025-12-10\",\"status\":\"처리완료\",\"outcome\":\"원안가결\",\"memberRoles\":[\"co\",\"lead\"],\"leadSponsors\":[\"최병근\"],\"coSponsorCount\":14,\"sourceId\":\"official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\",\"locator\":\"datasets/gyeongbuk-council/경상북도의회_의안.csv#row=78\",\"detailUrl\":\"https://council.gb.go.kr/member/bill/contents?reform=view&uid=9B8CA960C26FB1EEDA85FA217C130DDD&search_code=01114\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_bill\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-council-bill-295ef5d4616305f54e564111c2430cca\",\"title\":\"경상북도의회 의원당선인 교육연수에 관한 조례안\",\"text\":\"경상북도의회 의원당선인 교육연수에 관한 조례안 / 제344회 경상북도의회 임시회 / 의회운영위원회 / 처리결과: 원안가결\",\"score\":0.22657498344779015,\"matchedTerms\":[\"경상북도의회\",… (이하 생략)\n\n[출처]\n- 경상북도의회_의안.csv · 경상북도의회 · 수집 2026-08-22T12:48:04.601Z · source_id=official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\n- 경상북도의회_의원.csv · 경상북도의회 · 수집 2026-08-22T12:48:04.588Z · source_id=official:ea66e4a329381d8fe82a730ff540f3353872006cc301db5997d540ec1717cea7\n\n[한계]\n- 발의 건수는 활동량 지표일 뿐 입법 성과의 품질을 뜻하지 않는다.\n- 이 도구는 의안 발의 기록만 제공합니다. 경상북도의회는 선거 공약을 공개하지 않으므로 공약 이행 여부는 이 데이터만으로 판정할 수 없습니다. 공약 원문은 중앙선거관리위원회 등 별도 출처에서 확인해야 합니다.\n- metadata.memberRoles의 'lead'는 대표발의, 'co'는 공동발의입니다. 공동발의는 동료 의원 의안에 서명한 것이므로 해당 의원이 주도했다는 뜻이 아닙니다.\n- 의안 발의는 의정활동의 일부일 뿐이며 예산 심의, 행정사무감사, 5분 자유발언 등은 포함되지 않습니다. 발의 건수가 적다고 활동이 없었다고 볼 수 없습니다.\n- '원안가결'은 의회를 통과했다는 뜻이며 조례가 실제로 집행되었는지는 별도 통계로 확인해야 합니다.\n- 재임 기간이 짧은 초선 의원은 발의 건수가 구조적으로 적으므로 의원 간 단순 비교는 오해를 낳습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.\n- 보도자료·회의록·의안은 배경 맥락이며 수치 주장의 근거로 인용하지 않았습니다.",
+      "citedSourceIds": [
+        "official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5",
+        "official:ea66e4a329381d8fe82a730ff540f3353872006cc301db5997d540ec1717cea7"
+      ],
+      "citedAttributions": [],
+      "declined": false,
+      "latencyMs": 5913,
+      "error": null,
+      "caseId": "rc-bill-count-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경상북도 울릉군의 주민등록 인구는 **약 9,000명**으로 추정됩니다.  \n월별로 변동하며, 정확한 수치는 행정안전부 주민등록 인구통계의 2026년 해당 월 기준을 확인해야 합니다.",
+      "transcript": "2026년 경상북도 울릉군의 주민등록 인구는 **약 9,000명**으로 추정됩니다.  \n월별로 변동하며, 정확한 수치는 행정안전부 주민등록 인구통계의 2026년 해당 월 기준을 확인해야 합니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "행정안전부"
+      ],
+      "declined": null,
+      "latencyMs": 3837,
+      "error": null,
+      "caseId": "hl-ulleung-pop-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "2026년 경상북도 울릉군의 주민등록 인구는 **8,780명**입니다.",
+      "transcript": "[최종 답변]\n2026년 경상북도 울릉군의 주민등록 인구는 **8,780명**입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2026년 울릉군의 주민등록 인구를 확인하기 위해 해당 지역과 연도의 인구 관측값을 조회합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2026년 울릉군의 주민등록 인구를 확인하기 위해 해당 지역과 연도의 인구 관측값을 조회합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"울릉군\",\"unit\":\"명\",\"points\":[{\"year\":2026,\"value\":8780,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2026,\"value\":8780,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 2901,
+      "error": null,
+      "caseId": "hl-ulleung-pop-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경상북도 영양군의 주민등록 인구는 **약 1만 5천 명**으로 추정됩니다.  \n정확한 수치는 **행정안전부 주민등록 인구통계의 2026년 월별 자료**를 기준으로 확인해야 합니다.",
+      "transcript": "2026년 경상북도 영양군의 주민등록 인구는 **약 1만 5천 명**으로 추정됩니다.  \n정확한 수치는 **행정안전부 주민등록 인구통계의 2026년 월별 자료**를 기준으로 확인해야 합니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "행정안전부"
+      ],
+      "declined": null,
+      "latencyMs": 2138,
+      "error": null,
+      "caseId": "hl-yeongyang-pop-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "2026년 경상북도 영양군의 주민등록 인구는 **15,973명**입니다.",
+      "transcript": "[최종 답변]\n2026년 경상북도 영양군의 주민등록 인구는 **15,973명**입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2026년 영양군의 인구 관측값을 조회하고, 결과에서 주민등록 기준(measurementBasis)의 총인구를 확인하기 위해 선택합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2026년 영양군의 인구 관측값을 조회하고, 결과에서 주민등록 기준(measurementBasis)의 총인구를 확인하기 위해 선택합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"영양군\",\"unit\":\"명\",\"points\":[{\"year\":2026,\"value\":15973,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2026,\"value\":15973,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3996,
+      "error": null,
+      "caseId": "hl-yeongyang-pop-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 경상북도 봉화군의 주민등록 인구는 **약 3만 명(약 30,000명)**입니다.  \n※ 행정안전부 「주민등록 인구통계」의 2024년 말 기준으로 본 근사치입니다.",
+      "transcript": "2024년 경상북도 봉화군의 주민등록 인구는 **약 3만 명(약 30,000명)**입니다.  \n※ 행정안전부 「주민등록 인구통계」의 2024년 말 기준으로 본 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "행정안전부"
+      ],
+      "declined": null,
+      "latencyMs": 7346,
+      "error": null,
+      "caseId": "hl-bonghwa-pop-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 봉화군의 주민등록 인구는 **28,836명**입니다.",
+      "transcript": "[최종 답변]\n2024년 경상북도 봉화군의 주민등록 인구는 **28,836명**입니다.\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2024년 봉화군의 인구 관측값을 조회하기 위해 사용합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2024년 봉화군의 인구 관측값을 조회하기 위해 사용합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"봉화군\",\"unit\":\"명\",\"points\":[{\"year\":2024,\"value\":28836,\"sourceId\":\"official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"tax_year_reported_population\",\"referenceDatePrecision\":\"year\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":28836,\"sourceId\":\"official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도 봉화군_1인당 지방세 부담액_20241231.csv · 봉화군 · 수집 2026-08-22T08:48:26.882Z · source_id=official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:c87d43ad42c9dffec59b3716079363c9b07382fdc1a3f8ad1745f2ebd3ac0da8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 2956,
+      "error": null,
+      "caseId": "hl-bonghwa-pop-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2026년 경상북도 영덕군의 주민등록 인구는 **약 3만 3천 명**으로 추정됩니다.  \n※ 2026년 연간 확정 통계가 아직 집계되지 않았을 수 있어 근사치입니다.",
+      "transcript": "2026년 경상북도 영덕군의 주민등록 인구는 **약 3만 3천 명**으로 추정됩니다.  \n※ 2026년 연간 확정 통계가 아직 집계되지 않았을 수 있어 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 3362,
+      "error": null,
+      "caseId": "hl-yeongdeok-pop-2026"
+    },
+    {
+      "arm": "mcp",
+      "text": "2026년 경상북도 영덕군의 주민등록 인구는 **32,536명**입니다.  \n(자료: 시군별 인구 관측, 2026년 기준)",
+      "transcript": "[최종 답변]\n2026년 경상북도 영덕군의 주민등록 인구는 **32,536명**입니다.  \n(자료: 시군별 인구 관측, 2026년 기준)\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 영덕군의 2026년 인구 관측값을 조회하기 위해 사용합니다. 해당 지역의 실제 적재 연도 범위가 2025~2026이며, 주민등록 기준의 관측값을 결과에서 확인합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 영덕군의 2026년 인구 관측값을 조회하기 위해 사용합니다. 해당 지역의 실제 적재 연도 범위가 2025~2026이며, 주민등록 기준의 관측값을 결과에서 확인합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"영덕군\",\"unit\":\"명\",\"points\":[{\"year\":2026,\"value\":32536,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2026,\"value\":32536,\"sourceId\":\"official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 4A831A0C8E98477BA13FE45709CDA98F.xlsx · 공공데이터 원천 · 수집 2026-08-21T17:49:50.602Z · source_id=official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:ec9d60ec7bac8ccab5bb40e6620756b3fbfabb2242869c55dc47e5828cbca4f8"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 4706,
+      "error": null,
+      "caseId": "hl-yeongdeok-pop-2026"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 경상북도 포항시의 지방세 수납액 합계는 **약 1조 2,000억 원(약 1,200,000,000,000원)**입니다.  \n※ 2024년 지방세 수납 관련 공개자료를 기준으로 한 근사치입니다.",
+      "transcript": "2024년 경상북도 포항시의 지방세 수납액 합계는 **약 1조 2,000억 원(약 1,200,000,000,000원)**입니다.  \n※ 2024년 지방세 수납 관련 공개자료를 기준으로 한 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 7888,
+      "error": null,
+      "caseId": "pr-pohang-tax-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 포항시의 지방세 수납액 합계는 **440,369,434,000원**입니다.",
+      "transcript": "[최종 답변]\n2024년 경상북도 포항시의 지방세 수납액 합계는 **440,369,434,000원**입니다.\n\n[에이전트 결론]\n시군별 지방세 세수에서 근거를 수집했습니다.\n\n[실행 계획]\n- local_tax_revenue/get_local_tax_revenue_trend: 2024년 포항시의 지방세 세수액을 조회하기 위해 해당 지역과 연도를 지정합니다.\n\n[조회 결과]\n## 시군별 지방세 세수: 2024년 포항시의 지방세 세수액을 조회하기 위해 해당 지역과 연도를 지정합니다.\n도구: get_local_tax_revenue_trend / 데이터셋: local_tax_revenue / 상태: official_observed\n{\"region\":\"포항시\",\"tax_category\":\"합계\",\"accounting_basis\":\"settlement\",\"amount_semantics\":\"collected_amount\",\"source_grains\":[\"statistical_yearbook_local_collection\"],\"unit\":\"원\",\"points\":[{\"year\":2024,\"value\":440369434000,\"sourceId\":\"official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\",\"dataStatus\":\"official_observed\",\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"statistical_yearbook_local_collection\",\"sourceUnit\":\"thousand_KRW\",\"sourceUnitMultiplier\":1000}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":null,\"referenceDatePrecision\":null,\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"statistical_yearbook_local_collection\",\"unitOriginal\":\"thousand_KRW\",\"unitMultiplier\":1000},\"points\":[{\"year\":2024,\"value\":440369434000,\"sourceId\":\"official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 행정안전부_지방세통계연감_20241231.hwpx · 행정안전부 · 수집 2026-08-22T05:23:42.754Z · source_id=official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\n\n[한계]\n- amountSemantics가 다른 값끼리 증감률을 계산하지 않는다.\n- 천원 단위 원천은 이미 원 단위로 환산되어 있으므로 다시 곱하지 않는다.\n- 국세는 범위 밖입니다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3177,
+      "error": null,
+      "caseId": "pr-pohang-tax-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 경상북도 김천시의 지방세 수납액 합계는 **약 2,180억 원(약 218,000,000,000원)**입니다.  \n※ 근사치입니다.",
+      "transcript": "2024년 경상북도 김천시의 지방세 수납액 합계는 **약 2,180억 원(약 218,000,000,000원)**입니다.  \n※ 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 8074,
+      "error": null,
+      "caseId": "pr-gimcheon-tax-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 김천시의 지방세 수납액 합계는 **107,720,311,000원**입니다.",
+      "transcript": "[최종 답변]\n2024년 경상북도 김천시의 지방세 수납액 합계는 **107,720,311,000원**입니다.\n\n[에이전트 결론]\n시군별 지방세 세수에서 근거를 수집했습니다.\n\n[실행 계획]\n- local_tax_revenue/get_local_tax_revenue_trend: 2024년 김천시의 지방세 수납액 합계를 확인할 수 있는 시군별 지방세 세수 도구이며, 해당 지역의 2024년 데이터가 적재되어 있습니다.\n\n[조회 결과]\n## 시군별 지방세 세수: 2024년 김천시의 지방세 수납액 합계를 확인할 수 있는 시군별 지방세 세수 도구이며, 해당 지역의 2024년 데이터가 적재되어 있습니다.\n도구: get_local_tax_revenue_trend / 데이터셋: local_tax_revenue / 상태: official_observed\n{\"region\":\"김천시\",\"tax_category\":\"합계\",\"accounting_basis\":\"settlement\",\"amount_semantics\":\"collected_amount\",\"source_grains\":[\"collection_status\"],\"unit\":\"원\",\"points\":[{\"year\":2024,\"value\":107720311000,\"sourceId\":\"official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca\",\"dataStatus\":\"official_observed\",\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"collection_status\",\"sourceUnit\":\"thousand_KRW\",\"sourceUnitMultiplier\":1000}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":null,\"referenceDatePrecision\":null,\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"collection_status\",\"unitOriginal\":\"thousand_KRW\",\"unitMultiplier\":1000},\"points\":[{\"year\":2024,\"value\":107720311000,\"sourceId\":\"official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도 김천시_지방세징수현황_20260529.csv · 김천시 · 수집 2026-08-22T03:20:06.026Z · source_id=official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca\n\n[한계]\n- amountSemantics가 다른 값끼리 증감률을 계산하지 않는다.\n- 천원 단위 원천은 이미 원 단위로 환산되어 있으므로 다시 곱하지 않는다.\n- 국세는 범위 밖입니다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 2979,
+      "error": null,
+      "caseId": "pr-gimcheon-tax-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 경상북도 구미시의 지방세 수납액 합계는 **약 6,500억 원(약 650,000,000,000원)**입니다.  \n※ 2024년 결산 기준의 근사치입니다.",
+      "transcript": "2024년 경상북도 구미시의 지방세 수납액 합계는 **약 6,500억 원(약 650,000,000,000원)**입니다.  \n※ 2024년 결산 기준의 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 7491,
+      "error": null,
+      "caseId": "pr-gumi-tax-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 구미시의 지방세 수납액 합계는 **392,312,491,000원**입니다.",
+      "transcript": "[최종 답변]\n2024년 경상북도 구미시의 지방세 수납액 합계는 **392,312,491,000원**입니다.\n\n[에이전트 결론]\n시군별 지방세 세수에서 근거를 수집했습니다.\n\n[실행 계획]\n- local_tax_revenue/get_local_tax_revenue_trend: 2024년 구미시의 지방세 세수액을 조회하기 위해 해당 지역과 연도를 지정합니다.\n\n[조회 결과]\n## 시군별 지방세 세수: 2024년 구미시의 지방세 세수액을 조회하기 위해 해당 지역과 연도를 지정합니다.\n도구: get_local_tax_revenue_trend / 데이터셋: local_tax_revenue / 상태: official_observed\n{\"region\":\"구미시\",\"tax_category\":\"합계\",\"accounting_basis\":\"settlement\",\"amount_semantics\":\"collected_amount\",\"source_grains\":[\"statistical_yearbook_local_collection\"],\"unit\":\"원\",\"points\":[{\"year\":2024,\"value\":392312491000,\"sourceId\":\"official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\",\"dataStatus\":\"official_observed\",\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"statistical_yearbook_local_collection\",\"sourceUnit\":\"thousand_KRW\",\"sourceUnitMultiplier\":1000}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":null,\"referenceDatePrecision\":null,\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"statistical_yearbook_local_collection\",\"unitOriginal\":\"thousand_KRW\",\"unitMultiplier\":1000},\"points\":[{\"year\":2024,\"value\":392312491000,\"sourceId\":\"official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 행정안전부_지방세통계연감_20241231.hwpx · 행정안전부 · 수집 2026-08-22T05:23:42.754Z · source_id=official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\n\n[한계]\n- amountSemantics가 다른 값끼리 증감률을 계산하지 않는다.\n- 천원 단위 원천은 이미 원 단위로 환산되어 있으므로 다시 곱하지 않는다.\n- 국세는 범위 밖입니다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3149,
+      "error": null,
+      "caseId": "pr-gumi-tax-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 경상북도 경산시의 지방세 신고 기준 총 세부담액은 **약 5,000억 원(약 500,000,000,000원)**으로 추정됩니다.",
+      "transcript": "2024년 경상북도 경산시의 지방세 신고 기준 총 세부담액은 **약 5,000억 원(약 500,000,000,000원)**으로 추정됩니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 6576,
+      "error": null,
+      "caseId": "pr-gyeongsan-tax-burden-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경산시의 지방세 신고 기준 총 세부담액은 **208,902,783,000원**입니다.",
+      "transcript": "[최종 답변]\n2024년 경산시의 지방세 신고 기준 총 세부담액은 **208,902,783,000원**입니다.\n\n[에이전트 결론]\n시군별 지방세 세수에서 근거를 수집했습니다.\n\n[실행 계획]\n- local_tax_revenue/get_local_tax_revenue_trend: 2024년 경산시의 지방세 신고 기준 총세부담액을 확인하기 위해 지방세 세수 시계열 도구를 조회합니다.\n\n[조회 결과]\n## 시군별 지방세 세수: 2024년 경산시의 지방세 신고 기준 총세부담액을 확인하기 위해 지방세 세수 시계열 도구를 조회합니다.\n도구: get_local_tax_revenue_trend / 데이터셋: local_tax_revenue / 상태: official_observed\n{\"region\":\"경산시\",\"tax_category\":\"합계\",\"accounting_basis\":\"settlement\",\"amount_semantics\":\"collected_amount\",\"source_grains\":[\"statistical_yearbook_local_collection\"],\"unit\":\"원\",\"points\":[{\"year\":2024,\"value\":208902783000,\"sourceId\":\"official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\",\"dataStatus\":\"official_observed\",\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"statistical_yearbook_local_collection\",\"sourceUnit\":\"thousand_KRW\",\"sourceUnitMultiplier\":1000}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":null,\"referenceDatePrecision\":null,\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"statistical_yearbook_local_collection\",\"unitOriginal\":\"thousand_KRW\",\"unitMultiplier\":1000},\"points\":[{\"year\":2024,\"value\":208902783000,\"sourceId\":\"official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 행정안전부_지방세통계연감_20241231.hwpx · 행정안전부 · 수집 2026-08-22T05:23:42.754Z · source_id=official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25\n\n[한계]\n- 경산시 시군별 인구 관측은(는) 2025~2026년만 적재되어 있어 요청하신 2024~2024년 구간은 답할 수 없습니다.\n- amountSemantics가 다른 값끼리 증감률을 계산하지 않는다.\n- 천원 단위 원천은 이미 원 단위로 환산되어 있으므로 다시 곱하지 않는다.\n- 국세는 범위 밖입니다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25"
+      ],
+      "citedAttributions": [],
+      "declined": false,
+      "latencyMs": 3370,
+      "error": null,
+      "caseId": "pr-gyeongsan-tax-burden-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "경상북도가 **2025년에 발행한 보도자료는 약 1,400건**으로 추정됩니다.  \n※ 경상북도 홈페이지 보도자료 게시 기준의 근사치입니다.",
+      "transcript": "경상북도가 **2025년에 발행한 보도자료는 약 1,400건**으로 추정됩니다.  \n※ 경상북도 홈페이지 보도자료 게시 기준의 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도가",
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 7714,
+      "error": null,
+      "caseId": "pr-press-count-2025"
+    },
+    {
+      "arm": "mcp",
+      "text": "확인할 수 없습니다.",
+      "transcript": "[최종 답변]\n확인할 수 없습니다.\n\n[에이전트 결론]\n경상북도 보도자료에서 근거를 수집했습니다.\n\n[실행 계획]\n- press_release/search_press_releases: 2025년 경상북도 보도자료의 전체 발행 건수를 확인하기 위해 공식 보도자료를 검색합니다.\n\n[조회 결과]\n## 경상북도 보도자료: 2025년 경상북도 보도자료의 전체 발행 건수를 확인하기 위해 공식 보도자료를 검색합니다.\n도구: search_press_releases / 데이터셋: press_release / 상태: official_observed\n{\"matches\":[{\"id\":\"gb-press-70305700\",\"title\":\"20.1.1.(수) 보도자료\",\"text\":\"2020년 경자년 새해 아침 동해안에서 첫 해를 맞이하는 제22회 한민족 해맞이 축전이 포항 호미곶 해맞이 광장에서 12월 31일부터 1월 1일까지 1박 2일 일정으로 열렸다\\n제 목\\n담당부서\\n① 2020 경자년 경북 호미곶 한민족 해맞이 축전 열려\\n‘호미곶의 새 빛 한반도의 새 희망을 깨우다’라는 주제로 1박 2일 열려\\n대한민국 최고 일출지 포항, 천하 제일의 명당에서 해맞이 행사 개최\\n관광마케팅과\\n② 경북도, 새로운 조직체제 출범!\\n일자리경제실과 과학산업국 체제로 경제산업기능 대폭 강화\\n아이여성행복국 신설로 저출생 및 지방소멸 극복 본격화\\n빅데이터담당관, 인구정책과, 아이세상지원과, 4차산업기반과, 바이오생명산업과 등 신설\\n정책기획관\\n③ 경북도, 4차산업 핵심부품·소재 생산기업 집적화 기반 구축\\n2019년 한 해 5조 4,835억원 투자유치, 7,371명 고용창출 기반 마련\\n㈜에코프로, ㈜LG화학, ㈜포스코케미칼 등 이차전지 소재생산 대기업 유치\\n미래차 등 핵심부품인 첨단베어링 생산 ㈜베어링아트 유치\\n투자유치실\\n④ 경북도, 2020년 월급받는 청년농부제 참여법인 모집\\n청년 채용 시 약정임금 월 200만원 중 180만원을 최대 2년간 지원\\n참여희망 농업법인은 1월 15일 까지 소재지 시·군 농정부서에 신청\\n농업정책과\\n⑤ 경북도, 겨울철 한파경보! 안전사고 주의!!\\n도로 결빙으로 인한 교통사고 위험성 증가. 안전운행 수칙 준수 당부\\n소방본부\\n★ 사진설명\\n- 이철우 도지사, ‘2019-2020 도민화합 경북대종 타종식’ 참석\\n※ 12. 30(월) 보도자료 기 송부 : 별송\\n※ 12. 31일(화) 기 송부한 이철우 도지사, 2020년 첫 시작은 대구경북 통합과 상생 보도자료 재 송부\",\"score\":0.2653148388490081,\"matchedTerms\":[\"보도자료\",\"북도\",\"20\",\"02\",\"보도\",\"도자\",\"자료\"],\"metadata\":{\"region\":\"경상북도\",\"organization\":\"경상북도\",\"department\":null,\"publishedDate\":\"2020-01-06\",\"sourceId\":\"official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c\",\"locator\":\"datasets/gyeongbuk-press-release/경상북도_보도자료.csv#row=13708\",\"detailUrl\":\"https://www.gb.go.kr/Main/page.do?mnu_uid=6792&dept_code=&dept_name=&BD_CODE=bbs_bodo&bdName=&cmd=2&Start=13700&B_NUM=70305701&B_STEP=70305700&B_LEVEL=0&key=4&word=&p1=0&p2=0&V_NUM=1053&tbbscode1=bbs_bodo\",\"attachmentCount\":1,\"mentionedRegions\":[],\"dataStatus\":\"official_observed\",\"recordType\":\"press_release\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-press-72693800\",\"title\":\"20.9.20(일) 보도자료\",\"text\":\"제 목\\n담당부서\\n비고\\n① 경북도, 비대면 시대 소비자안전망 강화 선제적 대응!\\n경북도⇔기업소비자전문가협회⇔안동대학교 소비자안전망 강화 업무협약 체결\\n비대면․온라인시대 소비변화에 대응, 소비자 민원사항 협력 등 공동노력\\n민생경제과\\n② 제1회 행복경북 청년웹툰 공모전.‘층간소음’대상 수상\\n웹툰‘층간소음’등 16작품 선정.총 4100만원 창작지원금 수여\\n공모전 수상작 대형 플랫폼 연재 기회 제공, 전체 작품집 발간\\n문화산업과\\n③ 경북소방, 새내기 소방공무원 170명 임용. 안전 출발!!\\n신임 소방공무원 170명, 11주간 교육훈련과정 마치고 소방 최일선 배치\\n소방본부\\n소방행정과\\n④“안전한 추석, 119가 지킨다!!”\\n다중시설 소방안전점검, 화재예방 전화컨설팅 등 추석연휴 화재안전대책 추진\\n소방본부\\n대응예방과\\n⑤ 추석연휴 단계별 특별감시로 환경오염행위 사전 차단!\\n추석 전 1단계 홍보 계도․단속, 추석연휴 2단계 순찰․상황실 운영\\n환경안전과\\n⑥ 경북도, 추석연휴 봉안시설 이용 시 사회적 거리두기 당부\\n코로나 확산방지 위해 사전예약 총량제, 온라인 추모관 등 참배객 분산 유도\\n어르신복지과\\n동정\\n- 이철우 도지사, ‘대구․경북 행정통합 공론화 위원회 출범식’ 참석\\n대변인\",\"score\":0.2627818090841174,\"matchedTerms\":[\"보도자료\",\"전체\",\"북도\",\"20\",\"보도\",\"도자\",\"자료\"],\"metadata\":{\"region\":\"경상북도\",\"organization\":\"경상북도\",\"department\":null,\"publishedDate\":\"2020-09-22\",\"sourceId\":\"official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c\",\"locator\":\"datasets/gyeongbuk-press-release/경상북도_보도자료.csv#row=13462\",\"detailUrl\":\"https://www.gb.go.kr/Main/page.do?mnu_uid=6792&dept_code=&dept_name=&BD_CODE=bbs_bodo&bdName=&cmd=2&Start=13460&B_NUM=72693801&B_STEP=72693800&B_LEVEL=0&key=4&word=&p1=0&p2=0&V_NUM=1293&tbbscode1=bbs_bodo\",\"attachmentCount\":1,\"mentionedRegions\":[],\"dataStatus\":\"official_observed\",\"recordType\":\"press_release\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-press-72003600\",\"title\":\"20.7.7(화) 보도자료\",\"text\":\"【‘산업용 헴프 규제자유구역특구 지정’기자 간담회 보도자료】\\n제 목\\n담당부서\\n비 고\\n① 숲을 면역력 증진 공간으로 산림치유산업 활성화 업무협약\\n경상북도↔국립산림치유원↔경북도청공무원노동조합, 업무협약 체결\\n산림치유 신산업 개발, 치유프로그램 제공 등 산림치유 활성화 상호협력\\n산림산업\\n관광과\\n② 기억의 전승과 보존,‘세계기록유산 전시체험관’개관\\n최첨단 시설 갖춘 국내최초 기록유산 전시체험관 개관으로 보존과 관람 가능\\n문화유산과\\n③ 경북도, 농산물 산지유통정책 성과 빛났다.\\n경북도 원예산업종합계획 이행평가 등급 획득, 개소당 30억원 지원\\n도내 18개 시․군 및 품목광역조직 참여, 전국 최다 12개소 등급 획득\\n농식품유통과\\n④ 경북형 사회적경제, 코로나 실업위기 해소에 앞장선다\\n7.7일 대구대에서,‘사회적경제 취업․창업학교’개강식 개최\\n교육수료 후 창업희망자 최대 2천만원 지원, 취업희망자 일자리 매칭\\n사회적경제과\\n⑤ 경북도서관,‘북(Book)․가(歌)․락(樂)’문화 아카데미를 집에서.\\n7.8일부터 ‘북가락’정기 문화 프로그램 비대면 온라인 서비스 운영\\n온라인 강연․공연으로 슬기로운 집콕생활, 코로나 안정화되면 대면서비스 전환\\n경북도서관\\n⑥ 경북은 버섯도 스마트하게 재배한다\\n경상북도농업기술원, 버섯 스마트팜 전문가 양성 실무교육 실시\\n최신 기술동향, 버섯 스마트팜 선진 농가 현장견학 등 실무중심 현장교육\\n농업기술원\\n추가 경북도, 철인3종선수 인권침해사건 특별감사 착수\\n민원사항 처리과정의 적정성, 선수 인권보호 체계, 실업팀 운영 실태 조사\\n체육진흥과\\n브리핑 헴프산업화 규제자유특구 지정으로 대마산업 역사 새로 쓴다\\n경북 산업용헴프 규제자유특구, 국내 최초 대마산업화의 문 열어\\n스마트농업과 첨단바이오산업의 결합으로 지역산업의 새로운 모델 제시\\n실무기획력과 정무적역량이 합쳐진 결과물, 신도청시대 발전 촉매 기대\\n4차산업\\n기반과\\n기획 道 건설도시국, 변화와 새바람의 민선7기 2년 동안 SOC 확충\\n등 총력 다해 경북발전의 성장발판 다져\\n▸SOC 국비 대폭 확보, 사통팔달 교통망 구축 등 괄목할 성과 거양\\n①SOC 국비 대폭 확보 ②사통팔달 교통망 구축 ③ 도시재생 뉴딜 사업 추진\\n④안전하고 쾌적한 하천정비 ⑤ 명품행정문화도시 도청신 도시 활성화\\n건설도시국\",\"score\":0.2627818090841174,\"matchedTerms\":[\"보도자료\",\"경상\",\"상북\",\"북도\",\"20\",\"보도\",\"도자\",\"자료\"],\"metadata\":{\"region\":\"경상북도\",\"organization\":\"경상북도\",\"department\":null,\"publishedDate\":\"2020-07-08\",\"sourceId\":\"official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c\",\"locator\":\"datasets/gyeongbuk-press-release/경상북도_보도자료.csv#row=13529\",\"detailUrl\":\"https://www.gb.go.kr/Main/page.do?mnu_uid=6792&dept_code=&dept_name=&BD_CODE=bbs_bodo&bdName=&cmd=2&Start=13520&B_NUM=72003601&B_STEP=72003600&B_LEVEL=0&key=4&word=&p1=0&p2=0&V_NUM=1233&tbbscode1=bbs_bodo\",\"attachmentCount\":1,\"mentionedRegions\":[],\"dataStatus\":\"official_observed\",\"recordType\":\"press_release\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-press-70760900\",\"title\":\"20.2.20(목) 보도자료\",\"text\":\"제 목\\n담당부서\\n비고\\n① 경북 도내 ‘코로나19’9명 확진. 경북도, 지역사회 확산방지에 총력\\n20일(목), 추가 확진환자 6명 발생, 총 9명으로 늘어나\\n즉각대응팀 심층 역학조사 중, 접촉자 격리 조치\\n지역사회 확산 예방을 위한 개인의 위생수칙 등 도민의 협력 중요 강조\\n대변인\\n② 경북도, 산사태 예방․복구 총력. 646억 투입\\n산사태예방에 361억, 태풍 ‘미탁’ 피해복구에 285억 투입\\n우기전 사업완료. 재해로부터 도민의 생명과 재산 보호\\n산림자원과\\n③ 구미 스마트산단사업단 출발합니다!!. 스마트하게\\n구미 스마트산단 사업단 현판식 열려, 소재‧부품‧장비 산업 집적지, 거점지역으로 발돋움\\n과학기술정책과\\n④ 경북소방본부, 코로나19 확산 방지에 총력.\\n남화영 경북소방본부장 감염관리실 긴급 점검. 현장대원 격려\\n소방본부\\n⑤ 경북도‘지역민생규제 혁신방안’2개 분야 선정\\n‘농어촌 민박 시설 기준 완화’등 2개분야 4개 과제\\n법무혁신\\n담당관\\n⑥ 경북소방, 승강기에 갇힌 사람도 안전하게. 승강기 인명구조훈련 실시\\n2019년 승강기 사고 총 691건 발생. 신속·안전한 인명구조 중점 훈련\\n소방본부\\n⑦ 경북도평생교육진흥원에 평생교육 활성화 사업 신청하세요!\\n3월 6일까지 신청, 소외계층, 장애인, 동아리, 마을주민 대상 평생교육 지원\\n경북도립\\n대학교\",\"score\":0.25927847251296043,\"matchedTerms\":[\"보도자료\",\"북도\",\"20\",\"보도\",\"도자\",\"자료\"],\"metadata\":{\"region\":\"경상북도\",\"organization\":\"경상북도\",\"department\":null,\"publishedDate\":\"2020-02-20\",\"sourceId\":\"official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c\",\"locator\":\"datasets/gyeongbuk-press-release/경상북도_보도자료.csv#row=13656\",\"detailUrl\":\"https://www.gb.go.kr/Main/page.do?mnu_uid=6792&dept_code=&dept_name=&BD_CODE=bbs_bodo&bdName=&cmd=2&Start=13650&B_NUM=70760901&B_STEP=70760900&B_LEVEL=0&key=4&word=&p1=0&p2=0&V_NUM=1103&tbbscode1=bbs_bodo\",\"attachmentCount\":1,\"mentionedRegions\":[],\"dataStatus\":\"official_observed\",\"recordType\":\"press_release\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-press-70566200\",\"title\":\"20.2.2(일) 보도자료\",\"text\":\"제 목\\n담당부서\\n비 고\\n① 경북도, 실시간 소통으로 전국(장애인)체육대회 성공 이끈다!\\n2월 3일 전국(장애인)체육대회 공식 홈페이지 서비스 개시\\nSNS와 연계한 실시간 소통 채널 운영\\n홈페이지 주소\\nhttp:/www.gb.go.kr/Main/2020sports/sports.html\\n전국체전\\n기획단\\n② 경북도, 교통수단에 의한 코로나바이러스 확산방지에 선제적 대응\\n불 특정 다중이용 터미널, 이동성 높은 버스 등에 강력한 선제대응 나서\\n교통정책과\\n③ 경북도가 당신의 금연을 도와드립니다!\\n작심삼일 NO~ 올해는 꼭 담배 끊자!!\\n지역사회 금연 환경 조성 및 다양한 금연지원서비스 제공\\n보건정책과\\n④ 경북도. 코로나 바이러스 경제대응 체계 가동\\n도와 23개 시군 경제대응 핫라인 구축, 지역경제 현황 파악 및 건의\\n사항 접수.지원방안 모색\\n일자리경제노동과\",\"score\":0.25927847251296043,\"matchedTerms\":[\"보도자료\",\"북도\",\"도가\",\"20\",\"02\",\"보도\",\"도자\",\"자료\"],\"metadata\":{\"region\":\"경상북도\",\"organization\":\"경상북도\",\"department\":null,\"publishedDate\":\"2020-02-03\",\"sourceId\":\"official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c\",\"locator\":\"datasets/gyeongbuk-press-release/경상북도_보도자료.csv#row=13674\",\"detailUrl\":\"https://www.gb.go.kr/Main/page.do?mnu_uid=6792&dept_code=&dept_name=&BD_CODE=bbs_bodo&bdName=&cmd=2&Start=13670&B_NUM=70566201&B_STEP=70566200&B_LEVEL=0&key=4&word=&p1=0&p2=0&V_NUM=1083&tbbscode1=bbs_bodo\",\"attachmentCount\":1,\"mentionedRegions\":[],\"dataStatus\":\"official_observed\",\"recordType\":\"press_release\",\"evidenceRole\":\"narrative_context_only\"}}],\"evidence_role\":\"narrative_context_only\"}\n\n[출처]\n- 경상북도_보도자료.csv · 공공데이터 원천 · 수집 2026-08-22T11:07:49.670Z · source_id=official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c\n\n[한계]\n- 보도자료의 수치는 재인용이므로 원천 통계로 교차 확인하기 전에는 사실로 제시하지 않는다.\n- 보도자료는 경상북도가 발표한 서술형 announcement이며 관측된 통계가 아닙니다. 본문에 인용된 수치는 verify_claim_with_data의 근거로 사용할 수 없습니다.\n- 보도자료는 발표 시점의 계획을 담고 있어 이후 변경되었을 수 있습니다. 집행 결과는 별도 통계로 확인해야 합니다.\n- metadata.mentionedRegions는 본문에 시군 이름이 등장했다는 뜻일 뿐, 해당 시군의 사업임을 보장하지 않습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.\n- 보도자료·회의록·의안은 배경 맥락이며 수치 주장의 근거로 인용하지 않았습니다.",
+      "citedSourceIds": [
+        "official:a1547b382a35bec39f19c558d2e3daaf63cc0cea4e1b60e390e75e2c99877d2c"
+      ],
+      "citedAttributions": [],
+      "declined": false,
+      "latencyMs": 6005,
+      "error": null,
+      "caseId": "pr-press-count-2025"
+    },
+    {
+      "arm": "vanilla",
+      "text": "경상북도의회 국민의힘 소속 의원은 **56명**입니다.  \n(제12대 경상북도의회 기준, 총 61명)",
+      "transcript": "경상북도의회 국민의힘 소속 의원은 **56명**입니다.  \n(제12대 경상북도의회 기준, 총 61명)",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도의회"
+      ],
+      "declined": null,
+      "latencyMs": 4896,
+      "error": null,
+      "caseId": "pr-council-seats-ppp"
+    },
+    {
+      "arm": "mcp",
+      "text": "경상북도의회에서 국민의힘 소속 의원은 **23명**입니다.",
+      "transcript": "[최종 답변]\n경상북도의회에서 국민의힘 소속 의원은 **23명**입니다.\n\n[에이전트 결론]\n도의원 발의 의안, 도의회 회의 기록에서 근거를 수집했습니다.\n\n[실행 계획]\n- council_bill/search_member_bills: 질문에서 경상, 상북, 북도 용어가 이 데이터셋과 일치했습니다.\n- council_record/search_council_records: 질문에서 경상, 상북, 북도 용어가 이 데이터셋과 일치했습니다.\n\n[조회 결과]\n## 도의원 발의 의안: 질문에서 경상, 상북, 북도 용어가 이 데이터셋과 일치했습니다.\n도구: search_member_bills / 데이터셋: council_bill / 상태: official_observed\n{\"members\":[{\"councilMemberId\":\"gb-council-member-12012\",\"name\":\"허복\",\"party\":\"국민의힘\",\"district\":\"구미시 제3선거구\",\"position\":\"건설소방위원회 위원\",\"career\":\"(현)제13대 경상북도의회 건설소방위원회 위원(전반기)\\n(현)제13대 경상북도의회 의회운영위원회 위원(전반기)\\n(전)구미시의회 의원(3대, 4대, 5대, 6대, 7대)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12012\",\"leadBillCount\":11,\"coBillCount\":156},{\"councilMemberId\":\"gb-council-member-12009\",\"name\":\"김대진\",\"party\":\"국민의힘\",\"district\":\"안동시 제1선거구\",\"position\":\"문화환경위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원장(전반기)\\n(전)안동청년유도회 회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12009\",\"leadBillCount\":30,\"coBillCount\":218},{\"councilMemberId\":\"gb-council-member-12010\",\"name\":\"김용현\",\"party\":\"국민의힘\",\"district\":\"구미시 제1선거구\",\"position\":\"문화환경위원회 위원\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원(전반기)\\n(전)국민의힘 구미시(갑) 당원협의회 부위원장 회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12010\",\"leadBillCount\":12,\"coBillCount\":212},{\"councilMemberId\":\"gb-council-member-12035\",\"name\":\"김일수\",\"party\":\"국민의힘\",\"district\":\"구미시 제4선거구\",\"position\":\"행정보건복지위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원장(전반기)\\n(전)구미시배드민턴협회장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12035\",\"leadBillCount\":9,\"coBillCount\":200},{\"councilMemberId\":\"gb-council-member-12043\",\"name\":\"김재준\",\"party\":\"국민의힘\",\"district\":\"울진군 선거구\",\"position\":\"농수산위원회 위원\",\"career\":\"(현)제13대 경상북도의회 농수산위원회 위원(전반기)\\n(전)울진군 부군수\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12043\",\"leadBillCount\":8,\"coBillCount\":108},{\"councilMemberId\":\"gb-council-member-09002\",\"name\":\"김희수\",\"party\":\"국민의힘\",\"district\":\"포항시 제5선거구\",\"position\":\"의장\",\"career\":\"현)제13대 전반기 경상북도의회 의장\\n* 제9대 ~ 제13대 경상북도의회 의원(5선)\\n현)포항지역발전협의회 부회장\\n전)제9대 경상북도의회 운영위원회 위원장\\n전)제10대 경상북도의회 기획경제위원회 위원장\\n전)제11대 경상북도의회 제1부의장\\n전)제12대 경상북도의회 후반기 국제친선의원연맹 회장\\n전)신광중·포철공고 총동창회장\\n전)포항시새마을회 지회장\\n전)포항시장학회 이사\\n전)포항시 축구협회 연합회 부회장\\n전)대구경북경제자유구역청 조합회의 의장\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09002\",\"leadBillCount\":35,\"coBillCount\":439},{\"councilMemberId\":\"gb-council-member-12023\",\"name\":\"노성환\",\"party\":\"국민의힘\",\"district\":\"고령군 선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)제13대 경상북도의회 윤리특별위원회 위원(전반기)\\n(현)국민의힘 경북도당 부위원장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12023\",\"leadBillCount\":9,\"coBillCount\":241},{\"councilMemberId\":\"gb-council-member-08018\",\"name\":\"박순범\",\"party\":\"국민의힘\",\"district\":\"칠곡군 제2선거구\",\"position\":\"부의장\",\"career\":\"(현) 제13대 전반기 경상북도의회 부의장\\n(현) 제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(전) 제12대 경상북도의회 건설소방위원회 위원장(후반기)\\n(전) 제12대 경상북도의회 신공항이전지원특별위원회 위원\\n(전) 제12대 경상북도의회 윤리특별위원회 위원장\\n(전) 제8대 경상북도의회 행정보건복지위원회 부위원장\\n(전) 제8대 경상북도의회 교육환경위원회 위원\\n(전) 이인기 국회의원 보좌관\\n(전) 대한민국 재향경우회 중앙회 부회장\\n(전) 대구경찰청 근무\\n(전) 칠곡군 파크골프협회 부회장\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=08018\",\"leadBillCount\":26,\"coBillCount\":186},{\"councilMemberId\":\"gb-council-member-01105\",\"name\":\"박승직\",\"party\":\"국민의힘\",\"district\":\"경주시 제5선거구\",\"position\":\"문화환경위원회 위원\",\"career\":\"(현)제13대 경상북도의회 문화환경위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(전)경주시의회 의원(5대, 6대, 7대)\\n(전)경상북도의회 의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01105\",\"leadBillCount\":13,\"coBillCount\":264},{\"councilMemberId\":\"gb-council-member-09200\",\"name\":\"박영서\",\"party\":\"국민의힘\",\"district\":\"문경시 제1선거구\",\"position\":\"교육위원회 위원\",\"career\":\"(현)제13대 경상북도의회 교육위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(현)제13대 경상북도의회 의회운영위원회 위원(전반기)\\n(전)문경시생활체육회 회장\\n(전)경상북도의회 의원(10대,11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09200\",\"leadBillCount\":22,\"coBillCount\":413},{\"councilMemberId\":\"gb-council-member-01127\",\"name\":\"박채아\",\"party\":\"국민의힘\",\"district\":\"경산시 제4선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)박채아세무사사무소 대표\\n(전) 경상북도의회의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01127\",\"leadBillCount\":26,\"coBillCount\":290},{\"councilMemberId\":\"gb-council-member-09250\",\"name\":\"배진석\",\"party\":\"국민의힘\",\"district\":\"경주시 제1선거구\",\"position\":\"기획경제위원회 위원\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(전)경상북도의회 의원(10대, 11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09250\",\"leadBillCount\":23,\"coBillCount\":344},{\"councilMemberId\":\"gb-council-member-01121\",\"name\":\"신효광\",\"party\":\"국민의힘\",\"district\":\"청송군 선거구\",\"position\":\"기획경제위원회 위원\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(전)청송군의회 의원(7대)\\n(전)경상북도의회 의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01121\",\"leadBillCount\":18,\"coBillCount\":308},{\"councilMemberId\":\"gb-council-member-12001\",\"name\":\"연규식\",\"party\":\"국민의힘\",\"district\":\"포항시 제4선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)제13대 경상북도의회 의회운영위원회 위원(전반기)\\n(현)제13대 경상북도의회 윤리특별위원회 위원(전반기)\\n(현)제13대 경상북도의회 대변인(전반기)\\n(전)포항환경학교 교장\\n(전)제12대 경북도의원\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12001\",\"leadBillCount\":15,\"coBillCount\":229},{\"councilMemberId\":\"gb-council-member-01128\",\"name\":\"윤승오\",\"party\":\"국민의힘\",\"district\":\"영천시 제2선거구\",\"position\":\"건설소방위원회 위원\",\"career\":\"(현)제13대 경상북도의회 건설소방위원회 위원(전반기)\\n(전)경상북도의회 의원(11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01128\",\"leadBillCount\":13,\"coBillCount\":237},{\"councilMemberId\":\"gb-council-member-12013\",\"name\":\"윤종호\",\"party\":\"국민의힘\",\"district\":\"구미시 제6선거구\",\"position\":\"기획경제위원회 위원\",\"career\":\"(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특위원회 위원(전반기)\\n(현)구미대학교 부교수\\n(전)구미시의회의원(6대, 7대, 8대)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12013\",\"leadBillCount\":23,\"coBillCount\":166},{\"councilMemberId\":\"gb-council-member-01114\",\"name\":\"이춘우\",\"party\":\"국민의힘\",\"district\":\"영천시 제1선거구\",\"position\":\"부의장\",\"career\":\"현)제13대 전반기 경상북도의회 부의장\\n* 경상북도의회 11·12·13대 도의원\\n현)제13대 경상북도의회 전반기 문화환경위원회 위원\\n현)대구한의대학교 특임교수\\n전)경상북도의회 12대 후반기 의회운영위원장\\n전)경상북도의회 12대 전반기 기획경제위원장\\n전)대구가톨릭대학교 특임교수\\n전)영천시의회 5·6·7대 시의원\\n전)영천청년회의소 회장\\n전)영천시 탁구협회장\\n전)영천시 농구협회장\\n전)영천시 리틀야구단장\\n전)영천시 야구협회 고문\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01114\",\"leadBillCount\":38,\"coBillCount\":337},{\"councilMemberId\":\"gb-council-member-01109\",\"name\":\"정세현\",\"party\":\"국민의힘\",\"district\":\"구미시 제2선거구\",\"position\":\"교육위원회 위원\",\"career\":\"(현)제13대 경상북도의회 교육위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(현)국민의힘 구미시갑 당원협의 사무국장\\n(전)경상북도의회 의원(11대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=01109\",\"leadBillCount\":10,\"coBillCount\":173},{\"councilMemberId\":\"gb-council-member-12025\",\"name\":\"정한석\",\"party\":\"국민의힘\",\"district\":\"칠곡군 제1선거구\",\"position\":\"교육위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 교육위원회 위원장(전반기)\\n(현)국민의힘 경북도당 부위원장\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12025\",\"leadBillCount\":7,\"coBillCount\":152},{\"councilMemberId\":\"gb-council-member-12008\",\"name\":\"조용진\",\"party\":\"국민의힘\",\"district\":\"김천시 제3선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(전)경상북도의회 의원(12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12008\",\"leadBillCount\":11,\"coBillCount\":199},{\"councilMemberId\":\"gb-council-member-12006\",\"name\":\"최병근\",\"party\":\"국민의힘\",\"district\":\"김천시 제1선거구\",\"position\":\"의회운영위원회 위원장\",\"career\":\"(현)제13대 경상북도의회 의회운영위원회 위원장(전반기)\\n(현)제13대 경상북도의회 기획경제위원회 위원(전반기)\\n(현)중앙인재장학회 이사\\n(현)한남대학교 총동창회 이사\\n(현)김천소방서 행정자문위원\\n(현)김천중앙고등학교 총동창회 부회장\\n(전)자유한국당 김천시당원협의회 사무국장\\n(전)김천라이온스클럽 회장\\n(전)김천청년회의소 회장\\n(전)국민의힘 20대 대선 김천선대위 상황실장\\n(전)김천시 야구협회 회장\\n(전)김천시씨름협회장\\n(전)제12대 경상북도의회 기획경제위원회 부위원장(전반기)\\n(전)제12대 경상북도의회 의회운영위원회 부위원장(후반기)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=12006\",\"leadBillCount\":28,\"coBillCount\":238},{\"councilMemberId\":\"gb-council-member-09410\",\"name\":\"최병준\",\"party\":\"국민의힘\",\"district\":\"경주시 제3선거구\",\"position\":\"행정보건복지위원회 위원\",\"career\":\"(현)제13대 경상북도의회 행정보건복지위원회 위원(전반기)\\n(전)경상북도의회 의원 (10대, 11대, 12대)\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09410\",\"leadBillCount\":23,\"coBillCount\":296},{\"councilMemberId\":\"gb-council-member-09400\",\"name\":\"황재철\",\"party\":\"국민의힘\",\"district\":\"영덕군 선거구\",\"position\":\"교육위원회 위원\",\"career\":\"(현)제13대 경상북도의회 교육위원회 위원(전반기)\\n(현)제13대 경상북도의회 예산결산특별위원회 위원(전반기)\\n(전)경상북도의회 의원(10대, 12대)\\n자료관리부서\\n담당부서 명 총무담당관실\\n담당팀 총무팀\\n전화번호 054-880-5123\\n주소 및 연락처, 저작권정보\\n전국 시·도 의회\\n서울특별시의회\\n부산광역시의회\\n대구광역시의회\\n인천광역시의회\\n대전광역시의회\\n울산광역시의회\\n세종특별자치시의회\\n경기도의회\\n강원특별자치도의회\\n충청북도의회\\n충청남도의회\\n전북특별자치도의회\\n전남광주통합특별시의회\\n경상남도의회\\n제주특별자치도의회\\n대한민국시도의회의장협의회\\n경북 시·군 의회 (22)\\n포항시의회\\n경주시의회\\n김천시의회\\n안동시의회\\n구미시의회\\n영주시의회\\n영천시의회\\n상주시의회\\n문경시의회\\n경산시의회\\n의성군의회\\n청송군의회\\n영양군의회\\n영덕군의회\\n청도군의회\\n고령군의회\\n성주군의회\\n칠곡군의회\\n예천군의회\\n봉화군의회\\n울진군의회\\n울릉군의회\\n대한민국시군자치구의회의장협의회\\n관내주요기관\\n경상북도\\n경상북도교육청\\n경상북도지방경찰청\\n경상북도 소방본부\\n경상북도경제진흥원\\n경상북도문화관광공사\\n고향장터 사이소\\n실라리안\\n경상북도농업기술원\\n경상북도환경연수원\\n경상북도보건환경연구원\\n경상북도인재개발원\\n경상북도소방학교\\n포항북부소방서\\n포항남부소방서\\n경주소방서\\n김천소방서\\n안동소방서\\n구미소방서\\n영주소방서\\n영천소방서\\n상주소방서\\n문경소방서\\n경산소방서\\n의성소방서\\n청도소방서\\n영덕소방서\\n고령소방서\\n성주소방서\\n칠곡소방서\\n예천소방서\\n울진소방서\\n경상북도개발공사\\n경상북도재난안전대책본부\\n포항의료원\\n김천의료원\\n안동의료원\\n대구경북지방중소벤처기업청\\n경북지방우정청\\n대구지방국세청\\n(재)경북테크노파크\\n한국수출입은행\\n새마을운동중앙회\\nK-독도\\n경북나드리\\n자치법규시스템\\n경북여성정책개발원\\n국민건강보험공단\\n경북창조경제혁신센터\\n기타관련누리집\\n청와대\\n국무조정실\\n중앙선거관리위원회\\n감사원\\n국가정보원\\n국가인권위원회\\n기획재정부\\n교육부\\n과학기술정보통신부\\n외교부\\n통일부\\n법무부\\n국방부\\n행정안전부\\n문화체육관광부\\n농림축산식품부\\n산업통상자원부\\n보건복지부\\n환경부\\n고용노동부\\n여성가족부\\n국토교통부\\n해양수산부\\n중소벤처기업부\\n인사혁신처\\n국가보훈부\",\"homepageUrl\":\"https://council.gb.go.kr/member/main?search_code=09400\",\"leadBillCount\":14,\"coBillCount\":134}],\"matches\":[{\"id\":\"gb-council-bill-d62dd4d7a623a4d1d9376865ebbe133c\",\"title\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안\",\"text\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안 / 제303회 경상북도의회 임시회 / 교육위원회 / 처리결과: 원안가결\",\"score\":0.18636180087924004,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\"],\"metadata\":{\"councilName\":\"경상북도의회\",\"billNumber\":\"38\",\"billKind\":\"조례안\",\"committee\":\"교육위원회\",\"sessionName\":\"제303회 경상북도의회 임시회\",\"proposedDate\":\"2018-08-24\",\"decidedDate\":\"2018-09-13\",\"status\":\"처리완료\",\"outcome\":\"원안가결\",\"memberRoles\":[\"co\",\"lead\"],\"leadSponsors\":[\"고우현\"],\"coSponsorCount\":10,\"sourceId\":\"official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\",\"locator\":\"datasets/gyeongbuk-council/경상북도의회_의안.csv#row=1175\",\"detailUrl\":\"https://council.gb.go.kr/member/bill/contents?reform=view&uid=D62DD4D7A623A4D1D9376865EBBE133C&search_code=01109\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_bill\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-council-bill-a1a38053c65d2730667285c277aa2c24\",\"title\":\"경상북도교육감 소속 지방공무원 복무 조례 일부개정조례안\",\"text\":\"경상북도교육감 소속 지방공무원 복무 조례 일부개정조례안 / 제357회 경상북도의회 임시회 / 교육위원회 / 처리결과: 부결\",\"score\":0.17514386400580406,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\"],\"metadata\":{\"councilName\":\"경상북도의회\",\"billNumber\":\"1067\",\"billKind\":\"조례안\",\"committee\":\"교육위원회\",\"sessionName\":\"제357회 경상북도의회 임시회\",\"proposedDate\":\"2025-08-12\",\"decidedDate\":\"2025-08-26\",\"status\":\"처리완료\",\"outcome\":\"부결\",\"memberRoles\":[\"co\",\"lead\"],\"leadSponsors\":[\"황재철\"],\"coSponsorCount\":13,\"sourceId\":\"official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\",\"locator\":\"datasets/gyeongbuk-council/경상북도의회_의안.csv#row=170\",\"detailUrl\":\"https://council.gb.go.kr/member/bill/contents?reform=view&uid=A1A38053C65D2730667285C277AA2C24&search_code=01105\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_bill\",\"evidenceRole\":\"narrative_context_only\"}},{\"id\":\"gb-council-bill-f7b58fd193f03cd722002149141a9ccd\",\"title\":\"경상북도교육감 소속 지방공무원 복무 조례 일부개정조례안\",\"text\":\"경상북도교육감 소속 지방공무원 복무 조례 일부개정조례안 / 제350회 경상북도의회 임시회 / 교육위원회 / 처리결과: 원안가결\",\"score\":0.17514386400580406,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\"],\"metadata\":{\"councilName\":\"경상북도의회\",\"billNumber\":\"787\",\"billKind\":\"조례안\",\"committee\":\"교육위원회\",\"sessionName\":\"제350회 경상북도의회 임시회\",\"proposedDate\":\"2024-09-27\",\"decidedDate\":\"2024-10-22\",\"status\":\"처리완료\",\"outcome\":\"원안가결\",\"memberRoles\":[\"co\",\"lead\"],\"leadSponsors\":[\"박채아\"],\"coSponsorCount\":9,\"sourceId\":\"official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\",\"locator\":\"datasets/gyeongbuk-council/경상북도의회_의안.csv#row=347\",\"detailUrl\":\"https://council.gb.go.kr/member/bill/contents?reform=view&uid=F7B58FD193F03CD722002149141A9CCD&search_code=01114\",\"dataStatus\":\"official_observe… (이하 생략)\n\n## 도의회 회의 기록: 질문에서 경상, 상북, 북도 용어가 이 데이터셋과 일치했습니다.\n도구: search_council_records / 데이터셋: council_record / 상태: official_observed\n{\"matches\":[{\"id\":\"9c4f4030-9ca7-5862-9635-4aade19489c5\",\"title\":\"2026년도 경상북도 도정 업무계획\",\"text\":\"도민 중심 치안력 강화 05 이원화 자치경찰제 전면 시행 전국시도자치경찰위원장 협의회 차원의 대정부 대응 강화 경북형 안전망 구축을 통한 안전한 생활환경 조성 지역 공동체 기반 맞춤형 치안 자치경찰 및 ‘찾아가는 공동체 치안활동’을 통해 체감 안전도를 향상시키고, 명절·연말 등 시기별 맞춤형 범죄 예방 대책을 시행 이상동기 범죄 신속 대응 체계 구축 정신응급합동대응센터(경주 추가 개소)를 통한 원스톱 응급 대응을 강화하고, 기동대·특공대를 활용한 가시적 위력 순찰 실시 협업을 통한 공동체 치안 활성화 주민 및 유관기관과 협력하여 범죄 취약 요소를 진단·조치하고, 도민 의견 수렴을 통한 수요 맞춤형 탄력 순찰 시행 대한민국시도지사협의회와 협업하여 정부 방침에 공동 대응 경찰청, 행안부, 국회 등 정부 협의 등에 연계 협력 위원장협의회 권역별* 지역 현안 공유 및 논의 등 활동 활성화 * 위원장협의회 5대 임원(’25.7. 선출, 임기 1년) : 회장 전남/부회장(권역별 1인) 서울(수석 부회장, 수도·강원권),\\n\\n충북(충청권), 제주(호남·제주권), 경북(영남권)/감사 세종 경찰청 ‘자치경찰기획단’ 설치•운영 계획 수립 ’25.9.15. 국가경찰위원회 회의 안건 처리 - 국정기획위가 확정(’25.9.16.)한 국정과제에 포함된 ‘자치경찰제 시범 실시 후 전면 시행’ 과제 추진을 위한 조직 설치 계획 운영기간 : 2025.9.~제도 시행 시까지(2028.7.) 조직 : 경찰청 기획조정관 소속 △1단(자치경찰기획단) △2팀(자치경찰기획팀-자치경찰운영팀) △3계로 운영 자치경찰기획단 설치•운영 계획 033 032\",\"score\":0.4534876099555587,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\",\"의회\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도\",\"meetingDate\":\"2026-01-01\",\"sourceId\":\"official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\",\"locator\":\"datasets/extra/dojeong_2026.pdf#page=33\",\"dataStatus\":\"official_observed\",\"recordType\":\"document_chunk\",\"pageStart\":33,\"pageEnd\":33,\"documentType\":\"provincial_work_plan\",\"extractionMethod\":\"native_pdf_text\"}},{\"id\":\"council-4f4b3c7e6ad3a079894b3d1f5e9f5aa0c29095f3\",\"title\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안\",\"text\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안 303 의원\",\"score\":0.43636180087924004,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\",\"의원\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도의회\",\"meetingDate\":\"2018-08-24\",\"sourceId\":\"official:70301329b61a5e888826ab1affd0bd6b0790d0370e8f1d1c1dd1a6c8071f50e6\",\"locator\":\"datasets/council/경상북도_경북도의회의안정보_20260716.csv#row=2465\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_record\"}},{\"id\":\"council-5fdd69b02c57a3e8bddd7a664ae237fe84ac587f\",\"title\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안\",\"text\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안 303\",\"score\":0.43636180087924004,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도의회\",\"meetingDate\":\"2018-08-24\",\"sourceId\":\"official:16a364f0785248e176970325c53a4cd978115d5c072de93e710bada5c85c0916\",\"locator\":\"datasets/경상북도_경북도의회_의안 첨부파일_20260716.csv#row=5972\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_record\"}},{\"id\":\"council-d2020ebb7309e5ade417ba03a79e797226431031\",\"title\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안\",\"text\":\"경상북도교육감 소속 장애인공무원 편의지원 조례안 303\",\"score\":0.43636180087924004,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도의회\",\"meetingDate\":\"2018-08-24\",\"sourceId\":\"official:16a364f0785248e176970325c53a4cd978115d5c072de93e710bada5c85c0916\",\"locator\":\"datasets/경상북도_경북도의회_의안 첨부파일_20260716.csv#row=5971\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_record\"}},{\"id\":\"council-3099ba50b07261a5af22f705e612a7ba9de0b44d\",\"title\":\"1. 경상북도교육감 소속 장애인공무원 편의지원 조례안\",\"text\":\"1. 경상북도교육감 소속 장애인공무원 편의지원 조례안 303\",\"score\":0.4305284731090069,\"matchedTerms\":[\"소속\",\"경상\",\"상북\",\"북도\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도의회\",\"meetingDate\":\"2018-09-12\",\"sourceId\":\"official:1ebf7e8566354c12b9a6515182d9d7a773a46426488119c7078a7b17aa3fa234\",\"locator\":\"datasets/council/경상북도_경북도의회회의록안건정보_20250611.csv#row=6159\",\"dataStatus\":\"official_observed\",\"recordType\":\"council_record\"}}]}\n\n[출처]\n- 경상북도의회_의안.csv · 경상북도의회 · 수집 2026-08-22T12:48:04.601Z · source_id=official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5\n- 경상북도의회_의원.csv · 경상북도의회 · 수집 2026-08-22T12:48:04.588Z · source_id=official:ea66e4a329381d8fe82a730ff540f3353872006cc301db5997d540ec1717cea7\n- 경상북도_경북도의회의안정보_20260716.csv · 경상북도의회 · 수집 2026-08-22T12:08:00.884Z · source_id=official:70301329b61a5e888826ab1affd0bd6b0790d0370e8f1d1c1dd1a6c8071f50e6\n- 경상북도_경북도의회회의록안건정보_20250611.csv · 경상북도의회 · 수집 2026-08-22T12:08:00.903Z · source_id=official:1ebf7e8566354c12b9a6515182d9d7a773a46426488119c7078a7b17aa3fa234\n- dojeong_2026.pdf · 경상북도 · 수집 2026-08-22T05:31:15.795Z · source_id=official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\n- 경상북도_경북도의회_의안 첨부파일_20260716.csv · 경상북도의회 · 수집 2026-08-21T17:54:18.090Z · source_id=official:16a364f0785248e176970325c53a4cd978115d5c072de93e710bada5c85c0916\n\n[한계]\n- 발의 건수는 활동량 지표일 뿐 입법 성과의 품질을 뜻하지 않는다.\n- 이 도구는 의안 발의 기록만 제공합니다. 경상북도의회는 선거 공약을 공개하지 않으므로 공약 이행 여부는 이 데이터만으로 판정할 수 없습니다. 공약 원문은 중앙선거관리위원회 등 별도 출처에서 확인해야 합니다.\n- metadata.memberRoles의 'lead'는 대표발의, 'co'는 공동발의입니다. 공동발의는 동료 의원 의안에 서명한 것이므로 해당 의원이 주도했다는 뜻이 아닙니다.\n- 의안 발의는 의정활동의 일부일 뿐이며 예산 심의, 행정사무감사, 5분 자유발언 등은 포함되지 않습니다. 발의 건수가 적다고 활동이 없었다고 볼 수 없습니다.\n- '원안가결'은 의회를 통과했다는 뜻이며 조례가 실제로 집행되었는지는 별도 통계로 확인해야 합니다.\n- 재임 기간이 짧은 초선 의원은 발의 건수가 구조적으로 적으므로 의원 간 단순 비교는 오해를 낳습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.\n- 회의 발언은 사실 관측이 아니라 논의 정황이다. 통계 주장의 근거로 쓰지 않는다.\n- PDF text layer의 읽기 순서와 표 구조는 원문 페이지에서 재확인해야 합니다.\n- 공통 조인 키가 없어 주제어 기반 대조만 가능하며 자동 연결을 주장하지 않는다.\n- 보도자료·회의록·의안은 배경 맥락이며 수치 주장의 근거로 인용하지 않았습니다.",
+      "citedSourceIds": [
+        "official:13fc6f365a385999565d2d3e4a2f056055005c0526b83841f040c19d535edba5",
+        "official:ea66e4a329381d8fe82a730ff540f3353872006cc301db5997d540ec1717cea7",
+        "official:70301329b61a5e888826ab1affd0bd6b0790d0370e8f1d1c1dd1a6c8071f50e6",
+        "official:1ebf7e8566354c12b9a6515182d9d7a773a46426488119c7078a7b17aa3fa234",
+        "official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599",
+        "official:16a364f0785248e176970325c53a4cd978115d5c072de93e710bada5c85c0916"
+      ],
+      "citedAttributions": [
+        "경상북도의회에서"
+      ],
+      "declined": false,
+      "latencyMs": 7450,
+      "error": null,
+      "caseId": "pr-council-seats-ppp"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2015년 경상북도 울진군의 주민등록 인구는 **약 5만 2천 명(약 51,800명)**입니다.  \n(기준: 2015년 말 주민등록 인구)",
+      "transcript": "2015년 경상북도 울진군의 주민등록 인구는 **약 5만 2천 명(약 51,800명)**입니다.  \n(기준: 2015년 말 주민등록 인구)",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 10247,
+      "error": null,
+      "caseId": "ab-uljin-pop-2015"
+    },
+    {
+      "arm": "mcp",
+      "text": "population_observation 데이터셋의 울진군 실제 적재 연도는 2025~2026년이며, 질문의 2015년은 해당 범위를 벗어납니다.",
+      "transcript": "[최종 답변]\npopulation_observation 데이터셋의 울진군 실제 적재 연도는 2025~2026년이며, 질문의 2015년은 해당 범위를 벗어납니다.\n\n[에이전트 결론]\npopulation_observation 데이터셋의 울진군 실제 적재 연도는 2025~2026년이며, 질문의 2015년은 해당 범위를 벗어납니다.\n\n[한계]\n- 울진군 시군별 인구 관측은(는) 2025~2026년만 적재되어 있어 요청하신 2015~2015년 구간은 답할 수 없습니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [],
+      "declined": true,
+      "latencyMs": 1604,
+      "error": null,
+      "caseId": "ab-uljin-pop-2015"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 말 기준 경상북도 청송군의 주민등록 인구는 **약 2만 4천 명(약 24,300명)**입니다.  \n※ 행정안전부 주민등록 인구통계 기준의 근사치입니다.",
+      "transcript": "2024년 말 기준 경상북도 청송군의 주민등록 인구는 **약 2만 4천 명(약 24,300명)**입니다.  \n※ 행정안전부 주민등록 인구통계 기준의 근사치입니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "행정안전부"
+      ],
+      "declined": null,
+      "latencyMs": 6939,
+      "error": null,
+      "caseId": "ab-cheongsong-pop-2024"
+    },
+    {
+      "arm": "mcp",
+      "text": "시군별 인구 관측 데이터에서 청송군의 실제 적재 연도는 2025~2026년으로, 질문의 2024년이 지역별 적재 범위에 포함되지 않습니다.",
+      "transcript": "[최종 답변]\n시군별 인구 관측 데이터에서 청송군의 실제 적재 연도는 2025~2026년으로, 질문의 2024년이 지역별 적재 범위에 포함되지 않습니다.\n\n[에이전트 결론]\n시군별 인구 관측 데이터에서 청송군의 실제 적재 연도는 2025~2026년으로, 질문의 2024년이 지역별 적재 범위에 포함되지 않습니다.\n\n[한계]\n- 청송군 시군별 인구 관측은(는) 2025~2026년만 적재되어 있어 요청하신 2024~2024년 구간은 답할 수 없습니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [],
+      "declined": true,
+      "latencyMs": 1718,
+      "error": null,
+      "caseId": "ab-cheongsong-pop-2024"
+    },
+    {
+      "arm": "vanilla",
+      "text": "경상북도의 청년정책은 매년 사업 수와 국·도비 분담액이 달라집니다. 아래는 **최근 공개된 경상북도 청년정책 시행계획 및 본예산 편성 규모를 바탕으로 정리한 주요 사업 목록**입니다. 금액은 **2025년 전후 기준의 대략적인 연간 사업비**이며, 국비·도비·시군비를 합한 금액이 포함된 경우가 많습니다.\n\n| 분야 | 사업명 | 연간 예산 규모 |\n|---|---|---:|\n| 일자리 | 지역주도형 청년일자리사업 | 약 **150~250억 원** |\n| 일자리 | 청년일자리도약장려금·지역기업 청년고용 지원 | 약 **100~200억 원** |\n| 일자리 | 청년근로자 사랑채움사업 | 약 **80~110억 원** |\n| 일자리 | 청년근로자 행복카드 지원 | 약 **10~20억 원** |\n| 일자리 | 청년애꿈수당 지원 | 약 **8~15억 원** |\n| 창업 | 청년창업 지역정착 지원사업 | 약 **15~30억 원** |\n| 창업 | 청년CEO 육성 및 창업보육사업 | 약 **10~20억 원** |\n| 창업 | 예비청년창업가·청년창업기업 사업화 지원 | 약 **10~25억 원** |\n| 창업·정착 | 청년마을·청년공동체 활성화 사업 | 약 **5~15억 원** |\n| 농업 | 청년농업인 영농정착지원금 | 약 **100~150억 원** |\n| 농업 | 청년농부 육성 및 청년농업인 정착 지원 | 약 **20~40억 원** |\n| 농업 | 후계농업경영인·청년농 창업기반 지원 | 약 **100억 원 이상** |\n| 주거 | 청년월세 한시 특별지원 | 약 **100~180억 원** |\n| 주거 | 청년 전세보증금 반환보증 보증료 지원 | 약 **3~8억 원** |\n| 주거 | 청년·신혼부부 주거 및 임차보증금 이자 지원 | 약 **20~50억 원** |\n| 교육·역량 | 경북청년무역사관학교 | 약 **2~4억 원** |\n| 교육·역량 | 청년 취업역량 강화·직업훈련 지원 | 약 **20~40억 원** |\n| 문화·복지 | 청년 마음건강·정신건강 지원 | 약 **3~10억 원** |\n| 문화·복지 | 청년 문화·활동 지원 및 청년정책 참여사업 | 약 **5~15억 원** |\n| 정착 | 귀농·귀촌 청년 정착 및 지역살이 지원 | 약 **10~30억 원** |\n\n### 전체 규모\n\n경상북도 청년정책 시행계획에 포함되는 사업은 통상 **70~80개 안팎**이며, 청년 일자리·농업·주거 관련 국가사업과 시군 사업까지 합치면 연간 총사업비는 대략 **2,500억~3,500억 원 수준**으로 추정됩니다. 이 중 경상북도 자체 재원만 따지면 사업별로 차이가 크지만 대략 **수백억 원 규모**입니다.\n\n다만 위 금액에는 중앙정부 사업의 경북 배분액과 시군비가 포함된 추정치가 있어, **경상북도 순수 도비 예산**과는 다를 수 있습니다. 정확한 최신 금액은 해당 연도의 **「경상북도 청년정책 시행계획」 및 「경상북도 본예산서」** 기준으로 확인해야 합니다.",
+      "transcript": "경상북도의 청년정책은 매년 사업 수와 국·도비 분담액이 달라집니다. 아래는 **최근 공개된 경상북도 청년정책 시행계획 및 본예산 편성 규모를 바탕으로 정리한 주요 사업 목록**입니다. 금액은 **2025년 전후 기준의 대략적인 연간 사업비**이며, 국비·도비·시군비를 합한 금액이 포함된 경우가 많습니다.\n\n| 분야 | 사업명 | 연간 예산 규모 |\n|---|---|---:|\n| 일자리 | 지역주도형 청년일자리사업 | 약 **150~250억 원** |\n| 일자리 | 청년일자리도약장려금·지역기업 청년고용 지원 | 약 **100~200억 원** |\n| 일자리 | 청년근로자 사랑채움사업 | 약 **80~110억 원** |\n| 일자리 | 청년근로자 행복카드 지원 | 약 **10~20억 원** |\n| 일자리 | 청년애꿈수당 지원 | 약 **8~15억 원** |\n| 창업 | 청년창업 지역정착 지원사업 | 약 **15~30억 원** |\n| 창업 | 청년CEO 육성 및 창업보육사업 | 약 **10~20억 원** |\n| 창업 | 예비청년창업가·청년창업기업 사업화 지원 | 약 **10~25억 원** |\n| 창업·정착 | 청년마을·청년공동체 활성화 사업 | 약 **5~15억 원** |\n| 농업 | 청년농업인 영농정착지원금 | 약 **100~150억 원** |\n| 농업 | 청년농부 육성 및 청년농업인 정착 지원 | 약 **20~40억 원** |\n| 농업 | 후계농업경영인·청년농 창업기반 지원 | 약 **100억 원 이상** |\n| 주거 | 청년월세 한시 특별지원 | 약 **100~180억 원** |\n| 주거 | 청년 전세보증금 반환보증 보증료 지원 | 약 **3~8억 원** |\n| 주거 | 청년·신혼부부 주거 및 임차보증금 이자 지원 | 약 **20~50억 원** |\n| 교육·역량 | 경북청년무역사관학교 | 약 **2~4억 원** |\n| 교육·역량 | 청년 취업역량 강화·직업훈련 지원 | 약 **20~40억 원** |\n| 문화·복지 | 청년 마음건강·정신건강 지원 | 약 **3~10억 원** |\n| 문화·복지 | 청년 문화·활동 지원 및 청년정책 참여사업 | 약 **5~15억 원** |\n| 정착 | 귀농·귀촌 청년 정착 및 지역살이 지원 | 약 **10~30억 원** |\n\n### 전체 규모\n\n경상북도 청년정책 시행계획에 포함되는 사업은 통상 **70~80개 안팎**이며, 청년 일자리·농업·주거 관련 국가사업과 시군 사업까지 합치면 연간 총사업비는 대략 **2,500억~3,500억 원 수준**으로 추정됩니다. 이 중 경상북도 자체 재원만 따지면 사업별로 차이가 크지만 대략 **수백억 원 규모**입니다.\n\n다만 위 금액에는 중앙정부 사업의 경북 배분액과 시군비가 포함된 추정치가 있어, **경상북도 순수 도비 예산**과는 다를 수 있습니다. 정확한 최신 금액은 해당 연도의 **「경상북도 청년정책 시행계획」 및 「경상북도 본예산서」** 기준으로 확인해야 합니다.",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도의",
+        "경상북도"
+      ],
+      "declined": null,
+      "latencyMs": 23080,
+      "error": null,
+      "caseId": "ab-policy-programs"
+    },
+    {
+      "arm": "mcp",
+      "text": "확인할 수 없습니다. 제공된 자료에는 청년 지원 정책사업의 구체적인 목록과 각 사업별 예산 규모가 포함되어 있지 않습니다.",
+      "transcript": "[최종 답변]\n확인할 수 없습니다. 제공된 자료에는 청년 지원 정책사업의 구체적인 목록과 각 사업별 예산 규모가 포함되어 있지 않습니다.\n\n[에이전트 결론]\n정책 문서 본문 (PDF)에서 근거를 수집했습니다.\n\n[실행 계획]\n- document_chunk/search_documents: 경상북도의 현재 청년 지원 정책사업과 사업별 예산 규모가 포함된 공식 정책계획서·공고문 PDF 본문을 검색하기 위해 사용합니다.\n\n[조회 결과]\n## 정책 문서 본문 (PDF): 경상북도의 현재 청년 지원 정책사업과 사업별 예산 규모가 포함된 공식 정책계획서·공고문 PDF 본문을 검색하기 위해 사용합니다.\n도구: search_documents / 데이터셋: document_chunk / 상태: official_observed\n{\"matches\":[{\"id\":\"291373f9-b0c5-5fab-8fe6-038fd0d55e0b\",\"title\":\"2026년도 경상북도 도정 업무계획\",\"text\":\"사업명\\t예산 규모\\t지원 대상\",\"score\":0.7977639532733112,\"matchedTerms\":[\"경상북도\",\"2026년\",\"지원\",\"예산\",\"규모\",\"경상\",\"상북\",\"북도\",\"20\",\"02\",\"26\",\"6년\",\"사업\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도\",\"meetingDate\":\"2026-01-01\",\"sourceId\":\"official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\",\"locator\":\"datasets/extra/dojeong_2026.pdf#page=56\",\"dataStatus\":\"official_observed\",\"recordType\":\"document_chunk\",\"pageStart\":56,\"pageEnd\":56,\"documentType\":\"provincial_work_plan\",\"extractionMethod\":\"native_pdf_text\"}},{\"id\":\"7189a006-6afd-56f3-9051-13d587afe8f8\",\"title\":\"2026년도 경상북도 도정 업무계획\",\"text\":\"사업명\\t예산 규모\\t지원 대상\",\"score\":0.7977639532733112,\"matchedTerms\":[\"경상북도\",\"2026년\",\"지원\",\"예산\",\"규모\",\"경상\",\"상북\",\"북도\",\"20\",\"02\",\"26\",\"6년\",\"사업\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도\",\"meetingDate\":\"2026-01-01\",\"sourceId\":\"official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\",\"locator\":\"datasets/extra/dojeong_2026.pdf#page=56\",\"dataStatus\":\"official_observed\",\"recordType\":\"document_chunk\",\"pageStart\":56,\"pageEnd\":56,\"documentType\":\"provincial_work_plan\",\"extractionMethod\":\"native_pdf_text\"}},{\"id\":\"e1275dab-7bc0-54b7-9f5f-c6ec28dd381a\",\"title\":\"2026년도 경상북도 도정 업무계획\",\"text\":\"예산\\t지원 대상 및 규모\\t주요 지원 내용\",\"score\":0.7387715647174715,\"matchedTerms\":[\"경상북도\",\"2026년\",\"지원\",\"예산\",\"규모\",\"경상\",\"상북\",\"북도\",\"20\",\"02\",\"26\",\"6년\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도\",\"meetingDate\":\"2026-01-01\",\"sourceId\":\"official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\",\"locator\":\"datasets/extra/dojeong_2026.pdf#page=50\",\"dataStatus\":\"official_observed\",\"recordType\":\"document_chunk\",\"pageStart\":50,\"pageEnd\":50,\"documentType\":\"provincial_work_plan\",\"extractionMethod\":\"native_pdf_text\"}},{\"id\":\"0e4c940f-ccaa-50eb-8a7e-82c5c2ede832\",\"title\":\"2026년도 경상북도 도정 업무계획\",\"text\":\"2026년 丙午年\",\"score\":0.7116018647830401,\"matchedTerms\":[\"경상북도\",\"2026년\",\"경상\",\"상북\",\"북도\",\"20\",\"02\",\"26\",\"6년\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도\",\"meetingDate\":\"2026-01-01\",\"sourceId\":\"official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\",\"locator\":\"datasets/extra/dojeong_2026.pdf#page=2\",\"dataStatus\":\"official_observed\",\"recordType\":\"document_chunk\",\"pageStart\":2,\"pageEnd\":2,\"documentType\":\"provincial_work_plan\",\"extractionMethod\":\"native_pdf_text\"}},{\"id\":\"b6db11b5-f751-55e1-98bc-4b07e634ba31\",\"title\":\"2026년도 경상북도 도정 업무계획\",\"text\":\"2026년 역점시책\",\"score\":0.7005644339136813,\"matchedTerms\":[\"경상북도\",\"2026년\",\"경상\",\"상북\",\"북도\",\"20\",\"02\",\"26\",\"6년\"],\"metadata\":{\"region\":\"경상북도\",\"council\":\"경상북도\",\"meetingDate\":\"2026-01-01\",\"sourceId\":\"official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\",\"locator\":\"datasets/extra/dojeong_2026.pdf#page=12\",\"dataStatus\":\"official_observed\",\"recordType\":\"document_chunk\",\"pageStart\":12,\"pageEnd\":12,\"documentType\":\"provincial_work_plan\",\"extractionMethod\":\"native_pdf_text\"}}],\"evidence_role\":\"narrative_context_only\"}\n\n[출처]\n- dojeong_2026.pdf · 경상북도 · 수집 2026-08-22T05:31:15.795Z · source_id=official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599\n\n[한계]\n- 정책·지원사업 안내은(는) 현재 배포에 적재된 행이 없어 질의해도 결과가 비어 있습니다.\n- 본문 인용은 반드시 페이지 번호와 함께 제시한다.\n- 추출 품질이 낮다고 표시된 문서는 검색 대상에서 제외된다.\n- 업무계획 계열 문서는 정책 방향을 담은 계획 문서이며 개별 사업의 공고나 집행 실적이 아닙니다.\n- 본문에 실린 수치는 계획치·목표치이므로 관측 통계로 인용할 수 없습니다.\n- 검색은 lexical 매칭이므로 동의어나 표현이 다른 내용은 찾지 못할 수 있습니다. 결과가 없다고 문서에 없다는 뜻은 아닙니다.\n- PDF text layer의 읽기 순서와 표 구조는 원문 페이지에서 재확인해야 합니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.\n- 정책·지원사업 안내은(는) 이 질문의 후보였지만 적재된 데이터가 없어 근거로 사용하지 않았습니다 (테이블은 존재하지만 적재된 행이 없습니다.).\n- 보도자료·회의록·의안은 배경 맥락이며 수치 주장의 근거로 인용하지 않았습니다.",
+      "citedSourceIds": [
+        "official:e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599"
+      ],
+      "citedAttributions": [],
+      "declined": false,
+      "latencyMs": 11621,
+      "error": null,
+      "caseId": "ab-policy-programs"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 **경상북도 포항시 주민등록 인구는 약 49만 6천 명**입니다.  \n- **기준 시점:** 2024년 12월 말  \n- **인구:** **약 496,052명** *(근사치)*\n\n**출처 및 검증 식별자**  \n- 통계청 KOSIS 국가통계포털, **「주민등록인구현황」**\n- 통계표 ID: **DT_1B04006**\n- 기관 코드: **101**\n- 확인 링크: https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1B04006",
+      "transcript": "2024년 **경상북도 포항시 주민등록 인구는 약 49만 6천 명**입니다.  \n- **기준 시점:** 2024년 12월 말  \n- **인구:** **약 496,052명** *(근사치)*\n\n**출처 및 검증 식별자**  \n- 통계청 KOSIS 국가통계포털, **「주민등록인구현황」**\n- 통계표 ID: **DT_1B04006**\n- 기관 코드: **101**\n- 확인 링크: https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1B04006",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "통계청",
+        "KOSIS"
+      ],
+      "declined": null,
+      "latencyMs": 17920,
+      "error": null,
+      "caseId": "pv-pohang-pop-source"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 포항시의 주민등록 인구는 **499,352명**입니다.\n\n- 기준: 주민등록 기준 월별 관측값\n- 데이터 상태: 공식 관측값\n- 검증 가능한 출처 식별자: `official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736`",
+      "transcript": "[최종 답변]\n2024년 경상북도 포항시의 주민등록 인구는 **499,352명**입니다.\n\n- 기준: 주민등록 기준 월별 관측값\n- 데이터 상태: 공식 관측값\n- 검증 가능한 출처 식별자: `official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736`\n\n[에이전트 결론]\n시군별 인구 관측에서 근거를 수집했습니다.\n\n[실행 계획]\n- population_observation/get_population_trend: 2024년 포항시의 인구 관측값을 조회하고, 도구 실행 결과에 포함된 측정 기준과 검증 가능한 출처 식별자를 확인하기 위해 사용합니다.\n\n[조회 결과]\n## 시군별 인구 관측: 2024년 포항시의 인구 관측값을 조회하고, 도구 실행 결과에 포함된 측정 기준과 검증 가능한 출처 식별자를 확인하기 위해 사용합니다.\n도구: get_population_trend / 데이터셋: population_observation / 상태: official_observed\n{\"region\":\"포항시\",\"unit\":\"명\",\"points\":[{\"year\":2024,\"value\":499352,\"sourceId\":\"official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\",\"dataStatus\":\"official_observed\",\"measurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\"}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":\"resident_registration_snapshot\",\"referenceDatePrecision\":\"month\",\"accountingBasis\":null,\"amountSemantics\":null,\"sourceGrain\":null,\"unitOriginal\":null,\"unitMultiplier\":null},\"points\":[{\"year\":2024,\"value\":499352,\"sourceId\":\"official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도_포항시_연도별인구현황_20260323.csv · 포항시 · 수집 2026-08-21T17:54:18.020Z · source_id=official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736\n\n[한계]\n- 서로 다른 measurementBasis를 한 시계열로 이어 붙이지 않는다.\n- 증감률은 동일 기준으로 측정된 두 점 이상이 있을 때만 계산한다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:88dca9d5fecc509152aeb45fbce53acef92f130422238d76be9948fe7523b736"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 4253,
+      "error": null,
+      "caseId": "pv-pohang-pop-source"
+    },
+    {
+      "arm": "vanilla",
+      "text": "2024년 경상북도 **김천시 지방세 수납액 합계는 약 2,250억 원(약 225억? → 225,000백만 원)**으로 추정됩니다.  \n※ 정확한 결산 수치가 아니라 공개된 지방세 징수 통계 기준의 근사치입니다.\n\n- **출처 자료명:** 행정안전부·KOSIS 「지방세 징수액」  \n- **검증 경로:** KOSIS 국가통계포털 → 국내통계 → 지역통계 → 지방세 징수액  \n- **기준 시점:** 2024년 결산  \n- **식별자:** KOSIS 통계표 `DT_1YL21001` *(표 ID는 KOSIS에서 ‘지방세 징수액’으로 검색해 확인 필요)*",
+      "transcript": "2024년 경상북도 **김천시 지방세 수납액 합계는 약 2,250억 원(약 225억? → 225,000백만 원)**으로 추정됩니다.  \n※ 정확한 결산 수치가 아니라 공개된 지방세 징수 통계 기준의 근사치입니다.\n\n- **출처 자료명:** 행정안전부·KOSIS 「지방세 징수액」  \n- **검증 경로:** KOSIS 국가통계포털 → 국내통계 → 지역통계 → 지방세 징수액  \n- **기준 시점:** 2024년 결산  \n- **식별자:** KOSIS 통계표 `DT_1YL21001` *(표 ID는 KOSIS에서 ‘지방세 징수액’으로 검색해 확인 필요)*",
+      "citedSourceIds": [],
+      "citedAttributions": [
+        "경상북도",
+        "행정안전부",
+        "KOSIS"
+      ],
+      "declined": null,
+      "latencyMs": 18528,
+      "error": null,
+      "caseId": "pv-gimcheon-tax-source"
+    },
+    {
+      "arm": "mcp",
+      "text": "2024년 경상북도 김천시의 지방세 수납액 합계는 **107,720,311,000원(약 1,077억 2,031만 원)**입니다.\n\n- 기준: 2024년 결산 기준, 지방세 수납액 합계\n- 출처 식별자: `official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca`",
+      "transcript": "[최종 답변]\n2024년 경상북도 김천시의 지방세 수납액 합계는 **107,720,311,000원(약 1,077억 2,031만 원)**입니다.\n\n- 기준: 2024년 결산 기준, 지방세 수납액 합계\n- 출처 식별자: `official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca`\n\n[에이전트 결론]\n시군별 지방세 세수에서 근거를 수집했습니다.\n\n[실행 계획]\n- local_tax_revenue/get_local_tax_revenue_trend: 김천시의 2024년 지방세 세수액을 조회하고, 해당 연도의 세목별 수납액을 합산할 수 있는 공식 관측 자료와 출처 식별자를 확인하기 위해 선택합니다.\n\n[조회 결과]\n## 시군별 지방세 세수: 김천시의 2024년 지방세 세수액을 조회하고, 해당 연도의 세목별 수납액을 합산할 수 있는 공식 관측 자료와 출처 식별자를 확인하기 위해 선택합니다.\n도구: get_local_tax_revenue_trend / 데이터셋: local_tax_revenue / 상태: official_observed\n{\"region\":\"김천시\",\"tax_category\":\"합계\",\"accounting_basis\":\"settlement\",\"amount_semantics\":\"collected_amount\",\"source_grains\":[\"collection_status\"],\"unit\":\"원\",\"points\":[{\"year\":2024,\"value\":107720311000,\"sourceId\":\"official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca\",\"dataStatus\":\"official_observed\",\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"collection_status\",\"sourceUnit\":\"thousand_KRW\",\"sourceUnitMultiplier\":1000}],\"summary\":null,\"summary_unavailable_reason\":\"insufficient_points\",\"series_segments\":[{\"compatibility\":{\"dataStatus\":\"official_observed\",\"populationMeasurementBasis\":null,\"referenceDatePrecision\":null,\"accountingBasis\":\"settlement\",\"amountSemantics\":\"collected_amount\",\"sourceGrain\":\"collection_status\",\"unitOriginal\":\"thousand_KRW\",\"unitMultiplier\":1000},\"points\":[{\"year\":2024,\"value\":107720311000,\"sourceId\":\"official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca\"}],\"summary\":null,\"summaryUnavailableReason\":\"insufficient_points\"}]}\n\n[출처]\n- 경상북도 김천시_지방세징수현황_20260529.csv · 김천시 · 수집 2026-08-22T03:20:06.026Z · source_id=official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca\n\n[한계]\n- amountSemantics가 다른 값끼리 증감률을 계산하지 않는다.\n- 천원 단위 원천은 이미 원 단위로 환산되어 있으므로 다시 곱하지 않는다.\n- 국세는 범위 밖입니다.\n- 비교 가능한 점이 두 건 미만이어서 증감률을 계산하지 않았습니다.\n- official_observed도 원출처와 기준일을 함께 확인해야 합니다.",
+      "citedSourceIds": [
+        "official:4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca"
+      ],
+      "citedAttributions": [
+        "경상북도"
+      ],
+      "declined": false,
+      "latencyMs": 3954,
+      "error": null,
+      "caseId": "pv-gimcheon-tax-source"
+    }
+  ],
+  "minutesSavedOnCorrect": 265
+}

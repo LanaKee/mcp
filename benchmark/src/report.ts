@@ -46,9 +46,22 @@ export function renderMarkdownReport(report: BenchmarkReport, cases: BenchmarkCa
   const lines: string[] = [];
   lines.push("# Vanilla vs MCP 벤치마크 — 경상북도 컨텍스트");
   lines.push("");
+
+  // A run that lost most of its calls measures the account's quota, not the
+  // model. The warning goes above the numbers because a reader who scrolls to
+  // a table first must not meet the scores without it.
+  const failed = report.responses.filter((response) => response.error).length;
+  const errorRate = report.responses.length === 0 ? 0 : failed / report.responses.length;
+  if (errorRate > 0.1) {
+    lines.push(
+      `> **이 실행은 무효입니다.** 호출 ${report.responses.length}건 중 ${failed}건(${percent(errorRate)})이 API 오류로 모델에 도달하지 못했습니다. 아래 점수는 모델 성능이 아니라 호출 실패율을 반영하므로 인용해서는 안 됩니다.`
+    );
+    lines.push("");
+  }
   lines.push(
     `- 생성 시각: ${report.generatedAt}`,
-    `- 모델: \`${report.model}\` (두 arm 동일)`,
+    `- 모델: \`${report.model}\`${report.provider ? ` (${report.provider})` : ""} (두 arm 동일)`,
+    `- 샘플링: ${report.temperaturePinned === false ? "temperature 고정 불가 — 모델이 거부하여 공급자 기본값 사용 (재현성 낮음)" : "temperature 0 고정"}`,
     `- 실행 모드: ${report.mode}`,
     `- 문항 수: ${report.cases}`
   );

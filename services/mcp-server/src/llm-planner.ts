@@ -214,18 +214,78 @@ export class LlmPlanner implements Planner {
   }
 }
 
+/**
+ * Decides how long to wait before re-sending a rejected request.
+ *
+ * A rate limit or a gateway blip is a property of the account and the network,
+ * not of the model's ability. Recording one as a wrong answer would report the
+ * harness's throughput as the model's competence, so a benchmark waits these
+ * out. The server does not: it has a deterministic planner to fall back to and
+ * stalling a live request for half a minute is worse than answering without the
+ * model, so retries are opt-in and default to none.
+ */
+export function retryDelayMs(
+  status: number,
+  retryAfter: string | null,
+  attempt: number,
+  maxRetries = 0
+): number | null {
+  const retryable = status === 408 || status === 409 || status === 429 || status >= 500;
+  if (!retryable || attempt >= maxRetries) return null;
+  const header = retryAfter === null ? Number.NaN : Number(retryAfter);
+  if (Number.isFinite(header) && header >= 0) return Math.min(header * 1000, 60_000);
+  return Math.min(2 ** attempt * 2_000, 32_000);
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+/**
+ * Detects a provider refusing an explicitly pinned temperature.
+ *
+ * Reasoning-tuned models reject `temperature` outright instead of clamping it,
+ * and the set of models that do so changes with every release. Reading the
+ * refusal off the response is more durable than a capability table that silently
+ * goes stale, so callers downgrade to the provider default and retry once.
+ */
+export function rejectsPinnedTemperature(status: number, detail: string): boolean {
+  return status === 400 && /temperature/i.test(detail);
+}
+
 /** OpenAI-compatible chat completions, which both OpenAI and Grok expose. */
 export class OpenAiCompatibleChat implements ChatCompletion {
+  /** Set once a request is refused for pinning temperature; never reset. */
+  private omitTemperature = false;
+
   constructor(
     private readonly config: {
       baseUrl: string;
       apiKey: string;
       model: string;
       timeoutMs?: number;
+      /** Transient-failure retries; 0 keeps a live request failing fast. */
+      maxRetries?: number;
+      /** Pinned sampling temperature; `null` sends none at all. */
+      temperature?: number | null;
     }
   ) {}
 
-  async complete(prompt: string, signal?: AbortSignal): Promise<string> {
+  /** True when this client had to fall back to the provider's default sampling. */
+  get usedDefaultTemperature(): boolean {
+    return this.omitTemperature || (this.config.temperature ?? 0) === null;
+  }
+
+  private requestBody(prompt: string): Record<string, unknown> {
+    const temperature = this.config.temperature === undefined ? 0 : this.config.temperature;
+    return {
+      model: this.config.model,
+      messages: [{ role: "user", content: prompt }],
+      ...(this.omitTemperature || temperature === null ? {} : { temperature })
+    };
+  }
+
+  async complete(prompt: string, signal?: AbortSignal, attempt = 0): Promise<string> {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -239,14 +299,26 @@ export class OpenAiCompatibleChat implements ChatCompletion {
           "content-type": "application/json",
           authorization: `Bearer ${this.config.apiKey}`
         },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0
-        }),
+        body: JSON.stringify(this.requestBody(prompt)),
         signal: controller.signal
       });
       if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        if (!this.omitTemperature && rejectsPinnedTemperature(response.status, detail)) {
+          this.omitTemperature = true;
+          return await this.complete(prompt, signal, attempt);
+        }
+        const delay = retryDelayMs(
+          response.status,
+          response.headers.get("retry-after"),
+          attempt,
+          this.config.maxRetries ?? 0
+        );
+        if (delay !== null) {
+          clearTimeout(timeout);
+          await sleep(delay);
+          return await this.complete(prompt, signal, attempt + 1);
+        }
         throw new Error(
           `LLM 요청이 실패했습니다: ${response.status} ${response.statusText}`
         );
@@ -270,10 +342,12 @@ export class GeminiChat implements ChatCompletion {
       apiKey: string;
       model: string;
       timeoutMs?: number;
+      /** Transient-failure retries; 0 keeps a live request failing fast. */
+      maxRetries?: number;
     }
   ) {}
 
-  async complete(prompt: string, signal?: AbortSignal): Promise<string> {
+  async complete(prompt: string, signal?: AbortSignal, attempt = 0): Promise<string> {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -297,20 +371,204 @@ export class GeminiChat implements ChatCompletion {
         }
       );
       if (!response.ok) {
+        const delay = retryDelayMs(
+          response.status,
+          response.headers.get("retry-after"),
+          attempt,
+          this.config.maxRetries ?? 0
+        );
+        if (delay !== null) {
+          clearTimeout(timeout);
+          await sleep(delay);
+          return await this.complete(prompt, signal, attempt + 1);
+        }
         throw new Error(
           `Gemini 요청이 실패했습니다: ${response.status} ${response.statusText}`
         );
       }
       const body = (await response.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: Array<{
+          content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+        }>;
       };
-      const content = body.candidates?.[0]?.content?.parts?.[0]?.text;
+      // Thinking-enabled models put reasoning in leading parts flagged
+      // `thought`. Taking parts[0] blindly would grade the model's scratchpad
+      // instead of its answer, so those are dropped and the rest joined.
+      const content = (body.candidates?.[0]?.content?.parts ?? [])
+        .filter((part) => part.thought !== true && typeof part.text === "string")
+        .map((part) => part.text)
+        .join("")
+        .trim();
       if (!content) throw new Error("Gemini 응답에 내용이 없습니다.");
       return content;
     } finally {
       clearTimeout(timeout);
     }
   }
+}
+
+/** Anthropic messages API, which is neither OpenAI- nor Gemini-shaped. */
+export class AnthropicChat implements ChatCompletion {
+  private omitTemperature = false;
+
+  constructor(
+    private readonly config: {
+      apiKey: string;
+      model: string;
+      timeoutMs?: number;
+      /** Transient-failure retries; 0 keeps a live request failing fast. */
+      maxRetries?: number;
+      maxTokens?: number;
+      temperature?: number | null;
+    }
+  ) {}
+
+  get usedDefaultTemperature(): boolean {
+    return this.omitTemperature || (this.config.temperature ?? 0) === null;
+  }
+
+  async complete(prompt: string, signal?: AbortSignal, attempt = 0): Promise<string> {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.config.timeoutMs ?? 30_000
+    );
+    if (signal) signal.addEventListener("abort", () => controller.abort());
+    try {
+      const temperature =
+        this.config.temperature === undefined ? 0 : this.config.temperature;
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": this.config.apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          // Required by this API, unlike the other two.
+          max_tokens: this.config.maxTokens ?? 4096,
+          messages: [{ role: "user", content: prompt }],
+          ...(this.omitTemperature || temperature === null ? {} : { temperature })
+        }),
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        if (!this.omitTemperature && rejectsPinnedTemperature(response.status, detail)) {
+          this.omitTemperature = true;
+          return await this.complete(prompt, signal, attempt);
+        }
+        const delay = retryDelayMs(
+          response.status,
+          response.headers.get("retry-after"),
+          attempt,
+          this.config.maxRetries ?? 0
+        );
+        if (delay !== null) {
+          clearTimeout(timeout);
+          await sleep(delay);
+          return await this.complete(prompt, signal, attempt + 1);
+        }
+        throw new Error(
+          `Anthropic 요청이 실패했습니다: ${response.status} ${response.statusText}`
+        );
+      }
+      const body = (await response.json()) as {
+        content?: Array<{ type?: string; text?: string }>;
+      };
+      // Extended-thinking responses lead with `thinking` blocks; only `text`
+      // blocks are the answer.
+      const content = (body.content ?? [])
+        .filter((block) => block.type === "text" && typeof block.text === "string")
+        .map((block) => block.text)
+        .join("")
+        .trim();
+      if (!content) throw new Error("Anthropic 응답에 내용이 없습니다.");
+      return content;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+export type ChatProvider = "openai" | "grok" | "gemini" | "anthropic";
+
+/**
+ * Infers the provider that serves a model id.
+ *
+ * Callers name a model, not a vendor, so the routing is derived from the id
+ * rather than asking for both and letting them disagree.
+ */
+export function providerForModel(model: string): ChatProvider | null {
+  if (/^(gpt-|o\d|chatgpt-)/u.test(model)) return "openai";
+  if (/^claude/u.test(model)) return "anthropic";
+  if (/^gemini/u.test(model)) return "gemini";
+  if (/^grok/u.test(model)) return "grok";
+  return null;
+}
+
+/**
+ * Builds a client for one explicitly named model.
+ *
+ * {@link chatClientFromEnv} picks by key precedence, which makes a provider
+ * unreachable whenever an earlier key is also set. Comparing models requires
+ * addressing each one directly, so this takes the model id as the input.
+ */
+export function chatClientFor(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: {
+    provider?: ChatProvider;
+    timeoutMs?: number;
+    /** Opt in to waiting out rate limits; batch runs should, servers should not. */
+    maxRetries?: number;
+  } = {}
+): { client: ChatCompletion; modelName: string; provider: ChatProvider } {
+  const { provider = null, timeoutMs, maxRetries } = options;
+  const resolved = provider ?? providerForModel(model);
+  if (resolved === null) {
+    throw new Error(
+      `모델 '${model}'의 공급자를 알 수 없습니다. gpt-*, claude-*, gemini-*, grok-* 중 하나여야 합니다.`
+    );
+  }
+  const keyByProvider: Record<ChatProvider, string> = {
+    openai: "OPENAI_API_KEY",
+    grok: "GROK_API_KEY",
+    gemini: "GEMINI_API_KEY",
+    anthropic: "CLAUDE_API_KEY"
+  };
+  const apiKey = env[keyByProvider[resolved]];
+  if (!apiKey) {
+    throw new Error(`${keyByProvider[resolved]}가 필요합니다 (모델 '${model}').`);
+  }
+  if (resolved === "gemini") {
+    return {
+      client: new GeminiChat({ apiKey, model, ...(timeoutMs ? { timeoutMs } : {}),
+      ...(maxRetries ? { maxRetries } : {}) }),
+      modelName: model,
+      provider: resolved
+    };
+  }
+  if (resolved === "anthropic") {
+    return {
+      client: new AnthropicChat({ apiKey, model, ...(timeoutMs ? { timeoutMs } : {}),
+      ...(maxRetries ? { maxRetries } : {}) }),
+      modelName: model,
+      provider: resolved
+    };
+  }
+  return {
+    client: new OpenAiCompatibleChat({
+      baseUrl: resolved === "grok" ? "https://api.x.ai/v1" : "https://api.openai.com/v1",
+      apiKey,
+      model,
+      ...(timeoutMs ? { timeoutMs } : {}),
+      ...(maxRetries ? { maxRetries } : {})
+    }),
+    modelName: model,
+    provider: resolved
+  };
 }
 
 /**
@@ -348,6 +606,13 @@ export function chatClientFromEnv(
     const model = env.GEMINI_PLANNER_MODEL ?? "gemini-2.0-flash";
     return {
       client: new GeminiChat({ apiKey: env.GEMINI_API_KEY, model }),
+      modelName: model
+    };
+  }
+  if (env.CLAUDE_API_KEY) {
+    const model = env.CLAUDE_PLANNER_MODEL ?? "claude-sonnet-4-5-20250929";
+    return {
+      client: new AnthropicChat({ apiKey: env.CLAUDE_API_KEY, model }),
       modelName: model
     };
   }

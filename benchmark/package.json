@@ -7,7 +7,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "compare": "tsx src/run.ts",
-    "compare:offline": "tsx src/run.ts --offline"
+    "compare:dry-run": "tsx src/run.ts --dry-run",
+    "compare:models": "tsx src/compare-models.ts"
   },
   "dependencies": {
     "@gb/domain": "workspace:*",
