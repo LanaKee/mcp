@@ -377,10 +377,55 @@ export async function planIntake(options: {
   const decisions: IntakeDecision[] = [];
 
   for (const inboxPath of files) {
-    const buffer = await readFile(inboxPath);
     const fileName = (inboxPath.split("/").at(-1) ?? inboxPath).normalize("NFC");
-    const sha256 = sha256Hex(buffer);
     const extension = extname(fileName).toLowerCase();
+    const relativeInboxPath = relative(options.repositoryRoot, inboxPath).normalize("NFC");
+    const maxBytes = options.maxBytes ?? DEFAULT_MAX_INTAKE_BYTES;
+    const fileStat = await stat(inboxPath);
+
+    // Media the store never accepts (video, images, partial downloads) or
+    // payloads that already exceed the size limit are rejected without ever
+    // reading the whole file into memory; large unsupported files (e.g. the
+    // hundreds-of-megabytes NTS explainer videos) previously OOM'd the intake
+    // process before extension/size were even checked.
+    const cheapRejection: Rejection | null = !(
+      ACCEPTED_EXTENSIONS as readonly string[]
+    ).includes(extension)
+      ? {
+          code: "unsupported_extension",
+          message: `Extension ${extension || "(none)"} is not an accepted raw format`
+        }
+      : fileStat.size === 0
+        ? { code: "empty_file", message: "File is empty" }
+        : fileStat.size > maxBytes
+          ? {
+              code: "file_too_large",
+              message: `File is ${fileStat.size} bytes which exceeds the ${maxBytes} byte limit`
+            }
+          : null;
+
+    if (cheapRejection) {
+      const sha256 = await hashFile(inboxPath);
+      decisions.push({
+        fileName,
+        inboxPath: relativeInboxPath,
+        sha256,
+        byteSize: fileStat.size,
+        mediaType: MEDIA_TYPES[extension] ?? "application/octet-stream",
+        contentKind: "unknown",
+        encoding: null,
+        referenceDate: null,
+        action: "quarantined",
+        storedPath: null,
+        duplicateOfPath: null,
+        rejectionCode: cheapRejection.code,
+        rejectionMessage: cheapRejection.message
+      });
+      continue;
+    }
+
+    const buffer = await readFile(inboxPath);
+    const sha256 = sha256Hex(buffer);
     const rejection = validateIntakePayload(buffer, fileName, {
       maxBytes: options.maxBytes
     });
@@ -388,7 +433,7 @@ export async function planIntake(options: {
     if (rejection) {
       decisions.push({
         fileName,
-        inboxPath: relative(options.repositoryRoot, inboxPath).normalize("NFC"),
+        inboxPath: relativeInboxPath,
         sha256,
         byteSize: buffer.length,
         mediaType: MEDIA_TYPES[extension] ?? "application/octet-stream",

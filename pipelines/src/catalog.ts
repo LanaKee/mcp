@@ -50,6 +50,9 @@ function referenceDate(fileName: string): string | null {
 
 export { referenceDate as fileNameReferenceDate };
 
+/** Population workbooks observed so far top out around 4MB; this is a generous cap. */
+export const POPULATION_WORKBOOK_PARSE_MAX_BYTES = 20 * 1024 * 1024;
+
 export const MEDIA_TYPES: Record<string, string> = {
   ".csv": "text/csv",
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -109,6 +112,24 @@ export function describeDatasetFile(
       parseStatus = "catalogued";
     }
   }
+  let xlsxReferenceDate: string | null = null;
+  if (extension === ".xlsx") {
+    // Every population workbook observed so far is a few MB at most; SheetJS
+    // fully materializes the workbook in memory to answer this, so a
+    // hundred-megabyte lookup table (e.g. a national property valuation
+    // export) can exhaust the heap before it is even classified. Skip the
+    // full parse for oversized files and fall back to the filename date.
+    if (buffer.length <= POPULATION_WORKBOOK_PARSE_MAX_BYTES) {
+      try {
+        xlsxReferenceDate = populationWorkbookReferenceDate(buffer);
+      } catch (caught) {
+        parseStatus = "error";
+        error = caught instanceof Error ? caught.message : String(caught);
+      }
+    } else {
+      parseStatus = "catalogued";
+    }
+  }
   return {
     extension,
     mediaType: MEDIA_TYPES[extension] ?? "application/octet-stream",
@@ -116,7 +137,7 @@ export function describeDatasetFile(
     encoding,
     referenceDate:
       extension === ".xlsx"
-        ? populationWorkbookReferenceDate(buffer)
+        ? (xlsxReferenceDate ?? referenceDate(nameNfc))
         : yearbookYear
           ? `${yearbookYear}-12-31`
           : referenceDate(nameNfc),
