@@ -158,35 +158,68 @@ describeDatabase("PostgresDataRepository integration", () => {
         expect(result.not_evaluable).toEqual([]);
   });
 
-  it("has the measured official population and tax region-year overlap", async () => {
-        const pool = new Pool({ connectionString, max: 1 });
-        try {
-          const result = await pool.query<{
-            region_years: number;
-            regions: number;
-          }>(
-            `WITH population AS (
-               SELECT DISTINCT region_id, year
-               FROM population_observation
-               WHERE data_status = 'official_observed'
-             ),
-             tax AS (
-               SELECT DISTINCT region_id, fiscal_year AS year
-               FROM local_tax_revenue
-               WHERE data_status = 'official_observed'
-                 AND tax_category = '합계'
-                 AND COALESCE(metadata->>'headlineEligible', 'true') = 'true'
-             )
-             SELECT
-               count(*)::integer AS region_years,
-               count(DISTINCT population.region_id)::integer AS regions
-             FROM population
-             JOIN tax USING (region_id, year)`
-          );
-          expect(result.rows[0]).toEqual({
-            region_years: 8,
-            regions: 4
-      });
+  it("reports an official population and tax overlap backed by both tables", async () => {
+    // This used to pin 8 region-years / 4 regions. Ingesting more official data
+    // is the point of the pipeline, so a snapshot count fails on success. Assert
+    // the overlap is real and non-trivial instead of memorising its size.
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const result = await pool.query<{
+        region_id: string;
+        year: number;
+        population_rows: string;
+        tax_rows: string;
+      }>(
+        `WITH population AS (
+           SELECT DISTINCT region_id, year
+           FROM population_observation
+           WHERE data_status = 'official_observed'
+         ),
+         tax AS (
+           SELECT DISTINCT region_id, fiscal_year AS year
+           FROM local_tax_revenue
+           WHERE data_status = 'official_observed'
+             AND tax_category = '합계'
+             AND COALESCE(metadata->>'headlineEligible', 'true') = 'true'
+         )
+         SELECT
+           population.region_id,
+           population.year,
+           (SELECT count(*)
+              FROM population_observation o
+             WHERE o.region_id = population.region_id
+               AND o.year = population.year
+               AND o.data_status = 'official_observed') AS population_rows,
+           (SELECT count(*)
+              FROM local_tax_revenue t
+             WHERE t.region_id = population.region_id
+               AND t.fiscal_year = population.year
+               AND t.data_status = 'official_observed'
+               AND t.tax_category = '합계'
+               AND COALESCE(t.metadata->>'headlineEligible', 'true') = 'true')
+             AS tax_rows
+         FROM population
+         JOIN tax USING (region_id, year)
+         ORDER BY population.region_id, population.year`
+      );
+      expect(result.rows.length).toBeGreaterThan(0);
+      for (const row of result.rows) {
+        expect(Number(row.population_rows)).toBeGreaterThan(0);
+        expect(Number(row.tax_rows)).toBeGreaterThan(0);
+      }
+      // A comparable trend needs at least one region with consecutive years.
+      const byRegion = new Map<string, number[]>();
+      for (const row of result.rows) {
+        byRegion.set(row.region_id, [
+          ...(byRegion.get(row.region_id) ?? []),
+          Number(row.year)
+        ]);
+      }
+      expect(
+        [...byRegion.values()].some((years) =>
+          years.some((year) => years.includes(year + 1))
+        )
+      ).toBe(true);
     } finally {
       await pool.end();
     }
