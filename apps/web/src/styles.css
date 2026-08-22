@@ -773,3 +773,75 @@ footer {
     grid-template-columns: auto 1fr;
   }
 }
+
+/* Benchmark dashboard */
+
+.benchmark {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+#benchmark-reports {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+}
+
+.benchmark-headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.benchmark-headline strong {
+  display: block;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.benchmark-headline small {
+  color: #5b6b7c;
+  font-size: 0.74rem;
+}
+
+.metrics {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.metric {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(4rem, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.metric-bar {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #e6ebf1;
+  overflow: hidden;
+}
+
+.metric-bar__fill {
+  height: 100%;
+  background: #1f6f4a;
+}
+
+.metric small {
+  color: #5b6b7c;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.benchmark-failures {
+  margin: 1rem 0 0;
+  padding-left: 1.1rem;
+  color: #8a2020;
+  font-size: 0.8rem;
+}

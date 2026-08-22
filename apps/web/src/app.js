@@ -649,6 +649,123 @@ async function loadRegionOptions() {
   }
 }
 
+/**
+ * Benchmark dashboard.
+ *
+ * Reads committed run reports rather than measuring on demand. A dashboard that
+ * could trigger its own measurement would let a demo produce whatever numbers
+ * it needed at the moment it was asked, which is the opposite of the claim this
+ * panel is making.
+ */
+const CHECK_LABELS = {
+  dataset_recall_at_5: "데이터셋 발견 (상위 5)",
+  answerability: "답변 가능 여부 판단",
+  tool_selection: "도구 선택",
+  argument_selection: "인자 선택",
+  citation_integrity: "출처 연결",
+  data_status: "데이터 상태 표기",
+  no_unsupported_claim: "근거 없는 결론 없음",
+  required_disclosure: "필수 고지",
+  join_accuracy: "교차 분석 정확도",
+  join_datasets_executed: "교차 데이터셋 실행",
+  unavailable_disclosed: "빈 데이터셋 고지"
+};
+
+function metricRow(name, entry) {
+  const row = document.createElement("div");
+  row.className = "metric";
+  const label = document.createElement("span");
+  text(label, CHECK_LABELS[name] ?? name);
+  const bar = document.createElement("div");
+  bar.className = "metric-bar";
+  const fill = document.createElement("div");
+  fill.className = "metric-bar__fill";
+  fill.style.width = `${Math.round(entry.rate * 100)}%`;
+  bar.append(fill);
+  const value = document.createElement("small");
+  text(value, `${entry.passed}/${entry.applicable} · ${(entry.rate * 100).toFixed(0)}%`);
+  row.append(label, bar, value);
+  return row;
+}
+
+function renderBenchmark(reports) {
+  const container = document.querySelector("#benchmark-reports");
+  container.replaceChildren(
+    ...reports.map((report) => {
+      const card = document.createElement("article");
+      card.className = "panel benchmark-card";
+
+      const heading = document.createElement("h3");
+      text(heading, report.planner);
+
+      const headline = document.createElement("div");
+      headline.className = "benchmark-headline";
+      const figures = [
+        [`${report.passedCases}/${report.totalCases}`, "통과"],
+        [`${(report.passRate * 100).toFixed(0)}%`, "정답률"],
+        [`${(report.p95ElapsedMs / 1000).toFixed(2)}s`, "p95 응답"],
+        [
+          `${report.totalMinutesSaved.toFixed(0)}분`,
+          `수작업 ${report.totalManualBaselineMinutes}분 대비 절감`
+        ]
+      ];
+      headline.append(
+        ...figures.map(([value, label]) => {
+          const figure = document.createElement("div");
+          const strong = document.createElement("strong");
+          text(strong, value);
+          const small = document.createElement("small");
+          text(small, label);
+          figure.append(strong, small);
+          return figure;
+        })
+      );
+
+      const metrics = document.createElement("div");
+      metrics.className = "metrics";
+      metrics.append(
+        ...Object.entries(report.checkRates ?? {}).map(([name, entry]) =>
+          metricRow(name, entry)
+        )
+      );
+
+      const failed = (report.results ?? []).filter((result) => !result.passed);
+      card.append(heading, headline, metrics);
+      if (failed.length > 0) {
+        const list = document.createElement("ul");
+        list.className = "benchmark-failures";
+        list.replaceChildren(
+          ...failed.map((result) => {
+            const item = document.createElement("li");
+            text(
+              item,
+              `${result.id}: ${result.checks
+                .filter((check) => check.passed === false)
+                .map((check) => `${CHECK_LABELS[check.name] ?? check.name} — ${check.detail}`)
+                .join(" / ")}`
+            );
+            return item;
+          })
+        );
+        card.append(list);
+      }
+      return card;
+    })
+  );
+}
+
+async function loadBenchmark() {
+  try {
+    const response = await fetch("/api/benchmark");
+    const payload = await response.json();
+    if (!response.ok || (payload.reports ?? []).length === 0) return;
+    document.querySelector("#benchmark").hidden = false;
+    renderBenchmark(payload.reports);
+  } catch {
+    // The dashboard is supplementary; its absence must not break the page.
+  }
+}
+
 packForm.addEventListener("submit", buildPack);
 for (const button of document.querySelectorAll(".doc-buttons button")) {
   button.addEventListener("click", () => draftDocument(button.dataset.doc));
@@ -666,3 +783,4 @@ boot().catch((error) => {
 });
 
 loadRegionOptions();
+loadBenchmark();

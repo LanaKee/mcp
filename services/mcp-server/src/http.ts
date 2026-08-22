@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { access } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -55,6 +55,56 @@ const expensiveTools = new Set([
   "get_source_context",
   "draft_public_document"
 ]);
+
+
+const benchmarkDirectory = resolve(moduleDirectory, "../../../evals/reports");
+
+/**
+ * Serves the committed benchmark reports.
+ *
+ * Read from disk on each request rather than cached at boot so a run written
+ * while the server is up is visible without a restart. Reports are produced by
+ * `pnpm benchmark --out`, never by this endpoint: a dashboard that could
+ * trigger its own measurement would let a demo produce whatever numbers it
+ * needed at the moment it was asked.
+ */
+async function benchmarkReports(): Promise<{
+  data_status: string;
+  reports: unknown[];
+  note: string | null;
+}> {
+  let names: string[];
+  try {
+    names = (await readdir(benchmarkDirectory)).filter((name) =>
+      name.endsWith(".json")
+    );
+  } catch {
+    return {
+      data_status: "empty",
+      reports: [],
+      note: "벤치마크 보고서가 없습니다. pnpm benchmark -- --out evals/reports/<name>.json 으로 생성하세요."
+    };
+  }
+  const reports: unknown[] = [];
+  for (const name of names.sort()) {
+    try {
+      reports.push(
+        JSON.parse(await readFile(resolve(benchmarkDirectory, name), "utf8"))
+      );
+    } catch {
+      // A malformed report is skipped rather than failing the whole endpoint;
+      // one bad file should not hide the runs that succeeded.
+    }
+  }
+  return {
+    data_status: reports.length > 0 ? "official_observed" : "empty",
+    reports,
+    note:
+      reports.length > 0
+        ? null
+        : "벤치마크 보고서를 읽을 수 없습니다."
+  };
+}
 
 export interface HttpAppOptions {
   security?: HttpSecurityConfig;
@@ -272,6 +322,7 @@ function operationGroup(
   // budget rather than the per-tool one.
   if (
     pathname === "/api/agent" ||
+    pathname === "/api/benchmark" ||
     pathname === "/api/admin/storage"
   ) {
     return "expensive";
@@ -564,6 +615,11 @@ export function createHttpApp(
             );
           }
           return json(response, 200, capacity, requestId);
+        }
+
+        if (url.pathname === "/api/benchmark") {
+          if (request.method !== "GET") throw methodNotAllowed("GET");
+          return json(response, 200, await benchmarkReports(), requestId);
         }
 
         if (url.pathname === "/api/questions") {

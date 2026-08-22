@@ -1,0 +1,1044 @@
+{
+  "planner": "heuristic (postgres)",
+  "totalCases": 15,
+  "passedCases": 15,
+  "passRate": 1,
+  "checkRates": {
+    "dataset_recall_at_5": {
+      "passed": 15,
+      "applicable": 15,
+      "rate": 1
+    },
+    "answerability": {
+      "passed": 15,
+      "applicable": 15,
+      "rate": 1
+    },
+    "tool_selection": {
+      "passed": 12,
+      "applicable": 12,
+      "rate": 1
+    },
+    "argument_selection": {
+      "passed": 6,
+      "applicable": 6,
+      "rate": 1
+    },
+    "citation_integrity": {
+      "passed": 12,
+      "applicable": 12,
+      "rate": 1
+    },
+    "data_status": {
+      "passed": 12,
+      "applicable": 12,
+      "rate": 1
+    },
+    "no_unsupported_claim": {
+      "passed": 15,
+      "applicable": 15,
+      "rate": 1
+    },
+    "required_disclosure": {
+      "passed": 1,
+      "applicable": 1,
+      "rate": 1
+    },
+    "join_accuracy": {
+      "passed": 2,
+      "applicable": 2,
+      "rate": 1
+    },
+    "join_datasets_executed": {
+      "passed": 2,
+      "applicable": 2,
+      "rate": 1
+    },
+    "unavailable_disclosed": {
+      "passed": 1,
+      "applicable": 1,
+      "rate": 1
+    }
+  },
+  "medianElapsedMs": 132.623833,
+  "p95ElapsedMs": 2744.718167000001,
+  "totalManualBaselineMinutes": 383,
+  "totalMinutesSaved": 382.81720396454995,
+  "results": [
+    {
+      "id": "pop-pohang-trend",
+      "intent": "single_dataset_trend",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 population_observation#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 get_population_trend"
+        },
+        {
+          "name": "argument_selection",
+          "passed": true,
+          "detail": "모든 실행 인자 일치"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 1건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 80.091208,
+      "manualBaselineMinutes": 18,
+      "minutesSaved": 17.998665146533334
+    },
+    {
+      "id": "pop-uljin-trend",
+      "intent": "partial_coverage",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 population_observation#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "정확히 거부함"
+        },
+        {
+          "name": "tool_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "data_status",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": true,
+          "detail": "필수 고지 포함"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 32.574708000000044,
+      "manualBaselineMinutes": 18,
+      "minutesSaved": 17.9994570882
+    },
+    {
+      "id": "pop-andong-recent",
+      "intent": "single_dataset_trend",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 population_observation#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 get_population_trend"
+        },
+        {
+          "name": "argument_selection",
+          "passed": true,
+          "detail": "모든 실행 인자 일치"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 2건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 66.41049999999996,
+      "manualBaselineMinutes": 15,
+      "minutesSaved": 14.998893158333333
+    },
+    {
+      "id": "tax-gumi-trend",
+      "intent": "single_dataset_trend",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 local_tax_revenue#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 get_local_tax_revenue_trend"
+        },
+        {
+          "name": "argument_selection",
+          "passed": true,
+          "detail": "모든 실행 인자 일치"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 2건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 73.421042,
+      "manualBaselineMinutes": 25,
+      "minutesSaved": 24.998776315966666
+    },
+    {
+      "id": "tax-gyeongju-trend",
+      "intent": "single_dataset_trend",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 local_tax_revenue#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 get_local_tax_revenue_trend"
+        },
+        {
+          "name": "argument_selection",
+          "passed": true,
+          "detail": "모든 실행 인자 일치"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 1건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 149.842917,
+      "manualBaselineMinutes": 22,
+      "minutesSaved": 21.99750261805
+    },
+    {
+      "id": "cross-pohang-pop-tax",
+      "intent": "cross_dataset",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 population_observation#2, local_tax_revenue#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 get_local_tax_revenue_trend, get_population_trend"
+        },
+        {
+          "name": "argument_selection",
+          "passed": true,
+          "detail": "모든 실행 인자 일치"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": true,
+          "detail": "조인 local_tax_revenue<->population_observation on region,year"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": true,
+          "detail": "실행된 데이터셋 local_tax_revenue, population_observation"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 2건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 132.623833,
+      "manualBaselineMinutes": 45,
+      "minutesSaved": 44.997789602783335
+    },
+    {
+      "id": "cross-gyeongsan-pop-tax",
+      "intent": "cross_dataset",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 population_observation#2, local_tax_revenue#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 get_local_tax_revenue_trend, get_population_trend"
+        },
+        {
+          "name": "argument_selection",
+          "passed": true,
+          "detail": "모든 실행 인자 일치"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": true,
+          "detail": "조인 local_tax_revenue<->population_observation on region,year"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": true,
+          "detail": "실행된 데이터셋 local_tax_revenue, population_observation"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 3건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 98.563084,
+      "manualBaselineMinutes": 45,
+      "minutesSaved": 44.99835728193333
+    },
+    {
+      "id": "press-youth-startup",
+      "intent": "document_search",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 press_release#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 search_press_releases"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 1건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 1920.3783749999998,
+      "manualBaselineMinutes": 20,
+      "minutesSaved": 19.96799369375
+    },
+    {
+      "id": "press-smartfarm",
+      "intent": "document_search",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 press_release#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 search_press_releases"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 1건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 1470.6557089999997,
+      "manualBaselineMinutes": 20,
+      "minutesSaved": 19.975489071516666
+    },
+    {
+      "id": "council-local-extinction",
+      "intent": "document_search",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 council_record#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 search_council_records"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 3건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 1704.7640420000007,
+      "manualBaselineMinutes": 40,
+      "minutesSaved": 39.97158726596667
+    },
+    {
+      "id": "council-population-policy",
+      "intent": "document_search",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 council_record#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 search_council_records"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 5건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 2744.718167000001,
+      "manualBaselineMinutes": 40,
+      "minutesSaved": 39.95425469721667
+    },
+    {
+      "id": "bill-member-proposal",
+      "intent": "document_search",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 council_bill#1"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 search_member_bills, search_council_records"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 5건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 994.1283339999991,
+      "manualBaselineMinutes": 30,
+      "minutesSaved": 29.983431194433333
+    },
+    {
+      "id": "refuse-out-of-scope",
+      "intent": "refusal",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "후보 없음 (정답)"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "정확히 거부함"
+        },
+        {
+          "name": "tool_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "data_status",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 0.49875000000065484,
+      "manualBaselineMinutes": 5,
+      "minutesSaved": 4.9999916875
+    },
+    {
+      "id": "refuse-national-tax",
+      "intent": "refusal",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "후보 없음 (정답)"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "정확히 거부함"
+        },
+        {
+          "name": "tool_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "data_status",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 0.6330830000006245,
+      "manualBaselineMinutes": 10,
+      "minutesSaved": 9.999989448616667
+    },
+    {
+      "id": "refuse-empty-policy",
+      "intent": "partial_coverage",
+      "passed": true,
+      "checks": [
+        {
+          "name": "dataset_recall_at_5",
+          "passed": true,
+          "detail": "순위 policy_program#1, press_release#3"
+        },
+        {
+          "name": "answerability",
+          "passed": true,
+          "detail": "답변함 (기대대로)"
+        },
+        {
+          "name": "tool_selection",
+          "passed": true,
+          "detail": "실행 search_press_releases"
+        },
+        {
+          "name": "argument_selection",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_accuracy",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "join_datasets_executed",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "citation_integrity",
+          "passed": true,
+          "detail": "출처 1건 모두 해석 가능"
+        },
+        {
+          "name": "data_status",
+          "passed": true,
+          "detail": "상태 official_observed / 기대 official_observed"
+        },
+        {
+          "name": "unavailable_disclosed",
+          "passed": true,
+          "detail": "빈 데이터셋 공개: policy_program"
+        },
+        {
+          "name": "required_disclosure",
+          "passed": null,
+          "detail": "해당 없음"
+        },
+        {
+          "name": "no_unsupported_claim",
+          "passed": true,
+          "detail": "근거 없는 수치 주장 없음"
+        }
+      ],
+      "elapsedMs": 1498.4583750000002,
+      "manualBaselineMinutes": 30,
+      "minutesSaved": 29.97502569375
+    }
+  ]
+}

@@ -91,3 +91,29 @@ describe("HTTP API", () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe("benchmark dashboard endpoint", () => {
+  it("serves the committed reports and never measures on request", async () => {
+    const response = await fetch(`${baseUrl}/api/benchmark`);
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as {
+      data_status: string;
+      reports: Array<{ planner: string; checkRates: Record<string, unknown> }>;
+      note: string | null;
+    };
+    if (payload.reports.length === 0) {
+      expect(payload.data_status).toBe("empty");
+      expect(payload.note).toContain("pnpm benchmark");
+      return;
+    }
+    for (const report of payload.reports) {
+      expect(report.planner.length).toBeGreaterThan(0);
+      expect(Object.keys(report.checkRates).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("rejects a write to the dashboard endpoint", async () => {
+    const response = await fetch(`${baseUrl}/api/benchmark`, { method: "POST" });
+    expect(response.status).toBe(405);
+  });
+});
