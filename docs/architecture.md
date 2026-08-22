@@ -11,6 +11,8 @@ flowchart LR
   RAW[CSV · XLSX · PDF] --> ETL[Inventory / ETL]
   ETL --> CAT[SHA-256 Catalog]
   ETL --> PG[(PostgreSQL)]
+  ETL --> LIFE[Version Approval / Retention]
+  LIFE --> PG
   SAMPLE[명시적 demo_sample]
   PG --> REPO[Feature-flagged Repository]
   SAMPLE --> REPO
@@ -39,6 +41,9 @@ flowchart LR
 - `pipelines/src/pdf-quality.ts`: source/page SHA와 짧은 marker golden 평가, corpus 분포와 severe gate
 - `pipelines/src/embeddings.ts`: 로컬 feature-hash와 명시적 opt-in OpenAI provider
 - `pipelines/src/pdf-db.ts`: document/page/chunk/locator와 streaming embedding batch upsert
+- `pipelines/src/lifecycle.ts`: processing version 승인/rollback, 용량 보고, plan-token purge,
+  audit 집계와 allowlist maintenance
+- `pipelines/src/lifecycle-cli.ts`: 임의 SQL 없는 고정 lifecycle 운영 명령
 - 원본 경로는 NFC로 정규화해 기록하지만 원본 자체는 변경하지 않는다.
 
 ### 데이터
@@ -48,7 +53,13 @@ flowchart LR
 - `pnpm db:normalize`은 ETL, 스키마/마이그레이션, 공식 데이터와 데모 전체 적재를 수행한다.
 - source key와 의회 record ID는 원천 SHA/경로/행을 기반으로 결정적이며 행을 삭제하지 않는다.
 - PDF page는 raw/cleaned hash와 품질 지표를 가지며 현재 extractor 결과만 `is_current`다.
-- PDF의 현재 chunk는 `is_current`로 표시해 과거 행을 보존하면서 검색 오염을 막는다.
+- PDF 처리 version은 `candidate`, `approved`, `retired` lifecycle을 가지며 partial unique
+  index로 approved version 하나만 허용한다.
+- 검색 가능한 chunk는 `is_current AND approved_current`이고 해당
+  `pdf_processing_version.approval_state = 'approved'`여야 한다.
+- 새 처리 version 적재는 candidate로 보존되며 명시적 승인 전 기존 production 검색을
+  바꾸지 않는다. retained version rollback은 embedding 재계산 없이 transaction으로
+  chunk/page/document 가시성을 전환한다.
 - `services/mcp-server/src/runtime.ts`는 `DATA_REPOSITORY=auto|postgres|memory|disabled`를
   해석한다. `auto`에서 `DATABASE_URL`이 있으면 PostgreSQL을 사용하며 DB 연결/필수
   schema가 실패하면 메모리로 조용히 fallback하지 않는다.
@@ -64,6 +75,8 @@ flowchart LR
 - PostgreSQL 경로는 FTS/trigram으로 bounded candidate를 만든 뒤 저장 `real[]` embedding을
   cosine rerank한다. 배열 전체 ANN scan은 하지 않는다.
 - source context는 current page/chunk locator만 노출해 과거 chunker 결과가 섞이지 않는다.
+- stale purge는 최소 보존기간, advisory lock, 정확한 candidate-set hash, bounded
+  FK-safe batch를 요구하며 approved/current/provenance를 보호한다.
 - 기본 feature-hash는 lexical 신호이며 semantic provider가 아니다. OpenAI provider는
   `--allow-external` 없이는 생성할 수 없다.
 
@@ -73,6 +86,8 @@ flowchart LR
   `StdioServerTransport`를 사용한다.
 - HTTP는 Node 내장 서버이며 MCP와 같은 registry/validation/실행 함수를 호출한다.
 - `/health`는 프로세스 생존, 공개 `/ready`는 내부 mode/detail 없이 ready 여부만 돌려준다.
+- token 전용 `/api/admin/storage`만 current/stale 용량, lifecycle version과
+  shared-memory 관련 PostgreSQL 설정을 반환한다.
 - HTTP와 stdio는 같은 repository를 주입하고 SIGINT/SIGTERM에서 pool을 닫는다.
 - `http-security.ts`는 token digest 비교, correlation ID, trusted-proxy 정책, bounded
   token bucket, JSON shape 제한을 담당한다. stdio에는 적용하지 않는다.
@@ -100,14 +115,18 @@ flowchart LR
     XFF를 사용한다.
 13. route/method/tool allowlist, 64KiB body, JSON depth/node 제한과 same-origin CSP를 적용한다.
 14. strict/generate된 request ID는 응답·안전 오류·audit correlation에 사용한다.
+15. production PDF 검색은 단일 approved processing version만 사용한다.
+16. stale/audit 삭제는 dry-run이 기본이며 exact plan token, 최소 보존기간, allowlist,
+    advisory lock과 bounded 실행 한도를 모두 통과해야 한다.
+17. purge transaction에서 VACUUM을 실행하거나 `53100` VACUUM을 자동 재시도하지 않는다.
 
 ## 후속 확장
 
 - `ocr_required` PDF의 승인된 OCR 처리
 - 지역/연도/서식이 더 다양한 golden PDF와 실제 반복 footer 표본 확충
-- stale extractor/chunker version의 승인·보존기간·삭제/VACUUM 운영 정책
+- 승인된 scheduler/backup 정책과 operator-run stale purge/VACUUM window
 - corpus가 커질 때 모델별 pgvector partition/ANN index
 - 실제 지방세·정책 공식 소스 adapter와 라이선스 검토
-- 감사 로그 정기 purge job과 운영 경보
+- lifecycle/audit purge의 외부 scheduler와 경보 전달 채널
 - multi-instance 공용 rate-limit store와 tenant별 token/권한
 - reverse proxy TLS, secret rotation, WAF 정책의 배포 자동 검증

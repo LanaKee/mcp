@@ -87,3 +87,11 @@ HTTP `/api/**`는 설정 시 bearer/API token을 요구하고 다음 상태를 �
 오류 body는 code, 일반화된 message, `request_id`만 포함해 내부 오류/환경 변수를
 노출하지 않는다. 모든 HTTP 응답에는 security header와 `X-Request-ID`가 있다.
 PostgreSQL audit에는 raw query 대신 hash/shape와 동일 correlation ID를 저장한다.
+
+## 운영용 저장공간 API
+
+`GET /api/admin/storage`는 일반 MCP 도구가 아니라 token mode에서만 허용되는 HTTP 운영
+endpoint다. current/stale chunk·embedding·page 수, DB/relation 크기, 만료 audit 수,
+processing version 상태와 `shared_buffers`, `maintenance_work_mem` 등 안전한 설정만
+반환한다. 연결 문자열·token·raw 요청은 반환하지 않는다. `HTTP_AUTH_MODE=off`에서는
+로컬이어도 `403`이며, 공개 `/ready`는 상세 용량/설정을 노출하지 않는다.

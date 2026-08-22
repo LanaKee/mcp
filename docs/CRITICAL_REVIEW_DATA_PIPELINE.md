@@ -16,6 +16,18 @@
 - PostgreSQL hybrid 검색은 `지방소멸` 209.1ms, `청년 정착` 261.0ms,
   `행정사무감사` 290.4ms였고 모두 page/title provenance를 반환했다.
 - gated PostgreSQL integration 3건이 page 품질/source locator까지 통과했다.
+- lifecycle migration 뒤 production approved/current chunk와 embedding은 각각 23,795,
+  page locator는 11,712로 유지됐다. retained stale chunk/embedding은 각각 17,487이다.
+- 최소 30일 실제 stale purge dry-run은 0건이었다. migration이 기존 stale 행에 보수적
+  `stale_at`을 부여했으므로 실제 corpus는 운영자 승인 전까지 유지된다.
+- controlled retired fixture는 chunk/embedding/locator/page/document-version을
+  `maxRows=1`로 partial 실행 후 같은 token으로 재개해 FK-safe하게 삭제했다.
+- expired audit fixture는 삭제 전 `mcp_tool_audit_daily`로 집계됐다.
+- 실제 retained 17,487-chunk version으로 rollback 후 23,795-chunk production version을
+  다시 승인했으며 embedding 재계산 없이 최종 가시성이 복구됐다.
+- 최종 capacity는 DB 1,521,482,775 bytes, `document_chunk` 846,340,096 bytes,
+  embedding 361,824,256 bytes, `source_locator` 175,742,976 bytes였다. stale ratio
+  42.4% 경고가 발생했다.
 
 ## 이번 P1에서 수정한 고신뢰 문제
 
@@ -45,6 +57,26 @@ PDF text item의 큰 X 간격을 tab으로 보존하고 tab/숫자 cell/leader �
 upsert해 23,795개 vector 전체를 Node heap에 쌓지 않는다. source context는 stale page/chunk
 locator를 제외한다.
 
+### source lifecycle/retention
+
+처리 version을 `candidate/approved/retired`로 분리하고 approved 하나만 허용했다.
+production hybrid 검색은 approved version의 `approved_current` chunk만 읽는다. 승인과
+rollback은 retained 문서 수와 embedding coverage를 확인하고 transaction에서 가시성을
+전환한다.
+
+stale/audit purge는 dry-run, exact candidate hash token, 최소 30일 보존, advisory lock,
+batch/max rows/runtime, FK-safe 순서를 요구한다. audit는 일별 aggregate를 남긴다.
+base document/source provenance는 삭제하지 않는다. ANALYZE-only가 기본이며 table allowlist와
+timeout이 있고 VACUUM은 별도 확인이 필요하다.
+
+실제 621MB `document_chunk`에서 120초 ANALYZE는 `57014` timeout이 발생해 기본 maintenance
+상한을 10분으로 조정했고 10분 bound 안에서 성공했다. 이전 `53100` VACUUM은 자동
+재시도하지 않았다.
+
+초기 migration은 lifecycle CLI가 schema를 확인할 때 이미 올바른 current/stale 행도
+다시 UPDATE해 bloat를 늘릴 수 있었다. 값이 실제로 달라지는 행만 갱신하도록 predicate를
+추가했고 schema 재적용 전후 sampled current/stale chunk의 `xmin`이 유지됨을 확인했다.
+
 ## 영역별 남은 위험
 
 ### 정확성·데이터 품질
@@ -72,9 +104,18 @@ locator를 제외한다.
 
 - current chunk는 적정 크기로 줄었지만 version 변경 시 stale 행은 의도적으로 남는다.
   현재 DB에는 이전 released chunk 17,487개가 stale로 보존된다.
-- 중간 대량 version 삭제 후 `VACUUM (ANALYZE)`는 PostgreSQL shared-memory
-  `53100/no space left on device`로 실패했고 `ANALYZE`만 성공했다. 운영 DB는 여유 shared
-  memory와 승인된 vacuum window가 필요하다.
+- lifecycle로 승인/보존/purge 안전장치는 생겼지만 실제 stale 17,487개는 아직 purge하지
+  않았다. 논리/물리 회수량은 운영자 dry-run 승인 후에만 확인할 수 있다.
+- 이전 `VACUUM (ANALYZE)`는 PostgreSQL shared-memory `53100/no space left on device`로
+  실패했다. Compose는 `shm_size: 256mb` 예시를 제공하지만 운영 DB는 별도 여유 shared
+  memory, disk와 승인된 vacuum window가 필요하다.
+- lifecycle CLI는 scheduler가 아니다. 정기 status/audit expiry 실행과 경보 전달은 배포
+  플랫폼이 구성해야 한다.
+- 실제 full-version rollback/복구 integration은 약 99~140초가 걸려 요청 경로가 아니라
+  maintenance window에서 수행해야 한다.
+- 두 번의 full visibility UPDATE 뒤 `document_chunk` relation/index가 커졌다. retained
+  rollback이 embedding 재계산은 피하지만 MVCC dead tuple/index bloat를 만들 수 있으므로
+  승인 전후 용량 측정과 안전한 VACUUM window가 필요하다.
 - 실패 report는 200건까지만 ingestion row에 저장한다.
 - page별 checkpoint 없이 전체 extraction을 다시 수행한다.
 
@@ -83,14 +124,13 @@ locator를 제외한다.
 - PostgreSQL mode는 DB 실패 시 메모리로 조용히 fallback하지 않고 readiness를 분리한다.
 - token auth, bounded rate limit/body/JSON, correlation audit, query/operation timeout은 적용됐다.
 - token은 shared secret 하나이고 rate limit은 process-local이다.
-- audit 만료 시각은 있지만 purge scheduler는 없다.
+- audit expiry purge와 daily aggregate는 구현됐지만 scheduler는 배포 책임이다.
 
 ## 다음 우선순위
 
-1. **P1 source lifecycle/retention:** extractor/chunker version별 승인, stale 보존기간,
-   안전한 purge와 VACUUM/용량 경보를 구현한다. 현재 실측 shared-memory 실패 때문에
-   OCR/semantic 확대 전에 운영 저장공간을 먼저 통제해야 한다.
-2. **P1 OCR:** 승인된 로컬 OCR queue와 OCR golden/품질 점수.
-3. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
-4. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
+1. **P1 OCR:** 승인된 로컬 OCR queue, OCR 전/후 provenance와 OCR golden/품질 점수.
+   현재 corpus 0건 실패는 향후 scan PDF 대응을 입증하지 않는다.
+2. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
+3. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
+4. **P1 운영 자동화:** backup/restore rehearsal, lifecycle scheduler와 경보 전달.
 5. **P2 규모:** provider/dimension별 pgvector partition과 ANN index.

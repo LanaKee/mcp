@@ -94,8 +94,38 @@ content hash를 저장한다.
 - 발언자 turn은 원자적으로 유지하고 chunk 절단은 발언자 전환에서만 수행한다.
 - tab/leader 기반 table-like 연속 행은 줄바꿈을 유지한 하나의 segment로 취급한다.
 - `page_start`, `page_end`, raw/cleaned page hash metadata가 provenance를 보존한다.
+- `processing_version_key`는 extractor/chunker lifecycle 행을 가리킨다.
 - `is_current = false`인 chunk는 삭제하지 않은 과거 추출 결과이며 검색에서 제외한다.
+- `approved_current`는 approved production version과 함께 검색 partial index에 쓰인다.
+- `created_at`/`stale_at`은 최소 보존기간과 purge cutoff 기준이다.
 - 기존 `document_chunk.embedding_*`/`embedding_data` 컬럼은 호환용이며 새 적재기는 쓰지 않는다.
+
+### `pdf_processing_version`
+
+extractor/chunker 조합의 승인 상태와 운영 변경 이력을 보관한다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `version_key` | `extractor_version::chunker_version` 식별자 |
+| `approval_state` | `candidate`, `approved`, `retired` |
+| `activated_*` | 승인/rollback 시각, actor, 이유 |
+| `retired_*` | retirement 시각, actor, 이유 |
+| `metadata` | seed/등록 등 bounded 운영 메타데이터 |
+
+partial unique index는 approved 행을 하나로 제한한다. 첫 기존 current corpus는 migration
+007에서 approved로 보존되고 이전 output은 `retired`로 분류된다.
+
+### `pdf_processing_version_event`
+
+`seed`, `approve`, `rollback`, `retire` 변경을 actor/reason/시각과 함께 append-only로
+기록한다.
+
+### `document_processing_version`
+
+base `document` provenance와 별개로 문서별 processing version의 extraction 상태,
+page 수, content hash, ingestion run과 stale 시각을 보관한다. purge는 이 version 행을
+정리하되 아직 source/fact가 참조하는 base `document`와 `data_source`를 광범위 삭제하지
+않는다.
 
 ### `document_chunk_embedding`
 
@@ -138,8 +168,20 @@ PostgreSQL repository에서 실행된 MCP/HTTP 도구 호출의 bounded 운영 �
 | `expires_at` | 기본 `created_at + 90 days`; 운영 purge 기준 |
 
 감사 쓰기는 best-effort다. 실패는 구조화 경고로 남지만 성공한 read-only query를
-실패로 바꾸지 않는다. 현재 schema는 만료 인덱스를 제공하며 삭제 scheduler는 배포
-환경이 운영해야 한다.
+실패로 바꾸지 않는다.
+
+### `mcp_tool_audit_daily`
+
+만료 audit를 삭제하기 전에 날짜·도구·성공 여부·repository mode별 호출 수,
+result/duration 합과 최대 지연을 보존한다. raw request/hash/correlation ID는 aggregate에
+복사하지 않는다.
+
+### `storage_maintenance_run`
+
+stale/audit purge plan과 ANALYZE/VACUUM 실행을 기록한다. `planned`, `running`,
+`partial`, `succeeded`, `failed` 상태, exact `plan_token`, retention, candidate count/hash,
+논리 byte 추정, batch 결과와 bounded 오류를 가진다. `partial` plan은 같은 token으로
+재개할 수 있고 candidate가 달라지면 새 dry-run이 필요하다.
 
 ## 샘플 파일
 

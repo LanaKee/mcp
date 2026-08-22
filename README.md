@@ -19,6 +19,7 @@
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
 - PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - page-level 품질 지표, 반복 머리말 제거, 발언자/표 경계 chunk와 golden 회귀 평가
+- 승인된 PDF 처리 version만 검색하는 lifecycle, 보존기간·확인 token 기반 purge와 용량 보고
 - PostgreSQL 정규화 스키마, 마이그레이션, Docker Compose
 - 한글 FTS/trigram과 저장 임베딩을 결합하는 PostgreSQL hybrid repository
 - feature flag 기반 PostgreSQL MCP repository, readiness, redacted 도구 감사 로그
@@ -104,6 +105,7 @@ HTTP 인증·rate limit 설정은 local stdio transport에 적용되지 않는�
 | `GET` | `/health` | 프로세스 생존 확인 |
 | `GET` | `/ready` | 최소 ready/not-ready 상태만 공개 |
 | `GET` | `/api/questions` | 대표 질문 목록 |
+| `GET` | `/api/admin/storage` | token 전용 DB 용량·lifecycle·안전한 설정 요약 |
 | `POST` | `/api/demo` | 대표 질문 ID 실행 |
 | `POST` | `/api/tools/:toolName` | MCP와 동일한 도구 함수 실행 |
 
@@ -154,6 +156,8 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
   cross-origin wildcard CORS를 제공하지 않는다.
 - 모든 응답은 안전한 `X-Request-ID`를 반환한다. strict 형식의 inbound ID만 수용하고
   PostgreSQL audit의 `correlation_id`로 연결한다.
+- `/api/admin/storage`는 token mode에서만 사용할 수 있다. 공개 `/ready`에는 DB 크기,
+  version, PostgreSQL 설정을 노출하지 않는다.
 - Node request/operation timeout과 PostgreSQL connection/statement/query timeout은
   `.env.example` 변수로 조정한다. 기본 DB statement/query timeout은 8초/10초다.
 
@@ -232,6 +236,7 @@ ETL은 다음을 수행합니다.
 - 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
 - PDF page/chunk는 source version·extractor/chunker version·페이지·순번으로 결정적 ID를 만들고 이전 행은 삭제하지
   않되 현재 추출에 없는 chunk를 `is_current = false`로 제외
+- 검색은 lifecycle에서 `approved`인 단일 version의 `approved_current` chunk만 사용
 - embedding은 생성 batch마다 PostgreSQL에 적재해 전체 vector corpus를 메모리에 쌓지 않음
 
 현재 제공 원천과 샘플의 현재 행 기대 건수(`document_chunk`/embedding은 `is_current` join 기준):
@@ -256,6 +261,52 @@ SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
 SELECT text_class, count(*) FROM document_page WHERE is_current GROUP BY text_class;
 SELECT is_current, count(*) FROM document_chunk GROUP BY is_current;
 ```
+
+### PDF source lifecycle과 저장공간 운영
+
+새 extractor/chunker는 production 검색을 자동 변경하지 않고 `candidate`로 등록된다.
+승인/rollback은 retained chunk와 embedding이 완전한지 확인한 뒤 한 transaction에서
+가시성을 전환한다.
+
+```bash
+# version, current/stale 행, relation/index 크기, 안전한 DB 설정과 경고
+pnpm lifecycle:status
+
+# candidate 승인 또는 retained retired version rollback
+pnpm lifecycle:approve -- \
+  --version 'extractor::chunker' \
+  --actor operator-name \
+  --reason 'Golden/corpus evaluation passed'
+
+# active approved version은 직접 retire할 수 없음
+pnpm lifecycle:retire -- \
+  --version 'extractor::old-chunker' \
+  --actor operator-name \
+  --reason 'Superseded and retained for rollback'
+
+# 기본은 30일 보존 dry-run. 출력의 exact token 없이는 삭제 불가
+pnpm lifecycle:purge -- --actor operator-name --retention-days 30
+pnpm lifecycle:purge -- \
+  --execute --confirm PLAN_TOKEN --batch-size 500 \
+  --max-rows 10000 --max-runtime-seconds 60
+
+# 만료 audit도 먼저 dry-run하고, 삭제 전 일별 aggregate를 보존
+pnpm lifecycle:audit-purge -- --actor operator-name
+
+# 기본은 allowlist 테이블 ANALYZE-only, 최대 10분
+pnpm lifecycle:maintain -- --actor operator-name
+```
+
+purge는 advisory lock, 최소 보존기간, approved/current 보호, FK-safe batch와 정확한 plan
+hash를 사용한다. 후보가 바뀌면 기존 token은 실행되지 않는다. `VACUUM`은 자동 실행하지
+않으며 `--vacuum --confirm-vacuum`을 모두 요구한다. 이전 실측 `53100`은 shared memory
+부족이므로 무작정 재시도하지 말고 `/dev/shm`, `shm_size`, disk,
+`maintenance_work_mem`, parallel maintenance 설정을 점검한다.
+
+현재 실측 stale 17,487 chunk/embedding은 migration 시점부터 보존기간을 다시 계산하므로
+30일 dry-run 대상이 0건이며, **실제 stale corpus는 운영자 승인 전까지 삭제하지 않는다.**
+purge는 base `document`/`data_source` provenance를 지우지 않고 version별 처리 상태만
+정리한다. 논리 삭제 뒤 물리 공간 회수는 별도 maintenance window의 VACUUM 책임이다.
 
 ### PDF 임베딩과 검색
 
@@ -324,6 +375,7 @@ docs/                     설계·도구·데이터 사전·변경 기록
 - token은 단일 shared secret이며 tenant/role 권한 모델은 없다.
 - rate limit은 process-local이므로 여러 replica에서는 공용 Redis/게이트웨이가 필요하다.
 - TLS 인증서와 secret rotation은 reverse proxy/배포 플랫폼 책임이다.
+- stale 17,487건은 안전 보존 중이며 실제 purge와 물리 공간 회수는 운영자 승인/점검이 필요하다.
 
 상세 내용은 [아키텍처](docs/architecture.md),
 [데이터 사전](docs/data-dictionary.md), [MCP 도구 명세](docs/mcp-tools.md)를 참고하세요.
