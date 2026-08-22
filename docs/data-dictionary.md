@@ -118,6 +118,25 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
 `dataQualityIssues`를 저장한다. 날짜 보정 이슈는 원문값·정규화값·필드와
 `issueCode`를 포함한다.
 
+### `press_release`
+
+경상북도 보도자료 게시판(`gb.go.kr`, `BD_CODE=bbs_bodo`)에서 수집한 공식 발표문이다.
+제목·본문·발표 부서·연락처·게시일·첨부 수·원문 URL을 저장한다.
+
+- **통계가 아니다.** 본문의 수치는 발표 시점의 계획치이므로 `verify_claim_with_data`
+  같은 수치 검증의 근거로 쓸 수 없다. 모든 행의 `metadata.evidenceRole`은
+  `narrative_context_only`다.
+- `press_release_id`는 게시판 게시물 id에서 파생한다(`gb-press-<B_STEP>`).
+  스냅샷 파일이 아니라 게시물이 정체성이므로 재크롤해도 한 행으로 갱신된다.
+  `source_record_id`에 UNIQUE 제약이 걸려 있다.
+- `region_id`는 항상 `47`(경상북도)이다. 발표 주체가 도이기 때문이다.
+- `mentioned_region_ids`는 **본문에 이름이 등장한** 시군이다. 문자열 포함 검사이므로
+  해당 시군의 사업임을 보장하지 않는다.
+- `content_classification`: `extracted_ok`, `mojibake_suspected`,
+  `unusable_for_retrieval`. 검색은 `extracted_ok`만 대상으로 한다.
+- `data_status`는 `official_observed`만 허용한다. demo 변형이 존재하지 않는다.
+- `metadata`에 `subheadings`, `attachmentNames`, `sourceRow`를 저장한다.
+
 ### `document`
 
 정책·회의록·첨부문서의 source, 기관, 날짜, extraction 상태, page 수와 전체 cleaned
