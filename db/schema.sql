@@ -43,6 +43,35 @@ CREATE TABLE IF NOT EXISTS ingestion_run (
   error_report jsonb NOT NULL DEFAULT '[]'::jsonb
 );
 
+CREATE TABLE IF NOT EXISTS pdf_processing_version (
+  version_key text PRIMARY KEY,
+  extractor_version text NOT NULL,
+  chunker_version text NOT NULL,
+  approval_state text NOT NULL CHECK (
+    approval_state IN ('candidate', 'approved', 'retired')
+  ),
+  activated_at timestamptz,
+  activated_by text,
+  activation_reason text,
+  retired_at timestamptz,
+  retired_by text,
+  retirement_reason text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE (extractor_version, chunker_version)
+);
+
+CREATE TABLE IF NOT EXISTS pdf_processing_version_event (
+  event_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  version_key text NOT NULL REFERENCES pdf_processing_version(version_key),
+  action text NOT NULL CHECK (action IN ('seed', 'approve', 'rollback', 'retire')),
+  actor text NOT NULL,
+  reason text NOT NULL,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
 CREATE TABLE IF NOT EXISTS population_observation (
   population_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   region_id text NOT NULL REFERENCES dim_region(region_id),
@@ -149,7 +178,11 @@ CREATE TABLE IF NOT EXISTS document_chunk (
   embedding_dimensions integer,
   embedding_data jsonb,
   ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
+  processing_version_key text NOT NULL REFERENCES pdf_processing_version(version_key),
   is_current boolean NOT NULL DEFAULT true,
+  approved_current boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  stale_at timestamptz,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
@@ -177,7 +210,33 @@ CREATE TABLE IF NOT EXISTS document_page (
   error_text text,
   ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
   is_current boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  stale_at timestamptz,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS document_processing_version (
+  document_id uuid NOT NULL REFERENCES document(document_id) ON DELETE CASCADE,
+  version_key text NOT NULL REFERENCES pdf_processing_version(version_key) ON DELETE CASCADE,
+  extraction_status text NOT NULL CHECK (
+    extraction_status IN (
+      'extracted',
+      'partial',
+      'ocr_required',
+      'extraction_failed',
+      'password_required'
+    )
+  ),
+  page_count integer NOT NULL CHECK (page_count >= 0),
+  content_sha256 char(64) NOT NULL,
+  data_status text NOT NULL CHECK (
+    data_status IN ('official_observed', 'demo_sample', 'catalog_only')
+  ),
+  ingestion_run_id uuid REFERENCES ingestion_run(ingestion_run_id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  stale_at timestamptz,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  PRIMARY KEY (document_id, version_key)
 );
 
 CREATE TABLE IF NOT EXISTS document_chunk_embedding (
@@ -206,6 +265,7 @@ CREATE TABLE IF NOT EXISTS source_locator (
   character_start integer,
   character_end integer,
   locator_text text,
+  created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (source_id, entity_type, entity_key)
 );
 
@@ -240,6 +300,39 @@ CREATE TABLE IF NOT EXISTS mcp_tool_audit (
   )
 );
 
+CREATE TABLE IF NOT EXISTS storage_maintenance_run (
+  maintenance_run_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  operation text NOT NULL CHECK (
+    operation IN ('stale_purge', 'audit_purge', 'analyze', 'vacuum')
+  ),
+  status text NOT NULL CHECK (
+    status IN ('planned', 'running', 'partial', 'succeeded', 'failed')
+  ),
+  dry_run boolean NOT NULL,
+  requested_by text NOT NULL,
+  plan_token char(64),
+  retention_days integer CHECK (retention_days IS NULL OR retention_days >= 0),
+  plan jsonb NOT NULL DEFAULT '{}'::jsonb,
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  error_report jsonb NOT NULL DEFAULT '[]'::jsonb,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  started_at timestamptz,
+  finished_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS mcp_tool_audit_daily (
+  audit_date date NOT NULL,
+  tool_name text NOT NULL,
+  success boolean NOT NULL,
+  repository_mode text NOT NULL CHECK (repository_mode IN ('memory', 'postgres')),
+  call_count bigint NOT NULL CHECK (call_count >= 0),
+  result_count_sum bigint NOT NULL CHECK (result_count_sum >= 0),
+  duration_ms_sum bigint NOT NULL CHECK (duration_ms_sum >= 0),
+  duration_ms_max integer NOT NULL CHECK (duration_ms_max >= 0),
+  last_aggregated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (audit_date, tool_name, success, repository_mode)
+);
+
 CREATE INDEX IF NOT EXISTS idx_population_region_year
   ON population_observation(region_id, year);
 CREATE INDEX IF NOT EXISTS idx_tax_region_year
@@ -259,9 +352,11 @@ CREATE INDEX IF NOT EXISTS idx_council_title_trgm
 CREATE INDEX IF NOT EXISTS idx_council_title_fts
   ON council_record USING gin(to_tsvector('simple', title));
 CREATE INDEX IF NOT EXISTS idx_chunk_fts
-  ON document_chunk USING gin(to_tsvector('simple', content));
+  ON document_chunk USING gin(to_tsvector('simple', content))
+  WHERE is_current AND approved_current;
 CREATE INDEX IF NOT EXISTS idx_chunk_content_trgm
-  ON document_chunk USING gin(content gin_trgm_ops);
+  ON document_chunk USING gin(content gin_trgm_ops)
+  WHERE is_current AND approved_current;
 CREATE INDEX IF NOT EXISTS idx_document_source
   ON document(source_id);
 CREATE INDEX IF NOT EXISTS idx_document_extraction_status
@@ -269,9 +364,14 @@ CREATE INDEX IF NOT EXISTS idx_document_extraction_status
 CREATE INDEX IF NOT EXISTS idx_document_title_trgm
   ON document USING gin(title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_chunk_document_page
-  ON document_chunk(document_id, page_start, chunk_index);
+  ON document_chunk(document_id, page_start, chunk_index)
+  WHERE is_current AND approved_current;
 CREATE INDEX IF NOT EXISTS idx_chunk_current_document
-  ON document_chunk(document_id, is_current);
+  ON document_chunk(document_id, page_start)
+  WHERE is_current AND approved_current;
+CREATE INDEX IF NOT EXISTS idx_chunk_retention
+  ON document_chunk(processing_version_key, stale_at, chunk_id)
+  WHERE NOT is_current;
 CREATE INDEX IF NOT EXISTS idx_document_page_document
   ON document_page(document_id, page_number);
 CREATE INDEX IF NOT EXISTS idx_document_page_quality
@@ -280,8 +380,25 @@ CREATE INDEX IF NOT EXISTS idx_document_page_quality
 CREATE UNIQUE INDEX IF NOT EXISTS idx_document_page_current
   ON document_page(document_id, page_number)
   WHERE is_current;
+CREATE INDEX IF NOT EXISTS idx_document_page_retention
+  ON document_page(extractor_version, stale_at, page_id)
+  WHERE NOT is_current;
+CREATE INDEX IF NOT EXISTS idx_document_processing_version_retention
+  ON document_processing_version(version_key, stale_at, document_id);
 CREATE INDEX IF NOT EXISTS idx_chunk_embedding_model
   ON document_chunk_embedding(provider, model, model_version, dimensions);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pdf_processing_one_approved
+  ON pdf_processing_version((approval_state))
+  WHERE approval_state = 'approved';
+CREATE INDEX IF NOT EXISTS idx_pdf_processing_state
+  ON pdf_processing_version(approval_state, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pdf_processing_event
+  ON pdf_processing_version_event(version_key, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_storage_maintenance_requested
+  ON storage_maintenance_run(operation, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_storage_maintenance_token
+  ON storage_maintenance_run(plan_token)
+  WHERE plan_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_created
   ON mcp_tool_audit(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_tool_time

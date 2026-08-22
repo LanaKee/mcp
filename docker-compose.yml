@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    shm_size: 256mb
     environment:
       POSTGRES_DB: gyeongbuk
       POSTGRES_USER: gyeongbuk
@@ -27,6 +28,10 @@ services:
       HTTP_TRUST_PROXY: off
       PG_STATEMENT_TIMEOUT_MS: 8000
       PG_QUERY_TIMEOUT_MS: 10000
+      STORAGE_WARN_STALE_RATIO_PERCENT: 25
+      STORAGE_WARN_DATABASE_BYTES: 2147483648
+      STORAGE_WARN_EMBEDDING_ROWS: 250000
+      STORAGE_WARN_EXPIRED_AUDIT_ROWS: 10000
       DATABASE_URL: postgresql://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
     ports:
       - "8787:8787"

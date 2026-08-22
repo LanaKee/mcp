@@ -13,7 +13,12 @@ import {
   type EmbeddingProvider
 } from "./embeddings.js";
 import type { PlannedSource } from "./load-plan.js";
-import type { PdfNormalizationPlan } from "./pdf.js";
+import {
+  PDF_CHUNKER_VERSION,
+  PDF_EXTRACTOR_VERSION,
+  type PdfNormalizationPlan
+} from "./pdf.js";
+import { ensureProcessingVersion } from "./lifecycle.js";
 import { GYEONGBUK_REGIONS } from "./regions.js";
 
 export interface PdfDatabaseLoadResult {
@@ -165,6 +170,22 @@ export async function loadPdfDatabase(
   try {
     await client.connect();
     if (options.applySchema !== false) await applyDatabaseSchema(client);
+    const processingVersion = await ensureProcessingVersion(
+      client,
+      PDF_EXTRACTOR_VERSION,
+      PDF_CHUNKER_VERSION
+    );
+    const approved = processingVersion.approvalState === "approved";
+    const pageVisibility = await client.query<{ visible: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM pdf_processing_version
+          WHERE approval_state = 'approved'
+            AND extractor_version = $1
+       ) AS visible`,
+      [PDF_EXTRACTOR_VERSION]
+    );
+    const pagesAreVisible = pageVisibility.rows[0]?.visible === true;
     const inputSha256 = sha256(
       JSON.stringify({
         documents: plan.documents.map((document) => [
@@ -179,7 +200,8 @@ export async function loadPdfDatabase(
           page.quality
         ]),
         chunks: plan.chunks.map((chunk) => [chunk.chunkId, chunk.contentSha256]),
-        provider: provider.descriptor
+        provider: provider.descriptor,
+        processingVersion: processingVersion.versionKey
       })
     );
     const run = await client.query<{ ingestion_run_id: string }>(
@@ -310,27 +332,83 @@ export async function loadPdfDatabase(
           JSON.stringify(row.metadata)
         ]),
         conflictColumns: ["document_id"],
-        updateColumns: [
-          "document_key",
-          "region_id",
-          "document_type",
-          "title",
-          "organization",
-          "published_date",
-          "source_id",
-          "ingestion_run_id",
+        updateColumns: approved
+          ? [
+              "document_key",
+              "region_id",
+              "document_type",
+              "title",
+              "organization",
+              "published_date",
+              "source_id",
+              "ingestion_run_id",
+              "extraction_status",
+              "page_count",
+              "content_sha256",
+              "data_status",
+              "metadata"
+            ]
+          : [
+              "document_key",
+              "region_id",
+              "document_type",
+              "title",
+              "organization",
+              "published_date",
+              "source_id"
+            ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "document_processing_version",
+        columns: [
+          "document_id",
+          "version_key",
           "extraction_status",
           "page_count",
           "content_sha256",
           "data_status",
+          "ingestion_run_id",
+          "stale_at",
+          "metadata"
+        ],
+        rows: plan.documents.map((row) => [
+          row.documentId,
+          processingVersion.versionKey,
+          row.extractionStatus,
+          row.pageCount,
+          row.contentSha256,
+          row.dataStatus,
+          ingestionRunId,
+          approved ? null : new Date(),
+          JSON.stringify(row.metadata)
+        ]),
+        conflictColumns: ["document_id", "version_key"],
+        updateColumns: [
+          "extraction_status",
+          "page_count",
+          "content_sha256",
+          "data_status",
+          "ingestion_run_id",
+          "stale_at",
           "metadata"
         ]
       })
     );
 
     await client.query(
-      "UPDATE document_page SET is_current = false WHERE document_id = ANY($1::uuid[])",
-      [plan.documents.map((document) => document.documentId)]
+      `UPDATE document_page
+          SET is_current = false,
+              stale_at = coalesce(stale_at, now())
+        WHERE document_id = ANY($1::uuid[])
+          AND extractor_version = $2`,
+      [
+        plan.documents.map((document) => document.documentId),
+        PDF_EXTRACTOR_VERSION
+      ]
     );
 
     addCounts(
@@ -359,6 +437,7 @@ export async function loadPdfDatabase(
           "error_text",
           "ingestion_run_id",
           "is_current",
+          "stale_at",
           "metadata"
         ],
         rows: plan.pages.map((row) => [
@@ -382,7 +461,8 @@ export async function loadPdfDatabase(
           row.quality.textClass,
           row.error,
           ingestionRunId,
-          true,
+          pagesAreVisible,
+          pagesAreVisible ? null : new Date(),
           JSON.stringify({
             ...row.metadata,
             flags: row.quality.flags,
@@ -411,14 +491,23 @@ export async function loadPdfDatabase(
           "error_text",
           "ingestion_run_id",
           "is_current",
+          "stale_at",
           "metadata"
         ]
       })
     );
 
     await client.query(
-      "UPDATE document_chunk SET is_current = false WHERE document_id = ANY($1::uuid[])",
-      [plan.documents.map((document) => document.documentId)]
+      `UPDATE document_chunk
+          SET is_current = false,
+              approved_current = false,
+              stale_at = coalesce(stale_at, now())
+        WHERE document_id = ANY($1::uuid[])
+          AND processing_version_key = $2`,
+      [
+        plan.documents.map((document) => document.documentId),
+        processingVersion.versionKey
+      ]
     );
 
     addCounts(
@@ -437,7 +526,10 @@ export async function loadPdfDatabase(
           "content_sha256",
           "token_count",
           "ingestion_run_id",
+          "processing_version_key",
           "is_current",
+          "approved_current",
+          "stale_at",
           "metadata"
         ],
         rows: plan.chunks.map((row) => [
@@ -452,7 +544,10 @@ export async function loadPdfDatabase(
           row.contentSha256,
           row.tokenCount,
           ingestionRunId,
-          true,
+          processingVersion.versionKey,
+          approved,
+          approved,
+          approved ? null : new Date(),
           JSON.stringify(row.metadata)
         ]),
         conflictColumns: ["chunk_id"],
@@ -467,7 +562,10 @@ export async function loadPdfDatabase(
           "content_sha256",
           "token_count",
           "ingestion_run_id",
+          "processing_version_key",
           "is_current",
+          "approved_current",
+          "stale_at",
           "metadata"
         ]
       })

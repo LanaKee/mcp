@@ -44,6 +44,10 @@ describe("Korean lexical retrieval", () => {
       expect(query.text).toContain("document_chunk_embedding");
       expect(query.text).toContain("candidate_ids AS MATERIALIZED");
       expect(query.text).toContain("unnest(candidates.embedding)");
+      expect(query.text).toContain("AND approved_current");
+      expect(query.text).toContain(
+        "processing_version.approval_state = 'approved'"
+      );
       expect(query.text).not.toContain("청년 정착");
       expect(query.values.slice(0, 8)).toEqual([
         "청년 정착",

@@ -156,4 +156,29 @@ describeDatabase("PostgresDataRepository integration", () => {
       await pool.end();
     }
   });
+
+  it("reports approved lifecycle capacity without connection details", async () => {
+    const capacity = await repository!.storageCapacity();
+    expect(capacity.counts).toMatchObject({
+      currentChunks: 23_795,
+      staleChunks: 17_487,
+      currentEmbeddings: 23_795,
+      staleEmbeddings: 17_487,
+      currentPages: 11_712
+    });
+    expect(capacity.versions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          approvalState: "approved",
+          currentChunks: 23_795
+        })
+      ])
+    );
+    expect(capacity.sizes.documentChunkIndexBytes).toBeGreaterThan(0);
+    expect(capacity.settings).toMatchObject({
+      maintenanceWorkMem: expect.any(String),
+      dynamicSharedMemoryType: expect.any(String)
+    });
+    expect(JSON.stringify(capacity)).not.toContain("postgresql://");
+  });
 });

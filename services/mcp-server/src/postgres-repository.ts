@@ -22,7 +22,8 @@ import type {
   RepositoryReadiness,
   RepositoryResult,
   SourceContext,
-  SourceLocatorContext
+  SourceLocatorContext,
+  StorageCapacitySummary
 } from "./repository.js";
 
 interface QueryExecutor {
@@ -79,6 +80,19 @@ function ftsOrQuery(query: string): string {
   const terms = normalizeKoreanText(query).split(" ").filter(Boolean);
   if (terms.length === 0) throw new Error("검색어에 문자 또는 숫자가 필요합니다.");
   return terms.join(" | ");
+}
+
+function capacityThreshold(
+  name: string,
+  fallback: number,
+  minimum = 1,
+  maximum = Number.MAX_SAFE_INTEGER
+): number {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return value;
 }
 
 export class PostgresDataRepository implements DataRepository {
@@ -665,14 +679,21 @@ export class PostgresDataRepository implements DataRepository {
                    ON sl.entity_type = 'document_chunk'
                   AND dc.chunk_key = sl.entity_key
                   AND dc.is_current
+                  AND dc.approved_current
                  LEFT JOIN document_page dp
                    ON sl.entity_type = 'document_page'
                   AND dp.page_key = sl.entity_key
                   AND dp.is_current
+                 LEFT JOIN pdf_processing_version processing_version
+                   ON dc.processing_version_key = processing_version.version_key
+                  AND processing_version.approval_state = 'approved'
                  WHERE sl.source_id = ANY($1::uuid[])
                    AND (
                      sl.entity_type NOT IN ('document_chunk', 'document_page')
-                     OR dc.chunk_id IS NOT NULL
+                     OR (
+                       dc.chunk_id IS NOT NULL
+                       AND processing_version.version_key IS NOT NULL
+                     )
                      OR dp.page_id IS NOT NULL
                    )
                )
@@ -741,6 +762,203 @@ export class PostgresDataRepository implements DataRepository {
     });
   }
 
+  async storageCapacity(): Promise<StorageCapacitySummary> {
+    const result = await this.executor.query<{
+      current_chunks: string;
+      stale_chunks: string;
+      current_embeddings: string;
+      stale_embeddings: string;
+      current_pages: string;
+      stale_pages: string;
+      expired_audit_rows: string;
+      database_bytes: string;
+      document_chunk_bytes: string;
+      document_chunk_index_bytes: string;
+      embedding_bytes: string;
+      embedding_index_bytes: string;
+      document_page_bytes: string;
+      document_page_index_bytes: string;
+      server_version: string;
+      shared_buffers: string;
+      work_mem: string;
+      maintenance_work_mem: string;
+      max_parallel_maintenance_workers: string;
+      dynamic_shared_memory_type: string;
+    }>(`
+      SELECT
+        (SELECT count(*) FROM document_chunk
+          WHERE is_current AND approved_current)::text AS current_chunks,
+        (SELECT count(*) FROM document_chunk WHERE NOT is_current)::text AS stale_chunks,
+        (
+          SELECT count(*)
+            FROM document_chunk_embedding embedding
+            JOIN document_chunk chunk ON chunk.chunk_id = embedding.chunk_id
+           WHERE chunk.is_current AND chunk.approved_current
+        )::text AS current_embeddings,
+        (
+          SELECT count(*)
+            FROM document_chunk_embedding embedding
+            JOIN document_chunk chunk ON chunk.chunk_id = embedding.chunk_id
+           WHERE NOT chunk.is_current
+        )::text AS stale_embeddings,
+        (SELECT count(*) FROM document_page WHERE is_current)::text AS current_pages,
+        (SELECT count(*) FROM document_page WHERE NOT is_current)::text AS stale_pages,
+        (SELECT count(*) FROM mcp_tool_audit WHERE expires_at < now())::text
+          AS expired_audit_rows,
+        pg_database_size(current_database())::text AS database_bytes,
+        pg_total_relation_size('document_chunk'::regclass)::text AS document_chunk_bytes,
+        pg_indexes_size('document_chunk'::regclass)::text
+          AS document_chunk_index_bytes,
+        pg_total_relation_size('document_chunk_embedding'::regclass)::text AS embedding_bytes,
+        pg_indexes_size('document_chunk_embedding'::regclass)::text
+          AS embedding_index_bytes,
+        pg_total_relation_size('document_page'::regclass)::text AS document_page_bytes,
+        pg_indexes_size('document_page'::regclass)::text
+          AS document_page_index_bytes,
+        current_setting('server_version') AS server_version,
+        current_setting('shared_buffers') AS shared_buffers,
+        current_setting('work_mem') AS work_mem,
+        current_setting('maintenance_work_mem') AS maintenance_work_mem,
+        current_setting('max_parallel_maintenance_workers')
+          AS max_parallel_maintenance_workers,
+        current_setting('dynamic_shared_memory_type') AS dynamic_shared_memory_type
+    `);
+    const row = result.rows[0]!;
+    const counts = {
+      currentChunks: Number(row.current_chunks),
+      staleChunks: Number(row.stale_chunks),
+      currentEmbeddings: Number(row.current_embeddings),
+      staleEmbeddings: Number(row.stale_embeddings),
+      currentPages: Number(row.current_pages),
+      stalePages: Number(row.stale_pages),
+      expiredAuditRows: Number(row.expired_audit_rows)
+    };
+    const sizes = {
+      databaseBytes: Number(row.database_bytes),
+      documentChunkBytes: Number(row.document_chunk_bytes),
+      documentChunkIndexBytes: Number(row.document_chunk_index_bytes),
+      embeddingBytes: Number(row.embedding_bytes),
+      embeddingIndexBytes: Number(row.embedding_index_bytes),
+      documentPageBytes: Number(row.document_page_bytes),
+      documentPageIndexBytes: Number(row.document_page_index_bytes)
+    };
+    const versionRows = await this.executor.query<{
+      version_key: string;
+      approval_state: "candidate" | "approved" | "retired";
+      chunks: string;
+      current_chunks: string;
+      embeddings: string;
+      documents: string;
+    }>(`
+      SELECT
+        version.version_key,
+        version.approval_state,
+        (
+          SELECT count(*) FROM document_chunk chunk
+           WHERE chunk.processing_version_key = version.version_key
+        )::text AS chunks,
+        (
+          SELECT count(*) FROM document_chunk chunk
+           WHERE chunk.processing_version_key = version.version_key
+             AND chunk.is_current
+             AND chunk.approved_current
+        )::text AS current_chunks,
+        (
+          SELECT count(DISTINCT embedding.chunk_id)
+            FROM document_chunk chunk
+            JOIN document_chunk_embedding embedding
+              ON embedding.chunk_id = chunk.chunk_id
+           WHERE chunk.processing_version_key = version.version_key
+        )::text AS embeddings,
+        (
+          SELECT count(*) FROM document_processing_version document_version
+           WHERE document_version.version_key = version.version_key
+        )::text AS documents
+      FROM pdf_processing_version version
+      ORDER BY
+        CASE version.approval_state
+          WHEN 'approved' THEN 0
+          WHEN 'candidate' THEN 1
+          ELSE 2
+        END,
+        version.version_key
+      LIMIT 100
+    `);
+    const warnings: string[] = [];
+    const staleRatioThreshold = capacityThreshold(
+      "STORAGE_WARN_STALE_RATIO_PERCENT",
+      25,
+      1,
+      100
+    );
+    const totalChunks = counts.currentChunks + counts.staleChunks;
+    const staleRatio =
+      totalChunks === 0 ? 0 : (counts.staleChunks / totalChunks) * 100;
+    if (staleRatio >= staleRatioThreshold) {
+      warnings.push(
+        `stale_chunk_ratio:${staleRatio.toFixed(1)}%>=${staleRatioThreshold}%`
+      );
+    }
+    const databaseThreshold = capacityThreshold(
+      "STORAGE_WARN_DATABASE_BYTES",
+      2_147_483_648,
+      1_048_576
+    );
+    if (sizes.databaseBytes >= databaseThreshold) {
+      warnings.push(
+        `database_bytes:${sizes.databaseBytes}>=${databaseThreshold}`
+      );
+    }
+    const embeddingThreshold = capacityThreshold(
+      "STORAGE_WARN_EMBEDDING_ROWS",
+      250_000,
+      1_000,
+      100_000_000
+    );
+    if (
+      counts.currentEmbeddings + counts.staleEmbeddings >=
+      embeddingThreshold
+    ) {
+      warnings.push(
+        `embedding_rows:${counts.currentEmbeddings + counts.staleEmbeddings}>=${embeddingThreshold}`
+      );
+    }
+    const auditThreshold = capacityThreshold(
+      "STORAGE_WARN_EXPIRED_AUDIT_ROWS",
+      10_000,
+      1,
+      100_000_000
+    );
+    if (counts.expiredAuditRows >= auditThreshold) {
+      warnings.push(
+        `expired_audit_rows:${counts.expiredAuditRows}>=${auditThreshold}`
+      );
+    }
+    return {
+      generatedAt: new Date().toISOString(),
+      counts,
+      sizes,
+      versions: versionRows.rows.map((version) => ({
+        versionKey: version.version_key,
+        approvalState: version.approval_state,
+        chunks: Number(version.chunks),
+        currentChunks: Number(version.current_chunks),
+        embeddings: Number(version.embeddings),
+        documents: Number(version.documents)
+      })),
+      settings: {
+        serverVersion: row.server_version,
+        sharedBuffers: row.shared_buffers,
+        workMem: row.work_mem,
+        maintenanceWorkMem: row.maintenance_work_mem,
+        maxParallelMaintenanceWorkers:
+          row.max_parallel_maintenance_workers,
+        dynamicSharedMemoryType: row.dynamic_shared_memory_type
+      },
+      warnings
+    };
+  }
+
   async readiness(): Promise<RepositoryReadiness> {
     try {
       const result = await this.executor.query<{
@@ -754,6 +972,8 @@ export class PostgresDataRepository implements DataRepository {
            AND to_regclass('public.document') IS NOT NULL
            AND to_regclass('public.document_chunk') IS NOT NULL
            AND to_regclass('public.document_chunk_embedding') IS NOT NULL
+           AND to_regclass('public.pdf_processing_version') IS NOT NULL
+           AND to_regclass('public.storage_maintenance_run') IS NOT NULL
            AND to_regclass('public.mcp_tool_audit') IS NOT NULL
            AND EXISTS (
              SELECT 1
@@ -761,6 +981,13 @@ export class PostgresDataRepository implements DataRepository {
              WHERE table_schema = 'public'
                AND table_name = 'mcp_tool_audit'
                AND column_name = 'correlation_id'
+           )
+           AND EXISTS (
+             SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema = 'public'
+               AND table_name = 'document_chunk'
+               AND column_name = 'approved_current'
            ) AS database_ready`
       );
       return {

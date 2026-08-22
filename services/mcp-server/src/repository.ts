@@ -160,6 +160,38 @@ export interface RepositoryReadiness {
   detail?: string;
 }
 
+export interface StorageCapacitySummary {
+  generatedAt: string;
+  counts: {
+    currentChunks: number;
+    staleChunks: number;
+    currentEmbeddings: number;
+    staleEmbeddings: number;
+    currentPages: number;
+    stalePages: number;
+    expiredAuditRows: number;
+  };
+  sizes: {
+    databaseBytes: number;
+    documentChunkBytes: number;
+    documentChunkIndexBytes: number;
+    embeddingBytes: number;
+    embeddingIndexBytes: number;
+    documentPageBytes: number;
+    documentPageIndexBytes: number;
+  };
+  versions: Array<{
+    versionKey: string;
+    approvalState: "candidate" | "approved" | "retired";
+    chunks: number;
+    currentChunks: number;
+    embeddings: number;
+    documents: number;
+  }>;
+  settings: Record<string, string>;
+  warnings: string[];
+}
+
 export interface DataRepository
   extends PopulationRepository,
     LocalTaxRepository,
@@ -170,6 +202,7 @@ export interface DataRepository
     ClaimRepository {
   readonly mode: "memory" | "postgres";
   readiness(): Promise<RepositoryReadiness>;
+  storageCapacity(): Promise<StorageCapacitySummary | null>;
   writeAudit(event: AuditEvent): Promise<void>;
   close(): Promise<void>;
 }
@@ -388,6 +421,10 @@ export class InMemoryDataRepository implements DataRepository {
 
   async readiness(): Promise<RepositoryReadiness> {
     return { ready: true, mode: this.mode };
+  }
+
+  async storageCapacity(): Promise<null> {
+    return null;
   }
 
   async writeAudit(_event: AuditEvent): Promise<void> {}

@@ -6,7 +6,8 @@ import { loadHttpSecurityConfig } from "./http-security.js";
 import {
   InMemoryDataRepository,
   type AuditEvent,
-  type FactDataStatus
+  type FactDataStatus,
+  type StorageCapacitySummary
 } from "./repository.js";
 import { createToolRegistry } from "./tools.js";
 
@@ -18,6 +19,45 @@ class AuditedRepository extends InMemoryDataRepository {
 
   override async writeAudit(event: AuditEvent): Promise<void> {
     this.audits.push(event);
+  }
+
+  override async storageCapacity(): Promise<StorageCapacitySummary> {
+    return {
+      generatedAt: "2026-08-22T00:00:00.000Z",
+      counts: {
+        currentChunks: 23_795,
+        staleChunks: 17_487,
+        currentEmbeddings: 23_795,
+        staleEmbeddings: 17_487,
+        currentPages: 11_712,
+        stalePages: 0,
+        expiredAuditRows: 0
+      },
+      sizes: {
+        databaseBytes: 1_500_000_000,
+        documentChunkBytes: 1_000_000_000,
+        documentChunkIndexBytes: 200_000_000,
+        embeddingBytes: 360_000_000,
+        embeddingIndexBytes: 20_000_000,
+        documentPageBytes: 44_000_000,
+        documentPageIndexBytes: 10_000_000
+      },
+      versions: [
+        {
+          versionKey: "extractor::chunker",
+          approvalState: "approved",
+          chunks: 23_795,
+          currentChunks: 23_795,
+          embeddings: 23_795,
+          documents: 401
+        }
+      ],
+      settings: {
+        serverVersion: "16",
+        maintenanceWorkMem: "64MB"
+      },
+      warnings: ["stale_chunk_ratio:42.4%>=25%"]
+    };
   }
 }
 
@@ -108,6 +148,32 @@ describe("HTTP production hardening", () => {
         expect(apiKey.status).toBe(200);
       }
     );
+  });
+
+  it("exposes capacity details only behind configured admin token auth", async () => {
+    await withServer(
+      { HTTP_AUTH_MODE: "token", HTTP_AUTH_TOKEN: token },
+      async (baseUrl) => {
+        const unauthorized = await fetch(`${baseUrl}/api/admin/storage`);
+        expect(unauthorized.status).toBe(401);
+
+        const authorized = await fetch(`${baseUrl}/api/admin/storage`, {
+          headers: authHeaders()
+        });
+        expect(authorized.status).toBe(200);
+        expect(await authorized.json()).toMatchObject({
+          counts: { currentChunks: 23_795, staleChunks: 17_487 },
+          settings: { maintenanceWorkMem: "64MB" }
+        });
+      }
+    );
+    await withServer({ HTTP_AUTH_MODE: "off" }, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/admin/storage`);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({
+        error: { code: "admin_auth_required" }
+      });
+    });
   });
 
   it("propagates safe correlation IDs into responses and audits", async () => {

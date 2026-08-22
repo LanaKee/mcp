@@ -225,7 +225,9 @@ function operationGroup(
   registry: ToolRegistry
 ): RateLimitGroup {
   if (pathname === "/ready") return "ready";
-  if (pathname === "/api/demo") return "expensive";
+  if (pathname === "/api/demo" || pathname === "/api/admin/storage") {
+    return "expensive";
+  }
   const name = toolName(pathname, registry);
   return name && expensiveTools.has(name) ? "expensive" : "cheap";
 }
@@ -428,6 +430,29 @@ export function createHttpApp(
           throw new HttpError(401, "unauthorized", "Authentication required.", {
             "www-authenticate": 'Bearer realm="gyeongbuk-public-ai"'
           });
+        }
+
+        if (url.pathname === "/api/admin/storage") {
+          if (request.method !== "GET") throw methodNotAllowed("GET");
+          if (config.authMode !== "token") {
+            throw new HttpError(
+              403,
+              "admin_auth_required",
+              "Administrative token authentication is required."
+            );
+          }
+          const capacity = await withinTimeout(
+            () => registry.repository.storageCapacity(),
+            operationTimeout(group, config)
+          );
+          if (!capacity) {
+            throw new HttpError(
+              503,
+              "storage_report_unavailable",
+              "Storage capacity reporting is unavailable."
+            );
+          }
+          return json(response, 200, capacity, requestId);
         }
 
         if (url.pathname === "/api/questions") {

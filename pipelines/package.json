@@ -13,7 +13,13 @@
     "db:load": "tsx src/db-cli.ts load",
     "db:normalize": "tsx src/db-cli.ts normalize",
     "pdf:normalize": "tsx src/pdf-cli.ts",
-    "pdf:evaluate": "tsx src/pdf-evaluate.ts"
+    "pdf:evaluate": "tsx src/pdf-evaluate.ts",
+    "lifecycle:status": "tsx src/lifecycle-cli.ts status",
+    "lifecycle:approve": "tsx src/lifecycle-cli.ts approve",
+    "lifecycle:retire": "tsx src/lifecycle-cli.ts retire",
+    "lifecycle:purge": "tsx src/lifecycle-cli.ts purge",
+    "lifecycle:audit-purge": "tsx src/lifecycle-cli.ts audit-purge",
+    "lifecycle:maintain": "tsx src/lifecycle-cli.ts maintain"
   },
   "dependencies": {
     "@gb/retrieval": "workspace:*",

@@ -227,17 +227,20 @@ export function buildPostgresHybridSearchQuery(
         SELECT chunk_id
         FROM document_chunk
         WHERE is_current
+          AND approved_current
           AND to_tsvector('simple', content) @@ to_tsquery('simple', $14)
         UNION
         SELECT chunk_id
         FROM document_chunk
         WHERE is_current
+          AND approved_current
           AND content ILIKE ('%' || $1 || '%')
         UNION
         SELECT dc.chunk_id
         FROM document d
         JOIN document_chunk dc ON dc.document_id = d.document_id
         WHERE dc.is_current
+          AND dc.approved_current
           AND coalesce(d.title, '') % $1
       ),
       raw_candidates AS (
@@ -266,6 +269,9 @@ export function buildPostgresHybridSearchQuery(
           e.embedding
         FROM candidate_ids candidate
         JOIN document_chunk dc ON dc.chunk_id = candidate.chunk_id
+        JOIN pdf_processing_version processing_version
+          ON processing_version.version_key = dc.processing_version_key
+         AND processing_version.approval_state = 'approved'
         JOIN document d ON d.document_id = dc.document_id
         JOIN data_source ds ON ds.source_id = d.source_id
         LEFT JOIN dim_region region ON region.region_id = d.region_id
@@ -276,6 +282,8 @@ export function buildPostgresHybridSearchQuery(
          AND e.model_version = $5
          AND e.dimensions = $6
         WHERE ($8::text IS NULL OR d.region_id = $8)
+          AND dc.is_current
+          AND dc.approved_current
           AND ($9::date IS NULL OR d.published_date >= $9)
           AND ($10::date IS NULL OR d.published_date <= $10)
           AND d.data_status = ANY($15::text[])

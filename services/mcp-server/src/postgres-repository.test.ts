@@ -28,6 +28,34 @@ class RecordingExecutor {
         ]
       };
     }
+    if (text.includes("pg_database_size")) {
+      return {
+        rows: [
+          {
+            current_chunks: "10",
+            stale_chunks: "2",
+            current_embeddings: "10",
+            stale_embeddings: "2",
+            current_pages: "5",
+            stale_pages: "0",
+            expired_audit_rows: "0",
+            database_bytes: "1000",
+            document_chunk_bytes: "400",
+            document_chunk_index_bytes: "100",
+            embedding_bytes: "300",
+            embedding_index_bytes: "50",
+            document_page_bytes: "200",
+            document_page_index_bytes: "40",
+            server_version: "16",
+            shared_buffers: "128MB",
+            work_mem: "4MB",
+            maintenance_work_mem: "64MB",
+            max_parallel_maintenance_workers: "2",
+            dynamic_shared_memory_type: "posix"
+          } as T
+        ]
+      };
+    }
     return { rows: [] };
   }
 }
@@ -120,13 +148,41 @@ describe("PostgresDataRepository query contracts", () => {
       call.text.includes("FROM source_locator sl")
     );
     expect(locatorQuery?.text).toContain("dc.is_current");
+    expect(locatorQuery?.text).toContain("dc.approved_current");
     expect(locatorQuery?.text).toContain("dp.is_current");
+    expect(locatorQuery?.text).toContain(
+      "processing_version.approval_state = 'approved'"
+    );
     expect(locatorQuery?.text).toContain(
       "sl.entity_type NOT IN ('document_chunk', 'document_page')"
     );
     expect(locatorQuery?.values).toEqual([
       ["00000000-0000-5000-8000-000000000001"]
     ]);
+  });
+
+  it("bounds the admin capacity version report", async () => {
+    const executor = new RecordingExecutor();
+    const repository = new PostgresDataRepository(executor);
+
+    const report = await repository.storageCapacity();
+
+    expect(report.sizes).toMatchObject({
+      documentChunkBytes: 400,
+      documentChunkIndexBytes: 100
+    });
+    expect(executor.calls[1]?.text).toContain("LIMIT 100");
+    expect(executor.calls[1]?.text).toContain(
+      "chunk.processing_version_key = version.version_key"
+    );
+  });
+
+  it("rejects invalid admin capacity thresholds", async () => {
+    vi.stubEnv("STORAGE_WARN_STALE_RATIO_PERCENT", "101");
+    const repository = new PostgresDataRepository(new RecordingExecutor());
+    await expect(repository.storageCapacity()).rejects.toThrow(
+      "STORAGE_WARN_STALE_RATIO_PERCENT must be an integer from 1 to 100"
+    );
   });
 
   it("closes its injected pool exactly once per close call", async () => {
