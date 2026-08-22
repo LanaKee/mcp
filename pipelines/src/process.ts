@@ -31,6 +31,7 @@ export interface NormalizeAndLoadResult {
     files: number;
     population: number;
     council: number;
+    pressReleases: number;
     localTax: number;
     localTaxQualityIssues: number;
     errors: number;
@@ -56,10 +57,19 @@ export async function readGeneratedEtl(): Promise<EtlResult> {
         JSON.parse(await readFile(resolve(generatedDirectory, file), "utf8")) as unknown
     )
   );
+  // Generated trees produced before press releases existed simply have no file;
+  // treating that as an empty dataset keeps `load-only` runs working.
+  const pressRelease = await readFile(
+    resolve(generatedDirectory, "press-release.normalized.json"),
+    "utf8"
+  )
+    .then((raw) => JSON.parse(raw) as EtlResult["pressRelease"])
+    .catch(() => [] as EtlResult["pressRelease"]);
   return {
     catalog: catalog as EtlResult["catalog"],
     population: population as EtlResult["population"],
     council: council as EtlResult["council"],
+    pressRelease,
     localTax: localTax as EtlResult["localTax"],
     errors: errors as EtlResult["errors"]
   };
@@ -113,6 +123,7 @@ export async function normalizeAndLoad(
       files: etl.catalog.length,
       population: etl.population.length,
       council: etl.council.length,
+      pressReleases: etl.pressRelease.length,
       localTax: etl.localTax.headlineRevenue.length,
       localTaxQualityIssues: etl.localTax.qualityIssues.length,
       errors: etl.errors.length

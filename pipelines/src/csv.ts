@@ -12,6 +12,7 @@ export type CsvKind =
   | "population_annual"
   | "population_local"
   | "council_agenda"
+  | "press_release"
   | LocalTaxCsvKind
   | "other";
 
@@ -57,6 +58,13 @@ export function detectCsvKind(headers: string[]): CsvKind {
     compact.includes("인구")
   ) {
     return "population_local";
+  }
+  if (
+    ["source_record_id", "title", "body", "body_sha256"].every((header) =>
+      compact.includes(header)
+    )
+  ) {
+    return "press_release";
   }
   if (
     ["의안명", "안건명", "건명"].some((header) => compact.includes(header)) &&
@@ -327,4 +335,59 @@ export function normalizeCouncilRows(
       };
     })
     .filter((row) => row.title.length > 0);
+}
+
+export interface NormalizedPressReleaseRow {
+  sourceRecordId: string;
+  title: string;
+  body: string;
+  bodySha256: string;
+  provinceName: string;
+  department: string | null;
+  contactPhone: string | null;
+  author: string | null;
+  subheadings: string[];
+  attachmentNames: string[];
+  publishedDate: string | null;
+  publishedAt: string | null;
+  viewCount: number | null;
+  detailUrl: string;
+  sourceRow: number;
+}
+
+const pressListValue = (value: string): string[] =>
+  value
+    .split("|")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+export function normalizePressReleaseRows(
+  decoded: DecodedCsv,
+  pathName: string
+): NormalizedPressReleaseRow[] {
+  if (decoded.kind !== "press_release") return [];
+  const fallbackProvince = inferRegionName(pathName) ?? "경상북도";
+  return decoded.rows
+    .map((row, index) => {
+      const publishedAt = firstValue(row, ["published_at"]);
+      const viewCount = Number.parseInt(firstValue(row, ["view_count"]), 10);
+      return {
+        sourceRecordId: firstValue(row, ["source_record_id"]),
+        title: firstValue(row, ["title"]),
+        body: firstValue(row, ["body"]),
+        bodySha256: firstValue(row, ["body_sha256"]),
+        provinceName: firstValue(row, ["province_name"]) || fallbackProvince,
+        department: firstValue(row, ["department"]) || null,
+        contactPhone: firstValue(row, ["phone"]) || null,
+        author: firstValue(row, ["author"]) || null,
+        subheadings: pressListValue(firstValue(row, ["subheadings"])),
+        attachmentNames: pressListValue(firstValue(row, ["attachment_names"])),
+        publishedDate: parseReferenceDate(firstValue(row, ["published_date"])),
+        publishedAt: publishedAt || null,
+        viewCount: Number.isFinite(viewCount) ? viewCount : null,
+        detailUrl: firstValue(row, ["detail_url"]),
+        sourceRow: index + 2
+      };
+    })
+    .filter((row) => row.sourceRecordId.length > 0 && row.title.length > 0);
 }

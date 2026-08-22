@@ -4,6 +4,7 @@ import { parseReferenceDate } from "./dates.js";
 import {
   type EtlResult,
   type OfficialCouncilRow,
+  type OfficialPressReleaseRow,
   type OfficialPopulationRow
 } from "./etl.js";
 import {
@@ -150,6 +151,34 @@ export interface PlannedCouncil {
   metadata: Record<string, unknown>;
 }
 
+export interface PlannedPressRelease {
+  pressReleaseId: string;
+  regionId: string;
+  /** Regions merely named in the headline or body; a keyword hint, not a claim. */
+  mentionedRegionIds: string[];
+  issuingOrganization: string;
+  department: string | null;
+  contactPhone: string | null;
+  author: string | null;
+  title: string;
+  body: string;
+  bodySha256: string;
+  bodyCharCount: number;
+  publishedDate: string | null;
+  publishedAt: string | null;
+  viewCount: number | null;
+  attachmentCount: number;
+  detailUrl: string;
+  sourceRecordId: string;
+  sourceKey: string;
+  dataStatus: "official_observed";
+  contentClassification:
+    | "extracted_ok"
+    | "mojibake_suspected"
+    | "unusable_for_retrieval";
+  metadata: Record<string, unknown>;
+}
+
 export interface PlannedLocator {
   sourceKey: string;
   entityType: string;
@@ -185,6 +214,7 @@ export interface LoadPlan {
   taxQualityIssues: PlannedTaxQualityIssue[];
   policies: PlannedPolicy[];
   council: PlannedCouncil[];
+  pressReleases: PlannedPressRelease[];
   locators: PlannedLocator[];
   rejected: RejectedFact[];
   inputSha256: string;
@@ -412,6 +442,119 @@ function addOfficialCouncil(
     pageNumber: null,
     rowNumber: row.sourceRow,
     sectionName: row.sessionName,
+    characterStart: null,
+    characterEnd: null,
+    locatorText: `${row.sourcePath}#row=${row.sourceRow}`
+  });
+}
+
+/**
+ * Press release identity comes from the board's own post id, so re-crawling the
+ * same announcement into a new snapshot file updates one row instead of
+ * creating a second copy under a different source key.
+ */
+export function pressReleaseId(sourceRecordId: string): string {
+  return `gb-press-${sourceRecordId}`;
+}
+
+function classifyPressBody(
+  title: string,
+  body: string
+): PlannedPressRelease["contentClassification"] {
+  const text = `${title}\n${body}`;
+  if (body.trim().length === 0) return "unusable_for_retrieval";
+  const replacement = (text.match(/\uFFFD/g) ?? []).length;
+  if (replacement > 0 && replacement / text.length > 0.005) {
+    return "mojibake_suspected";
+  }
+  const hangul = (text.match(/[\uAC00-\uD7A3]/g) ?? []).length;
+  if (hangul / text.length < 0.1) return "mojibake_suspected";
+  return "extracted_ok";
+}
+
+function mentionedRegionIds(title: string, body: string): string[] {
+  const haystack = `${title}\n${body}`.normalize("NFC");
+  const found = new Set<string>();
+  for (const region of GYEONGBUK_REGIONS) {
+    if (region.regionType === "province") continue;
+    if (haystack.includes(region.regionName)) found.add(region.regionId);
+  }
+  return [...found].sort();
+}
+
+function addOfficialPressRelease(
+  row: OfficialPressReleaseRow,
+  plan: Omit<LoadPlan, "inputSha256">
+): void {
+  const sourceKey = officialSourceKey(row.sourceSha256);
+  const publishedDate = row.publishedDate
+    ? parseReferenceDate(row.publishedDate)
+    : null;
+  if (!plan.sources.some((source) => source.sourceKey === sourceKey)) {
+    plan.rejected.push({
+      entityType: "press_release",
+      sourcePath: row.sourcePath,
+      sourceRow: row.sourceRow,
+      reason: "Source catalog entry is missing"
+    });
+    return;
+  }
+  if (row.publishedDate && !publishedDate) {
+    plan.rejected.push({
+      entityType: "press_release",
+      sourcePath: row.sourcePath,
+      sourceRow: row.sourceRow,
+      reason: `Invalid published date: ${row.publishedDate}`
+    });
+    return;
+  }
+  const region = resolveGyeongbukRegion(row.provinceName);
+  if (!region) {
+    plan.rejected.push({
+      entityType: "press_release",
+      sourcePath: row.sourcePath,
+      sourceRow: row.sourceRow,
+      reason: `Unresolved canonical Gyeongbuk region: ${row.provinceName}`
+    });
+    return;
+  }
+  const id = pressReleaseId(row.sourceRecordId);
+  plan.pressReleases.push({
+    pressReleaseId: id,
+    regionId: region.regionId,
+    mentionedRegionIds: mentionedRegionIds(row.title, row.body),
+    issuingOrganization: row.provinceName,
+    department: row.department,
+    contactPhone: row.contactPhone,
+    author: row.author,
+    title: row.title,
+    body: row.body,
+    bodySha256: row.bodySha256 || sha256(row.body),
+    bodyCharCount: row.body.length,
+    publishedDate,
+    publishedAt: row.publishedAt,
+    viewCount: row.viewCount,
+    attachmentCount: row.attachmentNames.length,
+    detailUrl: row.detailUrl,
+    sourceRecordId: row.sourceRecordId,
+    sourceKey,
+    dataStatus: "official_observed",
+    contentClassification: classifyPressBody(row.title, row.body),
+    metadata: {
+      sourceRow: row.sourceRow,
+      subheadings: row.subheadings,
+      attachmentNames: row.attachmentNames,
+      recordType: "press_release",
+      evidenceRole: "narrative_context_only"
+    }
+  });
+  plan.locators.push({
+    sourceKey,
+    entityType: "press_release",
+    entityKey: id,
+    pageNumber: null,
+    rowNumber: row.sourceRow,
+    sectionName: row.department,
     characterStart: null,
     characterEnd: null,
     locatorText: `${row.sourcePath}#row=${row.sourceRow}`
@@ -680,6 +823,7 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
     taxQualityIssues: [],
     policies: [],
     council: [],
+    pressReleases: [],
     locators: [],
     rejected: etl.errors.map((error) => ({
       entityType: "catalog",
@@ -691,6 +835,7 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
 
   for (const row of etl.population) addOfficialPopulation(row, plan);
   for (const row of etl.council) addOfficialCouncil(row, plan);
+  for (const row of etl.pressRelease) addOfficialPressRelease(row, plan);
   addOfficialTaxData(etl, plan);
 
   plan.sources = uniqueBy(plan.sources, (row) => row.sourceKey);
@@ -741,6 +886,7 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
   );
   plan.policies = uniqueBy(plan.policies, (row) => row.policyId);
   plan.council = uniqueBy(plan.council, (row) => row.councilRecordId);
+  plan.pressReleases = uniqueBy(plan.pressReleases, (row) => row.pressReleaseId);
   plan.locators = uniqueBy(
     plan.locators,
     (row) => `${row.sourceKey}:${row.entityType}:${row.entityKey}`
@@ -763,7 +909,8 @@ export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
         taxEnforcement: plan.taxEnforcement,
         taxQualityIssues: plan.taxQualityIssues,
         policies: plan.policies,
-        council: plan.council
+        council: plan.council,
+        pressReleases: plan.pressReleases
       })
     )
   };

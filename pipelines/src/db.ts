@@ -52,6 +52,7 @@ export interface DatabaseLoadResult {
     taxQualityIssues: number;
     policies: number;
     council: number;
+    pressReleases: number;
     locators: number;
   };
   integrity: IntegrityCount[];
@@ -231,7 +232,8 @@ export const MIGRATION_FILES = [
   "011_population_measurement_semantics.sql",
   "012_remove_demo_data.sql",
   "013_raw_intake_ledger.sql",
-  "014_content_addressed_sources.sql"
+  "014_content_addressed_sources.sql",
+  "015_gyeongbuk_press_release.sql"
 ] as const;
 
 export async function applyDatabaseSchema(client: Client): Promise<void> {
@@ -320,6 +322,9 @@ async function integrityCounts(client: Client): Promise<IntegrityCount[]> {
     UNION ALL
     SELECT 'council_record', data_status, count(*)::text
       FROM council_record GROUP BY data_status
+    UNION ALL
+    SELECT 'press_release', data_status, count(*)::text
+      FROM press_release GROUP BY data_status
     UNION ALL
     SELECT 'source_locator', entity_type, count(*)::text
       FROM source_locator GROUP BY entity_type
@@ -1222,6 +1227,85 @@ export async function loadDatabase(
     addCounts(
       totals,
       await upsertRows(client, {
+        table: "press_release",
+        columns: [
+          "press_release_id",
+          "region_id",
+          "mentioned_region_ids",
+          "issuing_organization",
+          "department",
+          "contact_phone",
+          "author",
+          "title",
+          "body",
+          "body_sha256",
+          "body_char_count",
+          "published_date",
+          "published_at",
+          "view_count",
+          "attachment_count",
+          "detail_url",
+          "source_record_id",
+          "source_id",
+          "ingestion_run_id",
+          "data_status",
+          "content_classification",
+          "metadata"
+        ],
+        rows: plan.pressReleases.map((row) => [
+          row.pressReleaseId,
+          row.regionId,
+          row.mentionedRegionIds,
+          row.issuingOrganization,
+          row.department,
+          row.contactPhone,
+          row.author,
+          row.title,
+          row.body,
+          row.bodySha256,
+          row.bodyCharCount,
+          row.publishedDate,
+          row.publishedAt,
+          row.viewCount,
+          row.attachmentCount,
+          row.detailUrl,
+          row.sourceRecordId,
+          sourceId(sourceIds, row.sourceKey),
+          ingestionRunId,
+          row.dataStatus,
+          row.contentClassification,
+          JSON.stringify(row.metadata)
+        ]),
+        conflictColumns: ["press_release_id"],
+        updateColumns: [
+          "region_id",
+          "mentioned_region_ids",
+          "issuing_organization",
+          "department",
+          "contact_phone",
+          "author",
+          "title",
+          "body",
+          "body_sha256",
+          "body_char_count",
+          "published_date",
+          "published_at",
+          "view_count",
+          "attachment_count",
+          "detail_url",
+          "source_record_id",
+          "source_id",
+          "ingestion_run_id",
+          "data_status",
+          "content_classification",
+          "metadata"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
         table: "source_locator",
         columns: [
           "source_id",
@@ -1301,6 +1385,7 @@ export async function loadDatabase(
         taxQualityIssues: plan.taxQualityIssues.length,
         policies: plan.policies.length,
         council: plan.council.length,
+        pressReleases: plan.pressReleases.length,
         locators: plan.locators.length
       },
       integrity: await integrityCounts(client)

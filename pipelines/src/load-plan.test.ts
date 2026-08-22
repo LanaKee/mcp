@@ -84,9 +84,93 @@ function fixture(): EtlResult {
         dataStatus: "official_observed"
       }
     ],
+    pressRelease: [
+      {
+        sourceRecordId: "128744",
+        title: "경상북도, 청도군 청년 창업 지원 확대",
+        body: "경상북도는 청도군과 함께 청년 창업 지원을 확대한다고 밝혔다.",
+        bodySha256: "c".repeat(64),
+        provinceName: "경상북도",
+        department: "메타버스과",
+        contactPhone: "054-880-1234",
+        author: "홍길동",
+        subheadings: ["도내 청년 500명 대상"],
+        attachmentNames: ["보도자료.hwp"],
+        publishedDate: "2026-07-02",
+        publishedAt: "2026-07-02T09:30:00",
+        viewCount: 1234,
+        detailUrl: "https://www.gb.go.kr/detail",
+        sourceRow: 5,
+        sourcePath,
+        sourceSha256,
+        dataStatus: "official_observed"
+      }
+    ],
     errors: []
   };
 }
+
+describe("press release planning", () => {
+  it("keys press releases on the board post id, not the snapshot file", async () => {
+    const etl = fixture();
+    const plan = await createLoadPlan(etl);
+    expect(plan.pressReleases).toHaveLength(1);
+    expect(plan.pressReleases[0]?.pressReleaseId).toBe("gb-press-128744");
+
+    // A later crawl writes a different file, so the source key changes. The
+    // announcement must still resolve to one row instead of accumulating a copy.
+    const recrawledSha = "d".repeat(64);
+    const recrawled = fixture();
+    recrawled.catalog = [{ ...catalogEntry(), sha256: recrawledSha }];
+    recrawled.population = [];
+    recrawled.council = [];
+    recrawled.pressRelease = recrawled.pressRelease.map((row) => ({
+      ...row,
+      sourceSha256: recrawledSha,
+      viewCount: 5000
+    }));
+    const second = await createLoadPlan(recrawled);
+    expect(second.pressReleases[0]?.pressReleaseId).toBe("gb-press-128744");
+    expect(second.pressReleases[0]?.sourceKey).not.toBe(
+      plan.pressReleases[0]?.sourceKey
+    );
+  });
+
+  it("records mentioned municipalities without claiming ownership", async () => {
+    const plan = await createLoadPlan(fixture());
+    const row = plan.pressReleases[0]!;
+    expect(row.regionId).toBe("47");
+    expect(row.mentionedRegionIds).toEqual(["47820"]);
+    expect(row.metadata).toMatchObject({
+      evidenceRole: "narrative_context_only",
+      recordType: "press_release"
+    });
+  });
+
+  it("marks press releases as narrative context rather than a measurement", async () => {
+    const plan = await createLoadPlan(fixture());
+    const row = plan.pressReleases[0]!;
+    expect(row.dataStatus).toBe("official_observed");
+    expect(row.contentClassification).toBe("extracted_ok");
+    expect(row.bodyCharCount).toBe(row.body.length);
+    expect(
+      plan.locators.some(
+        (locator) =>
+          locator.entityType === "press_release" &&
+          locator.entityKey === "gb-press-128744"
+      )
+    ).toBe(true);
+  });
+
+  it("flags an unreadable body instead of indexing it as context", async () => {
+    const etl = fixture();
+    etl.pressRelease[0]!.body = "\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD";
+    const plan = await createLoadPlan(etl);
+    expect(plan.pressReleases[0]?.contentClassification).toBe(
+      "mojibake_suspected"
+    );
+  });
+});
 
 describe("database load plan", () => {
   it("keeps exact monthly population dates as distinct natural keys", async () => {

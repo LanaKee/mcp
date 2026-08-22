@@ -5,9 +5,11 @@ import { buildCatalog, type CatalogEntry } from "./catalog.js";
 import {
   normalizeAnnualPopulation,
   normalizeCouncilRows,
+  normalizePressReleaseRows,
   normalizePopulationSnapshot,
   parseKoreanCsv,
   type NormalizedCouncilRow,
+  type NormalizedPressReleaseRow,
   type NormalizedPopulationRow
 } from "./csv.js";
 import {
@@ -55,10 +57,17 @@ export type OfficialCouncilRow = NormalizedCouncilRow & {
   dataStatus: "official_observed";
 };
 
+export type OfficialPressReleaseRow = NormalizedPressReleaseRow & {
+  sourcePath: string;
+  sourceSha256: string;
+  dataStatus: "official_observed";
+};
+
 export interface EtlResult {
   catalog: CatalogEntry[];
   population: OfficialPopulationRow[];
   council: OfficialCouncilRow[];
+  pressRelease: OfficialPressReleaseRow[];
   localTax: LocalTaxNormalizationResult;
   errors: EtlError[];
 }
@@ -70,6 +79,7 @@ export interface EtlSummary {
   byContentKind: Record<string, number>;
   normalizedPopulationRows: number;
   normalizedCouncilRows: number;
+  normalizedPressReleaseRows: number;
   normalizedLocalTaxRows: Record<string, number>;
   localTaxQualityIssues: Record<string, number>;
   errors: EtlError[];
@@ -97,6 +107,7 @@ export async function collectEtlData(): Promise<EtlResult> {
   const catalog = await buildCatalog(datasetDirectory, repositoryRoot);
   const population: OfficialPopulationRow[] = [];
   const council: OfficialCouncilRow[] = [];
+  const pressRelease: OfficialPressReleaseRow[] = [];
   const localTaxInputs: LocalTaxSourceInput[] = [];
   const localTaxYearbooks: LocalTaxNormalizationResult[] = [];
   const errors: EtlError[] = catalog
@@ -132,6 +143,14 @@ export async function collectEtlData(): Promise<EtlResult> {
           entry.referenceDate
         );
         const councilRows = normalizeCouncilRows(parsed, entry.fileNameNfc);
+        pressRelease.push(
+          ...normalizePressReleaseRows(parsed, entry.fileNameNfc).map((row) => ({
+            ...row,
+            sourcePath: entry.path,
+            sourceSha256: entry.sha256,
+            dataStatus: "official_observed" as const
+          }))
+        );
         population.push(
           ...[...populationRows, ...populationSnapshotRows].map((row) => ({
             ...row,
@@ -216,7 +235,7 @@ export async function collectEtlData(): Promise<EtlResult> {
       }))
   );
 
-  return { catalog, population, council, localTax, errors };
+  return { catalog, population, council, pressRelease, localTax, errors };
 }
 
 export async function runEtl(write: boolean): Promise<{
@@ -241,6 +260,7 @@ export async function runEtl(write: boolean): Promise<{
     ),
     normalizedPopulationRows: result.population.length,
     normalizedCouncilRows: result.council.length,
+    normalizedPressReleaseRows: result.pressRelease.length,
     normalizedLocalTaxRows: {
       collection: result.localTax.collection.length,
       paymentMedia: result.localTax.paymentMedia.length,
@@ -276,6 +296,10 @@ export async function runEtl(write: boolean): Promise<{
       council: await writeIfChanged(
         resolve(generatedDirectory, "council.normalized.json"),
         result.council
+      ),
+      pressRelease: await writeIfChanged(
+        resolve(generatedDirectory, "press-release.normalized.json"),
+        result.pressRelease
       ),
       localTax: await writeIfChanged(
         resolve(generatedDirectory, "local-tax.normalized.json"),

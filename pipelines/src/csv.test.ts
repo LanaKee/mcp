@@ -4,6 +4,7 @@ import {
   inferRegionName,
   normalizeAnnualPopulation,
   normalizeCouncilRows,
+  normalizePressReleaseRows,
   normalizePopulationSnapshot,
   parseKoreanCsv
 } from "./csv.js";
@@ -110,6 +111,39 @@ describe("dataset CSV adapters", () => {
       meetingDate: "2024-01-02",
       result: "가결"
     });
+  });
+
+  it("detects press release rows from the crawler's header contract", () => {
+    const decoded = parseKoreanCsv(
+      Buffer.from(
+        "source_record_id,published_date,published_at,province_name,department,phone,author,title,subheadings,body,attachment_names,view_count,body_sha256,detail_url\n" +
+          '100,2026-08-21,2026-08-21T09:30:00,경상북도,메타버스과,054-880-1234,홍길동,청년 창업 지원,"부제1 | 부제2","본문 첫 문단.\n\n둘째 문단.","보도자료.hwp | 사진.jpg",1234,' +
+          `${"b".repeat(64)},https://www.gb.go.kr/detail\n`
+      )
+    );
+    expect(decoded.kind).toBe("press_release");
+    expect(normalizePressReleaseRows(decoded, "gb_press.csv")[0]).toMatchObject({
+      sourceRecordId: "100",
+      title: "청년 창업 지원",
+      provinceName: "경상북도",
+      department: "메타버스과",
+      contactPhone: "054-880-1234",
+      author: "홍길동",
+      subheadings: ["부제1", "부제2"],
+      attachmentNames: ["보도자료.hwp", "사진.jpg"],
+      publishedDate: "2026-08-21",
+      publishedAt: "2026-08-21T09:30:00",
+      viewCount: 1234,
+      sourceRow: 2
+    });
+  });
+
+  it("does not mistake press release rows for council agenda rows", () => {
+    const decoded = parseKoreanCsv(
+      Buffer.from("의안번호,의안명,발의자\n1,조례안,홍길동\n")
+    );
+    expect(decoded.kind).toBe("council_agenda");
+    expect(normalizePressReleaseRows(decoded, "council.csv")).toEqual([]);
   });
 
   it("normalizes NFD filenames without exact filename matching", () => {
