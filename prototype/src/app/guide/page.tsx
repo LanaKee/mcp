@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+// 서버 컴포넌트에서는 컨텍스트를 쓰지 않는 ssr 진입점을 써야 한다.
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 export const metadata = { title: "가이드 & FAQ · G:TEXFLOW" };
 

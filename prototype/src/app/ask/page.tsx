@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp } from "@phosphor-icons/react";
 import { usePersona } from "@/components/PersonaProvider";
 import { personaLabel } from "@/lib/persona";
 import { startConversation } from "@/lib/conversations";

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, MapPin, Sparkles, User } from "lucide-react";
+import { ArrowRight, MapPin, Sparkle, User } from "@phosphor-icons/react";
 import { usePersona } from "@/components/PersonaProvider";
 import type { Persona } from "@/lib/persona";
 
@@ -56,7 +56,7 @@ export default function IntakePage() {
               onChange={(age) => setDraft({ ...draft, age: age.replace(/[^0-9]/gu, "").slice(0, 3) })}
             />
             <Field
-              icon={<Sparkles size={14} />}
+              icon={<Sparkle size={14} />}
               label="관심분야"
               value={draft.interest}
               placeholder="스마트팜 · 창업"

@@ -3,7 +3,14 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, AudioLines, Mic, Plus, Share2, SquarePen } from "lucide-react";
+import {
+  ArrowUp,
+  Microphone,
+  PencilSimple,
+  Plus,
+  ShareNetwork,
+  Waveform
+} from "@phosphor-icons/react";
 import { Sidebar } from "@/components/Sidebar";
 import { TurnView } from "@/components/TurnView";
 import { usePersona } from "@/components/PersonaProvider";
@@ -16,7 +23,9 @@ import {
   writeConversations,
   type Conversation
 } from "@/lib/conversations";
-import type { ChatReply } from "@/lib/chat-types";
+import { readChatStream } from "@/lib/stream-client";
+import type { ChatTurn, StageEvent } from "@/lib/chat-types";
+import type { Block } from "@/lib/blocks";
 
 export default function ChatPage() {
   return (
@@ -62,55 +71,92 @@ function ChatScreen() {
 
   const active = conversations.find((conversation) => conversation.id === activeId) ?? null;
 
-  /** 대기 중인 턴을 실제 요청으로 바꾼다. */
+  /**
+   * 대기 중인 턴을 실제 요청으로 바꾼다.
+   *
+   * 응답은 스트림이므로 도착하는 대로 화면을 고친다. 진행 상태는 저장하지
+   * 않는다. 새로고침 후에 남은 반쪽짜리 추론 과정은 아무 의미가 없고, 완료된
+   * 답만이 다시 열어 볼 가치가 있다.
+   */
   const runTurn = useCallback(
     async (conversationId: string, turnId: string, question: string) => {
       const key = `${conversationId}:${turnId}`;
       if (running.current.has(key)) return;
       running.current.add(key);
-      try {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ message: question, persona })
-        });
-        if (!response.ok) {
-          const body = (await response.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `요청 실패 (HTTP ${response.status})`);
-        }
-        const reply = (await response.json()) as ChatReply;
+
+      const patch = (mutate: (turn: ChatTurn) => ChatTurn, save: boolean) => {
         setConversations((current) => {
           const next = current.map((conversation) =>
             conversation.id === conversationId
               ? {
                   ...conversation,
                   turns: conversation.turns.map((turn) =>
-                    turn.id === turnId ? { ...turn, status: "done" as const, reply } : turn
+                    turn.id === turnId ? mutate(turn) : turn
                   )
                 }
               : conversation
           );
-          writeConversations(next);
+          if (save) writeConversations(next);
           return next;
+        });
+      };
+
+      const progress = {
+        stages: [] as StageEvent[],
+        tools: [] as Array<{ tool: string; datasetId: string; reason: string }>,
+        summary: null as string | null,
+        blocks: [] as Block[]
+      };
+      const pushProgress = () => patch((turn) => ({ ...turn, progress: { ...progress } }), false);
+
+      try {
+        await readChatStream({ message: question, persona }, (event) => {
+          switch (event.type) {
+            case "stage": {
+              // 같은 단계가 running에서 done으로 바뀌면 줄을 늘리지 않고 갈아 끼운다.
+              const index = progress.stages.findIndex((stage) => stage.id === event.stage.id);
+              if (index >= 0) progress.stages[index] = event.stage;
+              else progress.stages.push(event.stage);
+              pushProgress();
+              break;
+            }
+            case "tool":
+              progress.tools.push({
+                tool: event.tool,
+                datasetId: event.datasetId,
+                reason: event.reason
+              });
+              pushProgress();
+              break;
+            case "summary":
+              progress.summary = event.summary;
+              pushProgress();
+              break;
+            case "block":
+              progress.blocks.push(event.block);
+              pushProgress();
+              break;
+            case "done":
+              patch(
+                (turn) => ({
+                  ...turn,
+                  status: "done" as const,
+                  reply: event.reply,
+                  progress: undefined
+                }),
+                true
+              );
+              break;
+            case "error":
+              throw new Error(event.message);
+          }
         });
       } catch (error) {
         const message = (error as Error).message;
-        setConversations((current) => {
-          const next = current.map((conversation) =>
-            conversation.id === conversationId
-              ? {
-                  ...conversation,
-                  turns: conversation.turns.map((turn) =>
-                    turn.id === turnId
-                      ? { ...turn, status: "error" as const, error: message }
-                      : turn
-                  )
-                }
-              : conversation
-          );
-          writeConversations(next);
-          return next;
-        });
+        patch(
+          (turn) => ({ ...turn, status: "error" as const, error: message, progress: undefined }),
+          true
+        );
       } finally {
         running.current.delete(key);
       }
@@ -179,7 +225,7 @@ function ChatScreen() {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden py-6 pr-6">
         <div className="mb-3 flex items-center justify-end gap-4 text-muted">
           <button type="button" aria-label="새 대화" onClick={() => router.push("/ask")}>
-            <SquarePen size={18} />
+            <PencilSimple size={18} />
           </button>
           <button
             type="button"
@@ -190,7 +236,7 @@ function ChatScreen() {
               }
             }}
           >
-            <Share2 size={18} />
+            <ShareNetwork size={18} />
           </button>
         </div>
 
@@ -240,8 +286,8 @@ function ChatScreen() {
               <Plus size={17} />
             </div>
             <div className="absolute right-16 bottom-3.5 flex items-center gap-3 text-muted">
-              <Mic size={16} />
-              <AudioLines size={16} />
+              <Microphone size={16} />
+              <Waveform size={16} />
             </div>
             <motion.button
               type="button"

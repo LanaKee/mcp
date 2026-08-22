@@ -63,6 +63,34 @@ export const blockSchema = z.discriminatedUnion("kind", [
     items: list(metricItemSchema, 6)
   }),
   z.object({
+    kind: z.literal("scenario"),
+    title: shortText,
+    /** 선택된 전제에서의 대표 수치. */
+    value: shortText,
+    badge: shortText.optional(),
+    caption: longText.optional(),
+    /** 전제 선택지. selected는 지금 값이 서 있는 전제다. */
+    options: list(z.object({ label: shortText, selected: z.boolean().optional() }), 5, 2),
+    /** 0~1 비율 막대. 강조된 칸이 선택된 전제에 해당한다. */
+    bars: list(
+      z.object({ label: shortText.optional(), ratio: z.number().min(0).max(1), highlight: z.boolean().optional() }),
+      12,
+      2
+    ),
+    notes: list(longText, 3).optional()
+  }),
+  z.object({
+    kind: z.literal("briefing"),
+    /** 카드 왼쪽 위의 작은 라벨. 기본값은 PERSONA BRIEFING. */
+    label: shortText.optional(),
+    title: shortText,
+    /** 왼쪽 열: 조건 해당 여부처럼 이어 읽는 항목. */
+    primary: list(metricItemSchema, 4),
+    /** 오른쪽 열: 각각 독립적으로 읽는 항목. */
+    secondary: list(metricItemSchema, 3).optional(),
+    sources: list(shortText, 6).optional()
+  }),
+  z.object({
     kind: z.literal("series"),
     title: shortText,
     unit: shortText.optional(),
@@ -126,6 +154,8 @@ export const BLOCK_SCHEMA_HINT = `
     { "kind": "headline", "title": "...", "subtitle": "..." },
     { "kind": "metric", "title": "...", "label": "...", "value": "-8.7억", "badge": "현상 유지 시", "caption": "...", "trend": "down" },
     { "kind": "metricGrid", "title": "...", "subtitle": "...", "items": [ { "label": "...", "value": "50% 감면", "badge": "적용 대상", "caption": "...", "meter": 0.6, "trend": "flat" } ] },
+    { "kind": "briefing", "label": "PERSONA BRIEFING", "title": "34세 · 상주 · 스마트팜 창업", "primary": [ { "label": "지방세 감면 조례", "badge": "적용 대상", "value": "50% 감면", "caption": "창업 3년 이내, 지난달 통과된 조례 기준" } ], "secondary": [ { "label": "최근 통과 안건", "value": "3건", "caption": "최근 30일 내 스마트팜 관련 의결 안건" } ], "sources": ["인구 DB", "세무 원장"] },
+    { "kind": "scenario", "title": "2029년 세수 영향 추정", "value": "-8.7억", "badge": "현상 유지 시", "caption": "2024년 대비 연간 지방세 감소 추정치", "options": [ { "label": "낙관적" }, { "label": "현상유지", "selected": true }, { "label": "비관적" } ], "bars": [ { "label": "2024", "ratio": 0.4 }, { "label": "2029", "ratio": 0.75, "highlight": true } ], "notes": ["..."] },
     { "kind": "series", "title": "...", "unit": "명", "points": [ { "label": "2020", "value": 12345, "highlight": true } ], "caption": "..." },
     { "kind": "table", "title": "...", "columns": ["...", "..."], "rows": [["...", "..."]], "caption": "..." },
     { "kind": "bullets", "title": "...", "tone": "caution", "items": ["..."] },
@@ -134,6 +164,7 @@ export const BLOCK_SCHEMA_HINT = `
 }
 
 제한: blocks 최대 8개, metricGrid.items 최대 6개, bullets.items 최대 8개,
+briefing.primary 최대 4개·secondary 최대 3개, scenario.options 2~5개·bars 2~12개,
 table.columns 최대 5개·rows 최대 12행, series.points 최소 2개.
 label·value·badge·title은 120자, 그 밖의 문장은 400자 이내로 씁니다.
 `.trim();

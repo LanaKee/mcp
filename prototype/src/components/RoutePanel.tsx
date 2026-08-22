@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Route, ShieldX, Sigma, Table2 } from "lucide-react";
+import { CaretDown, ShieldSlash, Sigma, Table, TreeStructure } from "@phosphor-icons/react";
 import type { RouteTrace } from "@/lib/chat-types";
 
 /**
@@ -22,14 +22,14 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center gap-2 px-4 py-2.5 text-[11.5px] text-muted transition-colors hover:text-[#d5d9de]"
       >
-        <Route size={13} />
+        <TreeStructure size={13} />
         에이전트 경로
         <span className="text-[#5f646c]">
           후보 {route.consideredDatasets.length} · 호출 {route.plan.length} · 근거{" "}
           {route.evidenceCount} · 출처 {route.sourceCount}
         </span>
         <motion.span animate={{ rotate: open ? 180 : 0 }} className="ml-auto">
-          <ChevronDown size={14} />
+          <CaretDown size={14} />
         </motion.span>
       </button>
 
@@ -43,7 +43,7 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
             className="overflow-hidden"
           >
             <div className="space-y-4 border-t border-white/5 px-4 py-4 text-[11.5px]">
-              <Section icon={<Table2 size={12} />} title="카탈로그 후보">
+              <Section icon={<Table size={12} />} title="카탈로그 후보">
                 {route.consideredDatasets.length === 0 ? (
                   <Empty>후보 데이터셋이 없었습니다. 이 질문은 보유 범위 밖입니다.</Empty>
                 ) : (
@@ -108,7 +108,7 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
               ) : null}
 
               {route.rejectedSteps.length > 0 ? (
-                <Section icon={<ShieldX size={12} />} title="거부된 호출">
+                <Section icon={<ShieldSlash size={12} />} title="거부된 호출">
                   <ul className="space-y-1">
                     {route.rejectedSteps.map((rejected, index) => (
                       <li key={index} className="text-rose-200/80">
@@ -121,7 +121,7 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
               ) : null}
 
               {route.unavailableDatasets.length > 0 ? (
-                <Section icon={<Table2 size={12} />} title="비어 있는 데이터셋">
+                <Section icon={<Table size={12} />} title="비어 있는 데이터셋">
                   <ul className="space-y-1">
                     {route.unavailableDatasets.map((dataset) => (
                       <li key={dataset.datasetId} className="text-amber-200/80">

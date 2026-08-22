@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  BookOpenCheck,
-  FolderClosed,
-  MessageSquarePlus,
-  Search,
-  Settings,
-  Trash2,
-  UserRound
-} from "lucide-react";
+  BookOpen,
+  ChatCircleDots,
+  FolderSimple,
+  Gear,
+  MagnifyingGlass,
+  Trash,
+  UserCircle
+} from "@phosphor-icons/react";
 import { usePersona } from "@/components/PersonaProvider";
 import { personaLabel } from "@/lib/persona";
 import type { Conversation } from "@/lib/conversations";
@@ -44,7 +44,7 @@ export function Sidebar({
   return (
     <aside className="flex h-screen w-[260px] shrink-0 flex-col gap-6 overflow-y-auto px-5 py-6">
       <label className="flex items-center gap-2 rounded-2xl border border-ink-700 bg-ink-850 px-3.5 py-2.5">
-        <Search size={15} className="text-muted" />
+        <MagnifyingGlass size={15} className="text-muted" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -59,11 +59,11 @@ export function Sidebar({
           onClick={() => router.push("/ask")}
           className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-[13px] text-[#d5d9de] transition-colors hover:text-white"
         >
-          <MessageSquarePlus size={15} className="text-muted" />
+          <ChatCircleDots size={15} className="text-muted" />
           새로 생성하기
         </button>
         <p className="flex items-center gap-2 px-1 py-1.5 text-[13px] text-muted">
-          <FolderClosed size={15} />
+          <FolderSimple size={15} />
           프로젝트
         </p>
       </div>
@@ -95,7 +95,7 @@ export function Sidebar({
           href="/guide"
           className="flex items-center gap-2.5 text-[#d5d9de] transition-colors hover:text-white"
         >
-          <BookOpenCheck size={15} className="text-muted" />
+          <BookOpen size={15} className="text-muted" />
           가이드 &amp; FAQ
         </Link>
         <button
@@ -103,14 +103,14 @@ export function Sidebar({
           onClick={onClear}
           className="flex items-center gap-2.5 text-[#d5d9de] transition-colors hover:text-rose-300"
         >
-          <Trash2 size={15} className="text-muted" />
+          <Trash size={15} className="text-muted" />
           기록 삭제하기
         </button>
         <Link
           href="/"
           className="flex items-center gap-2.5 text-[#d5d9de] transition-colors hover:text-white"
         >
-          <Settings size={15} className="text-muted" />
+          <Gear size={15} className="text-muted" />
           내 상황 다시 설정
         </Link>
       </div>
@@ -118,7 +118,7 @@ export function Sidebar({
       <div className="rounded-2xl border border-ink-700 bg-ink-800 p-4">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-ink-700 text-muted">
-            <UserRound size={17} />
+            <UserCircle size={17} />
           </span>
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold">

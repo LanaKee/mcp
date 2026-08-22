@@ -1,7 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, Info, Minus, OctagonAlert, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Info,
+  Minus,
+  Warning,
+  WarningOctagon
+} from "@phosphor-icons/react";
 import type { Block, MetricItem } from "@/lib/blocks";
 
 /**
@@ -22,7 +29,7 @@ export function BlockList({ blocks }: { blocks: Block[] }) {
           key={`${block.kind}-${index}`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: Math.min(index * 0.07, 0.4), ease: "easeOut" }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
         >
           <BlockView block={block} />
         </motion.div>
@@ -48,7 +55,7 @@ function BlockView({ block }: { block: Block }) {
         <div className={card}>
           {block.title ? <p className="text-[13px] font-semibold">{block.title}</p> : null}
           <p className="mt-1 text-[11px] text-muted">{block.label}</p>
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             <span className="text-[34px] leading-none font-bold tracking-tight">{block.value}</span>
             {block.badge ? <Badge trend={block.trend}>{block.badge}</Badge> : null}
           </div>
@@ -61,9 +68,9 @@ function BlockView({ block }: { block: Block }) {
     case "metricGrid":
       return (
         <div className={card}>
-          {block.title ? (
+          {block.subtitle ? (
             <p className="text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">
-              {block.subtitle ?? "briefing"}
+              {block.subtitle}
             </p>
           ) : null}
           {block.title ? <p className="mt-1 text-[15px] font-bold">{block.title}</p> : null}
@@ -74,6 +81,12 @@ function BlockView({ block }: { block: Block }) {
           </div>
         </div>
       );
+
+    case "briefing":
+      return <BriefingCard block={block} />;
+
+    case "scenario":
+      return <ScenarioCard block={block} />;
 
     case "series":
       return <SeriesChart block={block} />;
@@ -145,6 +158,108 @@ function BlockView({ block }: { block: Block }) {
   }
 }
 
+/** 목업의 좌우 2단 브리핑 카드. 왼쪽은 이어 읽고, 오른쪽은 칸마다 끊어 읽는다. */
+function BriefingCard({ block }: { block: Extract<Block, { kind: "briefing" }> }) {
+  return (
+    <div>
+      <div className="grid overflow-hidden rounded-2xl bg-panel/70 ring-1 ring-white/5 sm:grid-cols-[1.15fr_1fr]">
+        <div className="space-y-5 p-5">
+          <div>
+            <p className="text-[10px] font-semibold tracking-[0.16em] text-muted uppercase">
+              {block.label ?? "persona briefing"}
+            </p>
+            <p className="mt-1.5 text-[14px] font-bold">{block.title}</p>
+          </div>
+          {block.primary.map((item, index) => (
+            <MetricCell key={`${item.label}-${index}`} item={item} />
+          ))}
+        </div>
+        {block.secondary && block.secondary.length > 0 ? (
+          <div className="divide-y divide-white/5 border-t border-white/5 sm:border-t-0 sm:border-l">
+            {block.secondary.map((item, index) => (
+              <div key={`${item.label}-${index}`} className="p-5">
+                <MetricCell item={item} />
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {block.sources && block.sources.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-muted">출처</span>
+          {block.sources.map((source) => (
+            <span
+              key={source}
+              className="rounded-lg bg-panel-soft px-2.5 py-1 text-[11px] text-[#c7ccd3]"
+            >
+              {source}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 전제를 골라 읽는 추정 카드. 선택된 전제만 강조된다. */
+function ScenarioCard({ block }: { block: Extract<Block, { kind: "scenario" }> }) {
+  return (
+    <div className={card}>
+      <p className="text-[13px] font-semibold">{block.title}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <span className="text-[34px] leading-none font-bold tracking-tight">{block.value}</span>
+        {block.badge ? (
+          <span className="inline-flex items-center gap-1 rounded-lg bg-panel-soft px-2.5 py-1.5 text-[11px] text-[#d5d9de]">
+            <ArrowDown size={12} weight="fill" />
+            {block.badge}
+          </span>
+        ) : null}
+      </div>
+      {block.caption ? <p className="mt-2.5 text-[11px] text-muted">{block.caption}</p> : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {block.options.map((option) => (
+          <span
+            key={option.label}
+            className={`rounded-lg px-3 py-1.5 text-[11px] ${
+              option.selected
+                ? "bg-mint-400 font-semibold text-ink-950"
+                : "bg-panel-soft text-[#c7ccd3]"
+            }`}
+          >
+            {option.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-4 flex h-16 items-end gap-3">
+        {block.bars.map((bar, index) => (
+          <motion.div
+            key={`${bar.label ?? index}-${index}`}
+            initial={{ height: 0 }}
+            animate={{ height: `${Math.max(12, bar.ratio * 100)}%` }}
+            transition={{ duration: 0.45, delay: index * 0.05, ease: "easeOut" }}
+            title={bar.label}
+            className={`min-w-0 flex-1 rounded-lg ${
+              bar.highlight ? "bg-mint-400" : "bg-[#3d4148]"
+            }`}
+          />
+        ))}
+      </div>
+
+      {block.notes && block.notes.length > 0 ? (
+        <div className="mt-3 space-y-0.5">
+          {block.notes.map((note) => (
+            <p key={note} className="text-[11px] leading-4 text-muted">
+              {note}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MetricCell({ item }: { item: MetricItem }) {
   return (
     <div>
@@ -180,11 +295,7 @@ function Meter({ value }: { value: number }) {
   );
 }
 
-function SeriesChart({
-  block
-}: {
-  block: Extract<Block, { kind: "series" }>;
-}) {
+function SeriesChart({ block }: { block: Extract<Block, { kind: "series" }> }) {
   const values = block.points.map((point) => point.value);
   const max = Math.max(...values);
   const min = Math.min(...values);
@@ -235,9 +346,9 @@ function Badge({ children, trend }: { children: React.ReactNode; trend?: MetricI
 }
 
 function TrendIcon({ trend }: { trend: NonNullable<MetricItem["trend"]> }) {
-  if (trend === "up") return <TrendingUp size={13} className="text-mint-400" />;
-  if (trend === "down") return <TrendingDown size={13} className="text-rose-300" />;
-  return <Minus size={13} className="text-muted" />;
+  if (trend === "up") return <ArrowUp size={13} weight="bold" className="text-mint-400" />;
+  if (trend === "down") return <ArrowDown size={13} weight="bold" className="text-rose-300" />;
+  return <Minus size={13} weight="bold" className="text-muted" />;
 }
 
 export function Callout({
@@ -254,10 +365,10 @@ export function Callout({
     warn: "border-amber-400/25 bg-amber-400/5 text-amber-200",
     danger: "border-rose-400/25 bg-rose-400/5 text-rose-200"
   }[tone];
-  const Icon = tone === "info" ? Info : tone === "warn" ? AlertTriangle : OctagonAlert;
+  const Icon = tone === "info" ? Info : tone === "warn" ? Warning : WarningOctagon;
   return (
     <div className={`flex gap-3 rounded-2xl border px-4 py-3.5 ${palette}`}>
-      <Icon size={15} className="mt-0.5 shrink-0" />
+      <Icon size={16} className="mt-0.5 shrink-0" />
       <div>
         {title ? <p className="text-[12.5px] font-semibold">{title}</p> : null}
         <p className="mt-0.5 text-[12px] leading-5 opacity-85">{text}</p>

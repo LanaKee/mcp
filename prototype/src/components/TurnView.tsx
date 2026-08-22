@@ -1,8 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, Copy, FileText, Pencil } from "lucide-react";
-import { useState } from "react";
+import {
+  CheckCircle,
+  CircleNotch,
+  Copy,
+  FileText,
+  Ghost,
+  PencilSimple
+} from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { BlockList, Callout } from "@/components/blocks/BlockList";
 import { RoutePanel } from "@/components/RoutePanel";
 import type { ChatTurn } from "@/lib/chat-types";
@@ -51,7 +58,7 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
 
       <div className="flex gap-3">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-mint-400 text-ink-950">
-          <Bot size={18} />
+          <Ghost size={19} weight="fill" />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -60,7 +67,7 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
             <span className="text-[11.5px] text-muted">{connectedLabel(turn)}</span>
             <span className="ml-auto flex items-center gap-2 text-[11px] text-muted">
               {relativeTime(turn.createdAt)}
-              <Pencil size={13} className="opacity-60" />
+              <PencilSimple size={13} className="opacity-60" />
               <button
                 type="button"
                 aria-label="요약 복사"
@@ -81,7 +88,9 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
           </div>
 
           <div className="mt-3">
-            {turn.status === "pending" ? <Pending /> : null}
+            {turn.status === "pending" ? (
+              <Pending progress={turn.progress} startedAt={turn.createdAt} />
+            ) : null}
 
             {turn.status === "error" ? (
               <Callout
@@ -131,14 +140,119 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
   );
 }
 
-function Pending() {
+/**
+ * 기다리는 동안의 화면.
+ *
+ * 두 모델을 거치므로 답까지 수십 초가 걸린다. 그 시간을 회전하는 점 하나로
+ * 때우는 대신, 서버가 실제로 지나간 단계와 실제로 고른 도구를 그대로 보여준다.
+ * 여기에 표시되는 모든 문장은 서버가 보낸 것이고, 화면이 지어낸 진행 상황은
+ * 하나도 없다.
+ */
+function Pending({
+  progress,
+  startedAt
+}: {
+  progress: ChatTurn["progress"];
+  startedAt: number;
+}) {
+  const elapsed = useElapsed(startedAt);
+  const stages = progress?.stages ?? [];
+  const tools = progress?.tools ?? [];
+  const blocks = progress?.blocks ?? [];
+
   return (
-    <div className="space-y-2">
-      <div className="shimmer h-4 w-40 rounded bg-white/10" />
-      <div className="shimmer h-24 rounded-2xl bg-white/5" />
-      <p className="text-[11px] text-muted">
-        카탈로그를 검색하고 도구를 호출해 근거를 모으는 중입니다…
-      </p>
+    <div className="space-y-3">
+      <div className="rounded-2xl bg-panel/70 p-4 ring-1 ring-white/5">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">
+            추론 과정
+          </p>
+          <span className="text-[11px] tabular-nums text-muted">{elapsed}초</span>
+        </div>
+
+        <ol className="mt-3 space-y-2.5">
+          {stages.length === 0 ? (
+            <StageRow label="에이전트에 질문을 전달하는 중" state="running" />
+          ) : null}
+          {stages.map((stage, index) => (
+            <StageRow
+              key={`${stage.id}-${index}`}
+              label={stage.label}
+              detail={stage.detail}
+              state={stage.state}
+            />
+          ))}
+        </ol>
+
+        {tools.length > 0 ? (
+          <div className="mt-3 space-y-1.5 border-t border-white/5 pt-3">
+            {tools.map((tool, index) => (
+              <motion.p
+                key={`${tool.tool}-${index}`}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-[11px] leading-4 text-[#9aa0a8]"
+              >
+                <span className="text-mint-400">{tool.tool}</span>
+                <span className="text-[#5f646c]"> · {tool.datasetId}</span>
+                {tool.reason ? <span className="block text-[#6d727a]">{tool.reason}</span> : null}
+              </motion.p>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {progress?.summary ? (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-[13px] leading-6 text-[#c7ccd3]"
+        >
+          {progress.summary}
+        </motion.p>
+      ) : null}
+
+      {blocks.length > 0 ? (
+        <BlockList blocks={blocks} />
+      ) : (
+        <div className="shimmer h-24 rounded-2xl bg-white/5" />
+      )}
     </div>
   );
+}
+
+function StageRow({
+  label,
+  detail,
+  state
+}: {
+  label: string;
+  detail?: string;
+  state: "running" | "done";
+}) {
+  return (
+    <li className="flex gap-2.5">
+      {state === "done" ? (
+        <CheckCircle size={15} weight="fill" className="mt-px shrink-0 text-mint-400" />
+      ) : (
+        <CircleNotch size={15} className="mt-px shrink-0 animate-spin text-muted" />
+      )}
+      <div className="min-w-0">
+        <p className={`text-[12px] leading-4 ${state === "done" ? "text-[#c7ccd3]" : ""}`}>
+          {label}
+        </p>
+        {detail ? <p className="mt-0.5 text-[11px] text-[#6d727a]">{detail}</p> : null}
+      </div>
+    </li>
+  );
+}
+
+/** 경과 시간을 초 단위로 센다. 얼마나 기다렸는지 알면 기다림이 덜 답답하다. */
+function useElapsed(startedAt: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return Math.max(0, Math.floor((now - startedAt) / 1000));
 }
