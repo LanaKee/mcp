@@ -13,6 +13,9 @@ const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe.sequential : describe.skip;
 const suffix = randomUUID().slice(0, 8);
 const actor = "integration:lifecycle";
+// Held for the whole suite so the MCP repository integration suite cannot read
+// chunk visibility while this one is rolling it. Must match the key used there.
+const INTEGRATION_SUITE_LOCK_KEYS = [1196574284, 1886351213] as const;
 let client: Client;
 
 async function cleanupFixture(): Promise<void> {
@@ -35,19 +38,136 @@ async function cleanupFixture(): Promise<void> {
     [`lifecycle-source-${suffix}`]
   );
   await client.query(
+    "DELETE FROM document WHERE document_key = $1",
+    [`lifecycle-rollback-document-${suffix}`]
+  );
+  await client.query(
+    "DELETE FROM data_source WHERE source_key = $1",
+    [`lifecycle-rollback-source-${suffix}`]
+  );
+  await client.query(
     "DELETE FROM pdf_processing_version_event WHERE version_key = ANY($1::text[])",
     [[
       `lifecycle-extractor-${suffix}::lifecycle-chunker-${suffix}`,
-      `lifecycle-candidate-extractor-${suffix}::lifecycle-candidate-chunker-${suffix}`
+      `lifecycle-candidate-extractor-${suffix}::lifecycle-candidate-chunker-${suffix}`,
+      `lifecycle-rollback-extractor-${suffix}::lifecycle-rollback-chunker-${suffix}`
     ]]
   );
   await client.query(
     "DELETE FROM pdf_processing_version WHERE version_key = ANY($1::text[])",
     [[
       `lifecycle-extractor-${suffix}::lifecycle-chunker-${suffix}`,
-      `lifecycle-candidate-extractor-${suffix}::lifecycle-candidate-chunker-${suffix}`
+      `lifecycle-candidate-extractor-${suffix}::lifecycle-candidate-chunker-${suffix}`,
+      `lifecycle-rollback-extractor-${suffix}::lifecycle-rollback-chunker-${suffix}`
     ]]
   );
+}
+
+const ROLLBACK_FIXTURE_CHUNKS = 3;
+
+/**
+ * A retained version to roll production back onto. This used to be picked out of
+ * whatever superseded output happened to be sitting in the database, which made
+ * the test depend on uncollected garbage rather than on behaviour.
+ */
+async function insertRetainedFixture(): Promise<string> {
+  const versionKey =
+    `lifecycle-rollback-extractor-${suffix}::lifecycle-rollback-chunker-${suffix}`;
+  const sourceId = randomUUID();
+  const documentId = randomUUID();
+  const oldTimestamp = "2021-01-01T00:00:00.000Z";
+  await client.query(
+    `INSERT INTO pdf_processing_version
+      (
+        version_key, extractor_version, chunker_version, approval_state,
+        retired_at, retired_by, retirement_reason
+      )
+     VALUES ($1, $2, $3, 'retired', $4, $5, $6)`,
+    [
+      versionKey,
+      `lifecycle-rollback-extractor-${suffix}`,
+      `lifecycle-rollback-chunker-${suffix}`,
+      oldTimestamp,
+      actor,
+      "Controlled integration rollback fixture"
+    ]
+  );
+  await client.query(
+    `INSERT INTO data_source
+      (
+        source_id, source_key, title, provider, file_path, file_sha256,
+        collected_at, media_type, data_status, is_official
+      )
+     VALUES ($1, $2, $3, 'integration-test', $4, $5, $6, 'application/pdf',
+       'official_observed', true)`,
+    [
+      sourceId,
+      `lifecycle-rollback-source-${suffix}`,
+      "Lifecycle rollback fixture",
+      `fixtures/lifecycle-rollback-${suffix}.pdf`,
+      "1".repeat(64),
+      oldTimestamp
+    ]
+  );
+  await client.query(
+    `INSERT INTO document
+      (
+        document_id, document_key, document_type, title, source_id,
+        extraction_status, page_count, content_sha256, data_status
+      )
+     VALUES ($1, $2, 'council_minutes', $3, $4, 'extracted', 1, $5,
+       'official_observed')`,
+    [
+      documentId,
+      `lifecycle-rollback-document-${suffix}`,
+      "Lifecycle rollback fixture",
+      sourceId,
+      "2".repeat(64)
+    ]
+  );
+  await client.query(
+    `INSERT INTO document_processing_version
+      (
+        document_id, version_key, extraction_status, page_count,
+        content_sha256, data_status, created_at, stale_at
+      )
+     VALUES ($1, $2, 'extracted', 1, $3, 'official_observed', $4, $4)`,
+    [documentId, versionKey, "2".repeat(64), oldTimestamp]
+  );
+  for (let index = 0; index < ROLLBACK_FIXTURE_CHUNKS; index += 1) {
+    const chunkId = randomUUID();
+    const contentHash = `${index}`.repeat(64).slice(0, 64);
+    await client.query(
+      `INSERT INTO document_chunk
+        (
+          chunk_id, chunk_key, document_id, chunk_index, page_start, page_end,
+          content, content_sha256, token_count, processing_version_key,
+          is_current, approved_current, created_at, stale_at
+        )
+       VALUES ($1, $2, $3, $4, 1, 1, $5, $6, 2, $7, false, false, $8, $8)`,
+      [
+        chunkId,
+        `lifecycle-rollback-chunk-${suffix}-${index}`,
+        documentId,
+        index,
+        `롤백 fixture ${index}`,
+        contentHash,
+        versionKey,
+        oldTimestamp
+      ]
+    );
+    await client.query(
+      `INSERT INTO document_chunk_embedding
+        (
+          chunk_id, provider, model, model_version, dimensions,
+          retrieval_mode, embedding, content_sha256
+        )
+       VALUES ($1, 'local', 'fixture', '1', 4, 'lexical_hash',
+         $2::real[], $3)`,
+      [chunkId, [0, 1, 0, index], contentHash]
+    );
+  }
+  return versionKey;
 }
 
 async function insertStaleFixture(): Promise<{
@@ -193,12 +313,24 @@ describeDatabase("source lifecycle integration", () => {
   beforeAll(async () => {
     client = new Client({ connectionString });
     await client.connect();
+    // Rolling production visibility flips is_current/approved_current for the
+    // whole corpus, so this suite cannot overlap with the MCP repository
+    // integration suite reading those same flags. Vitest runs files in
+    // parallel, so serialise on the database rather than on the runner.
+    await client.query("SELECT pg_advisory_lock($1, $2)", [
+      ...INTEGRATION_SUITE_LOCK_KEYS
+    ]);
     await cleanupFixture();
   });
 
   afterAll(async () => {
     if (!client) return;
     await cleanupFixture().catch(() => undefined);
+    await client
+      .query("SELECT pg_advisory_unlock($1, $2)", [
+        ...INTEGRATION_SUITE_LOCK_KEYS
+      ])
+      .catch(() => undefined);
     await client.end();
   });
 
@@ -235,11 +367,12 @@ describeDatabase("source lifecycle integration", () => {
       `)
     ).rows[0]!;
     expect(Number(counts.current_chunks)).toBe(24_565);
-    expect(Number(counts.stale_chunks)).toBeGreaterThanOrEqual(41_282);
     expect(Number(counts.current_embeddings)).toBe(24_565);
     expect(Number(counts.current_pages)).toBe(12_522);
     expect(Number(counts.current_page_locators)).toBe(12_522);
 
+    // The guard must plan nothing regardless of how much superseded output is
+    // still around, so this asserts the plan rather than a stale-row snapshot.
     const planned = await createPurgePlan(client, {
       operation: "stale_purge",
       retentionDays: 30,
@@ -465,18 +598,7 @@ describeDatabase("source lifecycle integration", () => {
             WHERE approval_state = 'approved'`
         )
       ).rows[0]!.version_key;
-      const retained = (
-        await client.query<{ version_key: string }>(
-          `SELECT version.version_key
-             FROM pdf_processing_version version
-            WHERE version.approval_state = 'retired'
-              AND (
-                SELECT count(*) FROM document_chunk chunk
-                 WHERE chunk.processing_version_key = version.version_key
-              ) = 17487
-            LIMIT 1`
-        )
-      ).rows[0]!.version_key;
+      const retained = await insertRetainedFixture();
       try {
         const rolledBack = await approveProcessingVersion(
           client,
@@ -488,7 +610,7 @@ describeDatabase("source lifecycle integration", () => {
           versionKey: retained,
           previousVersion: active,
           action: "rollback",
-          currentChunks: 17_487
+          currentChunks: ROLLBACK_FIXTURE_CHUNKS
         });
         await expect(
           retireProcessingVersion(

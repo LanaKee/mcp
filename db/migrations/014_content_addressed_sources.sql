@@ -105,4 +105,55 @@ UPDATE data_source
    AND source_key LIKE 'official:%'
    AND source_key <> 'official:' || file_sha256;
 
+-- document_key is derived from source_key (`document-<sha256(source_key)[:48]>`),
+-- so rewriting a source key strands its document graph: the PDF stage no longer
+-- recognises the existing rows and inserts a second copy of every page, chunk
+-- and embedding. Re-key the documents instead of dropping them, so superseded
+-- processing versions retained by the lifecycle policy survive the migration.
+CREATE TEMP TABLE document_rekey ON COMMIT DROP AS
+SELECT DISTINCT ON (doc.source_id)
+       doc.document_id,
+       'document-' || left(
+         encode(sha256(convert_to(source.source_key, 'UTF8')), 'hex'), 48
+       ) AS expected_key
+  FROM document AS doc
+  JOIN data_source AS source ON source.source_id = doc.source_id
+ ORDER BY doc.source_id,
+          (doc.document_key = 'document-' || left(
+             encode(sha256(convert_to(source.source_key, 'UTF8')), 'hex'), 48
+           )) DESC,
+          doc.document_id;
+
+-- A source resolves to exactly one document key, so any extra document under the
+-- same source is an orphaned copy that nothing can address. Those are dropped;
+-- keeping them would collide with the re-key below.
+CREATE TEMP TABLE orphan_document ON COMMIT DROP AS
+SELECT document_id
+  FROM document
+ WHERE document_id NOT IN (SELECT document_id FROM document_rekey);
+
+DELETE FROM document_chunk_embedding
+WHERE chunk_id IN (
+  SELECT chunk_id FROM document_chunk
+   WHERE document_id IN (SELECT document_id FROM orphan_document)
+);
+
+DELETE FROM document_chunk
+WHERE document_id IN (SELECT document_id FROM orphan_document);
+
+DELETE FROM document_page
+WHERE document_id IN (SELECT document_id FROM orphan_document);
+
+DELETE FROM document_processing_version
+WHERE document_id IN (SELECT document_id FROM orphan_document);
+
+DELETE FROM document
+WHERE document_id IN (SELECT document_id FROM orphan_document);
+
+UPDATE document AS doc
+   SET document_key = rekey.expected_key
+  FROM document_rekey AS rekey
+ WHERE rekey.document_id = doc.document_id
+   AND doc.document_key <> rekey.expected_key;
+
 COMMIT;

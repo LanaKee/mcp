@@ -1,17 +1,37 @@
-import { afterAll, describe, expect, it } from "vitest";
-import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Client, Pool } from "pg";
 import { PostgresDataRepository } from "./postgres-repository.js";
 import { createToolRegistry, executeTool } from "./tools.js";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDatabase = connectionString ? describe : describe.skip;
+// The lifecycle integration suite rolls chunk visibility for the whole corpus.
+// Vitest runs test files in parallel, so serialise against it on the database.
+// Must match INTEGRATION_SUITE_LOCK_KEYS in lifecycle.integration.test.ts.
+const INTEGRATION_SUITE_LOCK_KEYS = [1196574284, 1886351213] as const;
 let repository: PostgresDataRepository | undefined;
+let suiteLock: Client | undefined;
 
 describeDatabase("PostgresDataRepository integration", () => {
   repository = PostgresDataRepository.fromConnectionString(connectionString!);
 
+  beforeAll(async () => {
+    suiteLock = new Client({ connectionString });
+    await suiteLock.connect();
+    await suiteLock.query("SELECT pg_advisory_lock($1, $2)", [
+      ...INTEGRATION_SUITE_LOCK_KEYS
+    ]);
+  }, 120_000);
+
   afterAll(async () => {
     await repository?.close();
+    if (!suiteLock) return;
+    await suiteLock
+      .query("SELECT pg_advisory_unlock($1, $2)", [
+        ...INTEGRATION_SUITE_LOCK_KEYS
+      ])
+      .catch(() => undefined);
+    await suiteLock.end();
   });
 
   it("reads normalized facts and current PDF chunks", async () => {
@@ -267,7 +287,7 @@ describeDatabase("PostgresDataRepository integration", () => {
     );
   });
 
-  it("keeps official policy passages separate from demo eligibility records", async () => {
+  it("serves official policy passages without any demo eligibility records", async () => {
     const response = await executeTool(
       createToolRegistry(repository!),
       "search_policies",
@@ -292,7 +312,7 @@ describeDatabase("PostgresDataRepository integration", () => {
       result.matches.some(
         (match) => match.policy.dataStatus === "demo_sample"
       )
-    ).toBe(true);
+    ).toBe(false);
     expect(result.official_document_passages.length).toBeGreaterThan(0);
     expect(result.official_document_passages[0]!.metadata).toMatchObject({
       documentType: "provincial_work_plan",
@@ -395,7 +415,7 @@ describeDatabase("PostgresDataRepository integration", () => {
   });
 
   it(
-    "does not derive the fabricated Kimcheon mixed-status trend",
+    "refuses to summarise the Kimcheon series instead of fabricating a trend",
     async () => {
       const registry = createToolRegistry(repository!);
       const correlationIds = [
@@ -408,9 +428,12 @@ describeDatabase("PostgresDataRepository integration", () => {
         { region: "김천시", startYear: 2020, endYear: 2024 },
         { correlationId: correlationIds[0] }
       );
+      // Only one official year survives, so the tool must decline rather than
+      // invent a slope. The fabricated -54.36% came from demo rows that no
+      // longer exist.
       expect(trend.result).toMatchObject({
         summary: null,
-        summary_unavailable_reason: "incomparable_sources"
+        summary_unavailable_reason: "insufficient_points"
       });
       expect(JSON.stringify(trend)).not.toContain("-54.36");
 
@@ -432,7 +455,7 @@ describeDatabase("PostgresDataRepository integration", () => {
       expect(comparisonResult.not_evaluable[0]).toMatchObject({
         taxTrend: null,
         matches: null,
-        notEvaluableReason: "incomparable_sources"
+        notEvaluableReason: "missing_endpoints"
       });
       expect(JSON.stringify(comparison)).not.toContain("-54.36");
 
@@ -588,8 +611,26 @@ describeDatabase("PostgresDataRepository integration", () => {
       currentEmbeddings: 24_565,
       currentPages: 12_522
     });
-    expect(capacity.counts.staleChunks).toBeGreaterThanOrEqual(41_282);
-    expect(capacity.counts.staleEmbeddings).toBeGreaterThanOrEqual(41_282);
+    // Stale rows are garbage awaiting an approved cleanup, so their volume is a
+    // property of the environment, not of the reporting code. Assert the report
+    // agrees with the database rather than pinning a snapshot count.
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const stale = await pool.query<{ chunks: string; embeddings: string }>(
+        `SELECT
+           (SELECT count(*) FROM document_chunk WHERE NOT is_current) AS chunks,
+           (SELECT count(*)
+              FROM document_chunk_embedding embedding
+              JOIN document_chunk chunk ON chunk.chunk_id = embedding.chunk_id
+             WHERE NOT chunk.is_current) AS embeddings`
+      );
+      expect(capacity.counts.staleChunks).toBe(Number(stale.rows[0]!.chunks));
+      expect(capacity.counts.staleEmbeddings).toBe(
+        Number(stale.rows[0]!.embeddings)
+      );
+    } finally {
+      await pool.end();
+    }
     expect(capacity.versions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
