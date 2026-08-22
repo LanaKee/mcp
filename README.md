@@ -218,6 +218,29 @@ pnpm db:normalize -- --skip-pdf
 pnpm db:normalize -- --pdf-limit 5
 ```
 
+### 신규 데이터 접수(intake)
+
+새로 받은 원본 파일은 `datasets/`에 직접 넣지 말고 `data/intake/inbox/`에 둡니다.
+접수 → 검증 → 중복 판정 → 저장 → 가공 → 원장 기록의 6단계를 거칩니다.
+
+```bash
+# 실제 이동 없이 처리 계획만 확인
+pnpm intake:dry-run
+
+# 접수 실행(저장 후 정규화·적재까지)
+pnpm intake
+
+# 원장 요약(접수/중복/격리 건수)
+pnpm intake:status
+```
+
+- 검증은 확장자가 아니라 실제 바이트 signature를 봅니다. `.csv`로 저장된 HTML
+  오류 페이지나 PDF가 아닌 `.pdf`는 사유 sidecar와 함께 격리됩니다.
+- 중복 판정은 원본 저장소 전체의 SHA-256과 대조하므로, 같은 파일을 다시 받아도
+  이중 적재되지 않습니다.
+- 저장 위치는 파일명이 아니라 판별된 내용 종류로 결정됩니다.
+- 모든 판정은 `raw_intake_file` 원장에 남아 사후 추적이 가능합니다.
+
 ETL은 다음을 수행합니다.
 
 1. 모든 파일의 경로(NFC 정규화), 크기, SHA-256, 기준일/수집시각, 형식을 카탈로그화
