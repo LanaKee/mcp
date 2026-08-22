@@ -241,6 +241,9 @@ pnpm etl
 # 공개 포항시의회 의안 갱신(약관 검토 필수; robots 확인 불가 시 별도 승인)
 pnpm pohang:crawl -- --acknowledge-terms --acknowledge-robots-unavailable
 
+# 경상북도 보도자료 수집(서술적 맥락용; 통계 근거가 아님)
+pnpm gb:press:crawl --accept-terms --since=2020-01-01
+
 # ETL 재생성 + 스키마 적용 + 구조화 데이터와 PDF 전체 적재
 pnpm db:normalize
 

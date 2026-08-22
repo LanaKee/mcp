@@ -79,6 +79,23 @@
 - `PostgresHybridSearchRepository`는 FTS/trigram 후보와 저장 embedding cosine 점수를
   결합한다.
 
+## `search_press_releases`
+
+- 입력: `query`, 선택 `region`, `department`, `dateFrom`, `dateTo`, `limit`
+- 출력: 경상북도 보도자료 본문과 발표 부서·게시일·첨부 수·원문 URL
+- **통계 근거가 아니다.** 보도자료는 도가 발표한 서술형 announcement이며 본문의
+  수치는 발표 시점의 계획치다. 응답의 `result.evidence_role`은 항상
+  `narrative_context_only`이고, `verify_claim_with_data`의 근거로 쓸 수 없다.
+- `dataStatuses` 파라미터가 없다. 보도자료는 공식 수집분만 존재한다.
+- `metadata.mentionedRegions`는 본문에 시군 이름이 등장했다는 뜻이며 해당 시군의
+  사업임을 보장하지 않는다. `region` 필터는 발표 주체와 언급 시군을 함께 본다.
+- 본문 판독이 불가능한 게시물(`content_classification != 'extracted_ok'`)은
+  결과에서 제외한다.
+
+```json
+{"query":"청년 창업","region":"청도군","dateFrom":"2024-01-01"}
+```
+
 ## `verify_claim_with_data`
 
 - 입력: `metric`(`population`/`local_tax`), `region`, `year`,
