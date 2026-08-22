@@ -60,10 +60,10 @@
       "rate": 1
     }
   },
-  "medianElapsedMs": 132.623833,
-  "p95ElapsedMs": 2744.718167000001,
+  "medianElapsedMs": 152.98075000000006,
+  "p95ElapsedMs": 2663.625499999999,
   "totalManualBaselineMinutes": 383,
-  "totalMinutesSaved": 382.81720396454995,
+  "totalMinutesSaved": 382.8165325242834,
   "results": [
     {
       "id": "pop-pohang-trend",
@@ -126,9 +126,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 80.091208,
+      "elapsedMs": 72.50312500000001,
       "manualBaselineMinutes": 18,
-      "minutesSaved": 17.998665146533334
+      "minutesSaved": 17.998791614583332
     },
     {
       "id": "pop-uljin-trend",
@@ -191,9 +191,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 32.574708000000044,
+      "elapsedMs": 126.99270900000002,
       "manualBaselineMinutes": 18,
-      "minutesSaved": 17.9994570882
+      "minutesSaved": 17.99788345485
     },
     {
       "id": "pop-andong-recent",
@@ -256,9 +256,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 66.41049999999996,
+      "elapsedMs": 63.36820799999998,
       "manualBaselineMinutes": 15,
-      "minutesSaved": 14.998893158333333
+      "minutesSaved": 14.9989438632
     },
     {
       "id": "tax-gumi-trend",
@@ -321,9 +321,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 73.421042,
+      "elapsedMs": 71.525083,
       "manualBaselineMinutes": 25,
-      "minutesSaved": 24.998776315966666
+      "minutesSaved": 24.998807915283333
     },
     {
       "id": "tax-gyeongju-trend",
@@ -386,9 +386,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 149.842917,
+      "elapsedMs": 56.87674999999996,
       "manualBaselineMinutes": 22,
-      "minutesSaved": 21.99750261805
+      "minutesSaved": 21.99905205416667
     },
     {
       "id": "cross-pohang-pop-tax",
@@ -451,9 +451,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 132.623833,
+      "elapsedMs": 152.98075000000006,
       "manualBaselineMinutes": 45,
-      "minutesSaved": 44.997789602783335
+      "minutesSaved": 44.99745032083333
     },
     {
       "id": "cross-gyeongsan-pop-tax",
@@ -516,9 +516,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 98.563084,
+      "elapsedMs": 192.939209,
       "manualBaselineMinutes": 45,
-      "minutesSaved": 44.99835728193333
+      "minutesSaved": 44.99678434651667
     },
     {
       "id": "press-youth-startup",
@@ -581,9 +581,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 1920.3783749999998,
+      "elapsedMs": 1910.54025,
       "manualBaselineMinutes": 20,
-      "minutesSaved": 19.96799369375
+      "minutesSaved": 19.9681576625
     },
     {
       "id": "press-smartfarm",
@@ -646,9 +646,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 1470.6557089999997,
+      "elapsedMs": 1423.7331250000002,
       "manualBaselineMinutes": 20,
-      "minutesSaved": 19.975489071516666
+      "minutesSaved": 19.976271114583334
     },
     {
       "id": "council-local-extinction",
@@ -711,9 +711,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 1704.7640420000007,
+      "elapsedMs": 1610.2340000000004,
       "manualBaselineMinutes": 40,
-      "minutesSaved": 39.97158726596667
+      "minutesSaved": 39.97316276666667
     },
     {
       "id": "council-population-policy",
@@ -776,9 +776,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 2744.718167000001,
+      "elapsedMs": 2663.625499999999,
       "manualBaselineMinutes": 40,
-      "minutesSaved": 39.95425469721667
+      "minutesSaved": 39.955606241666665
     },
     {
       "id": "bill-member-proposal",
@@ -841,9 +841,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 994.1283339999991,
+      "elapsedMs": 1178.1787919999988,
       "manualBaselineMinutes": 30,
-      "minutesSaved": 29.983431194433333
+      "minutesSaved": 29.9803636868
     },
     {
       "id": "refuse-out-of-scope",
@@ -906,9 +906,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 0.49875000000065484,
+      "elapsedMs": 0.19695800000044983,
       "manualBaselineMinutes": 5,
-      "minutesSaved": 4.9999916875
+      "minutesSaved": 4.999996717366667
     },
     {
       "id": "refuse-national-tax",
@@ -971,9 +971,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 0.6330830000006245,
+      "elapsedMs": 0.11704199999985576,
       "manualBaselineMinutes": 10,
-      "minutesSaved": 9.999989448616667
+      "minutesSaved": 9.9999980493
     },
     {
       "id": "refuse-empty-policy",
@@ -1036,9 +1036,9 @@
           "detail": "근거 없는 수치 주장 없음"
         }
       ],
-      "elapsedMs": 1498.4583750000002,
+      "elapsedMs": 1484.2370420000007,
       "manualBaselineMinutes": 30,
-      "minutesSaved": 29.97502569375
+      "minutesSaved": 29.975262715966668
     }
   ]
 }
