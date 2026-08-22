@@ -100,7 +100,9 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
 ### `policy_program`
 
 지역, 정책명, 주관기관, 최소/최대 나이, 산업, 창업 단계, 자격 설명, 지원 내용,
-신청기간과 원출처를 저장한다.
+신청기간과 원출처를 저장한다. 현재 행은 기능 시연용 `demo_sample` 3건이다. 공식
+도정 업무계획 prose는 이 테이블에 자격·지원액을 추론해 넣지 않고 문서 passage로
+검색한다.
 
 ### `council_record`
 
@@ -112,8 +114,13 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
 content hash를 저장한다.
 
 - `document_key`와 UUID는 source version에서 결정적으로 생성한다.
-- `extraction_status`: `extracted`, `partial`, `ocr_required`, `extraction_failed`,
-  `password_required`
+- `extraction_status`: `extracted`, `partial`, `unusable_for_retrieval`,
+  `extraction_failed`, `password_required`
+- `content_classification`: `extracted_ok`, `mojibake_suspected`,
+  `unusable_for_retrieval`, `empty`
+- `extraction_method`: `native_pdf_text`, `none`
+- `provincial_work_plan`은 경상북도 연도별 도정 업무계획이다. 읽을 수 있는 문서는
+  filename 연도를 본문 업무계획/연도 evidence와 일치시킨 뒤에만 official passage가 된다.
 
 ### `document_page`
 
@@ -128,6 +135,14 @@ content hash를 저장한다.
 | `extractor_version` | layout/정리 규칙 버전 |
 | `non_whitespace_character_count` | cleaned text의 공백 제외 Unicode 문자 수 |
 | `hangul_ratio` | cleaned 공백 제외 문자 중 한글 음절/자모 비율 |
+| `hangul_character_count` | 한글 음절/자모 문자 수 |
+| `administrative_term_hit_rate` | curated 행정·정책 용어 목록 hit 비율 |
+| `valid_hangul_bigram_ratio` | curated 정상 한국어 bigram에 맞는 비율 |
+| `rare_hangul_syllable_ratio` | CID 손상에서 과다한 희귀 중성/종성 조합 비율 |
+| `particle_ratio` | 공백/문장 경계에서 발견된 한국어 조사 token 비율 |
+| `whitespace_boundary_ratio` | Hangul token 사이 공백 경계 plausibility |
+| `digit_punctuation_ratio` | 숫자·문장부호 비율 |
+| `mojibake_score` | 위 evidence를 결합한 0~1 의심 점수 |
 | `replacement_control_glyph_ratio` | raw 공백 제외 문자 중 replacement/control/private-use 비율 |
 | `suspicious_spacing_ratio` | 단일 한글 토큰이 과도하게 분리된 문자 비율 |
 | `repeated_header_line_count` / `repeated_footer_line_count` | 해당 페이지에서 제거한 반복 margin 줄 수 |
@@ -136,6 +151,14 @@ content hash를 저장한다.
 | `text_class` | `empty`, `near_empty`(<80자), `substantive` |
 | `error_text` | page extraction 실패의 bounded 오류 |
 | `metadata` | 제거한 margin 원문이 아닌 line hash, 품질 flag, source path |
+
+page의 `content_classification`/`extraction_method`도 document와 같은 enum을 사용한다.
+`raw_content_sha256`은 mojibake/unusable page도 유지하지만 `extracted_ok`가 아닌 page의
+cleaned `text`는 chunk로 전달하지 않는다.
+
+문서 metadata의 `retrievalExcluded`와 `retrievalExclusionReason`은
+`broken_cmap_mojibake`, `no_usable_text_layer`, `empty_document` 중 해당 결정을
+기록한다. 별도 OCR queue/table은 없다.
 
 ### `document_chunk`
 
@@ -174,7 +197,7 @@ partial unique index는 approved 행을 하나로 제한한다. 첫 기존 curre
 ### `document_processing_version`
 
 base `document` provenance와 별개로 문서별 processing version의 extraction 상태,
-page 수, content hash, ingestion run과 stale 시각을 보관한다. purge는 이 version 행을
+content classification/method, page 수, content hash, ingestion run과 stale 시각을 보관한다. purge는 이 version 행을
 정리하되 아직 source/fact가 참조하는 base `document`와 `data_source`를 광범위 삭제하지
 않는다.
 

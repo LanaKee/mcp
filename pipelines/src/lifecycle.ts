@@ -1496,10 +1496,16 @@ export function processingVersionKey(
         const targetChunks = numberValue(coverageRow.target_chunks);
         const targetDocuments = numberValue(coverageRow.target_documents);
         const activeDocuments = numberValue(coverageRow.active_documents);
+        const action =
+          target.rows[0].approval_state === "retired" ? "rollback" : "approve";
         if (targetChunks === 0 || targetDocuments === 0) {
           throw new Error("Target version has no retained chunks/documents");
         }
-        if (previousVersion && targetDocuments < activeDocuments) {
+        if (
+          previousVersion &&
+          action !== "rollback" &&
+          targetDocuments < activeDocuments
+        ) {
           throw new Error(
             `Target version is incomplete: ${targetDocuments} documents < ${activeDocuments}`
           );
@@ -1530,8 +1536,6 @@ export function processingVersionKey(
             ]
           );
         }
-        const action =
-          target.rows[0].approval_state === "retired" ? "rollback" : "approve";
         await client.query(
           `UPDATE pdf_processing_version
               SET approval_state = 'approved',
@@ -1596,6 +1600,8 @@ export function processingVersionKey(
         await client.query(
           `UPDATE document document_row
               SET extraction_status = version.extraction_status,
+                  content_classification = version.content_classification,
+                  extraction_method = version.extraction_method,
                   page_count = version.page_count,
                   content_sha256 = version.content_sha256,
                   data_status = version.data_status,

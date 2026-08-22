@@ -39,6 +39,7 @@ describe("Korean lexical retrieval", () => {
           dimensions: 2
         },
         regionId: "47",
+        documentTypes: ["provincial_work_plan"],
         limit: 5
       });
       expect(query.text).toContain("document_chunk_embedding");
@@ -48,6 +49,8 @@ describe("Korean lexical retrieval", () => {
       expect(query.text).toContain(
         "processing_version.approval_state = 'approved'"
       );
+      expect(query.text).toContain("d.content_classification = 'extracted_ok'");
+      expect(query.values[16]).toEqual(["provincial_work_plan"]);
       expect(query.text).not.toContain("청년 정착");
       expect(query.values.slice(0, 8)).toEqual([
         "청년 정착",
@@ -77,6 +80,8 @@ describe("Korean lexical retrieval", () => {
                 file_path: "datasets/a.pdf",
                 region_name: "김천시",
                 organization: "김천시의회",
+                document_type: "council_minutes",
+                extraction_method: "native_pdf_text",
                 published_date: "2023-01-01",
                 data_status: "official_observed",
                 lexical_score: "1.25",
@@ -101,7 +106,9 @@ describe("Korean lexical retrieval", () => {
         pageStart: 3,
         lexicalScore: 1.25,
         vectorScore: 0.5,
-        score: 0.9875
+        score: 0.9875,
+        documentType: "council_minutes",
+        extractionMethod: "native_pdf_text"
       });
     });
   });

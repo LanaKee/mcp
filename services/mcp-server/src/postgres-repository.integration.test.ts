@@ -33,6 +33,150 @@ describeDatabase("PostgresDataRepository integration", () => {
     });
     expect(documents.records.length).toBeGreaterThan(0);
     expect(documents.records[0]!.metadata.pageStart).toBeGreaterThan(0);
+
+    const policies = await repository!.searchDocuments({
+      query: "청년",
+      documentTypes: ["provincial_work_plan"],
+      limit: 5,
+      dataStatuses: ["official_observed"]
+    });
+    expect(policies.records.length).toBeGreaterThan(0);
+    expect(policies.records[0]!.metadata).toMatchObject({
+      documentType: "provincial_work_plan",
+      extractionMethod: "native_pdf_text"
+    });
+    expect(policies.records[0]!.metadata.locator).toContain("#page=");
+  });
+
+  it("catalogs unusable policy files without chunks or OCR infrastructure", async () => {
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const excluded = await pool.query<{
+        file_path: string;
+        content_classification: string;
+        chunks: string;
+        page_count: number;
+        exclusion_reason: string;
+      }>(
+        `SELECT
+           source.file_path,
+           document_row.content_classification,
+           count(DISTINCT chunk.chunk_id)::text AS chunks,
+           document_row.page_count,
+           document_row.metadata->>'retrievalExclusionReason' AS exclusion_reason
+         FROM document document_row
+         JOIN data_source source ON source.source_id = document_row.source_id
+         LEFT JOIN document_chunk chunk
+           ON chunk.document_id = document_row.document_id
+          AND chunk.is_current
+          AND chunk.approved_current
+         WHERE source.file_path = ANY($1::text[])
+         GROUP BY
+           source.file_path,
+           document_row.content_classification,
+           document_row.page_count,
+           document_row.metadata->>'retrievalExclusionReason'
+         ORDER BY source.file_path`,
+        [[
+          "datasets/extra/dojeong_2020.pdf",
+          "datasets/extra/dojeong_2022.pdf",
+          "datasets/extra/dojeong_2024.pdf"
+        ]]
+      );
+      expect(excluded.rows).toHaveLength(3);
+      expect(excluded.rows.every((row) => Number(row.chunks) === 0)).toBe(true);
+      expect(excluded.rows.map((row) => row.page_count)).toEqual([96, 100, 135]);
+      expect(
+        excluded.rows.map((row) => row.content_classification)
+      ).toEqual(
+        expect.arrayContaining([
+          "mojibake_suspected",
+          "unusable_for_retrieval"
+        ])
+      );
+      expect(
+        excluded.rows.map((row) => row.exclusion_reason)
+      ).toEqual(
+        expect.arrayContaining([
+          "broken_cmap_mojibake",
+          "no_usable_text_layer"
+        ])
+      );
+      const queueTable = await pool.query<{ table_name: string | null }>(
+        "SELECT to_regclass('public.document_ocr_queue')::text AS table_name"
+      );
+      expect(queueTable.rows[0]?.table_name).toBeNull();
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("reports unavailable source coverage for a targeted excluded year", async () => {
+    const response = await executeTool(
+      createToolRegistry(repository!),
+      "search_policies",
+      {
+        region: "경상북도",
+        age: 34,
+        query: "2024 청년 정책",
+        asOfDate: "2024-12-31"
+      }
+    );
+    const result = response.result as {
+      official_document_passages: unknown[];
+      policy_document_coverage: Array<{
+        year: number;
+        retrievalAvailable: boolean;
+        exclusionReason: string;
+      }>;
+    };
+    expect(result.official_document_passages).toEqual([]);
+    expect(result.policy_document_coverage).toEqual([
+      expect.objectContaining({
+        year: 2024,
+        retrievalAvailable: false,
+        exclusionReason: "no_usable_text_layer"
+      })
+    ]);
+    expect(response.limitations.join(" ")).toContain(
+      "원문은 존재하지만 기계 판독 가능한 본문이 없어"
+    );
+  });
+
+  it("keeps official policy passages separate from demo eligibility records", async () => {
+    const response = await executeTool(
+      createToolRegistry(repository!),
+      "search_policies",
+      {
+        region: "경상북도",
+        age: 34,
+        query: "청년 스마트팜",
+        stage: "예비창업"
+      }
+    );
+    const result = response.result as {
+      matches: Array<{ policy: { dataStatus: string } }>;
+      official_document_passages: Array<{
+        metadata: {
+          documentType: string;
+          extractionMethod: string;
+          pageStart: number;
+        };
+      }>;
+    };
+    expect(
+      result.matches.some(
+        (match) => match.policy.dataStatus === "demo_sample"
+      )
+    ).toBe(true);
+    expect(result.official_document_passages.length).toBeGreaterThan(0);
+    expect(result.official_document_passages[0]!.metadata).toMatchObject({
+      documentType: "provincial_work_plan",
+      extractionMethod: "native_pdf_text"
+    });
+    expect(result.official_document_passages[0]!.metadata.pageStart).toBeGreaterThan(
+      0
+    );
   });
 
   it("prefers official normalized tax and retains row provenance", async () => {
@@ -231,6 +375,9 @@ describeDatabase("PostgresDataRepository integration", () => {
         content_sha256: string;
         speaker_marker_count: number;
         repeated_header_line_count: number;
+        content_classification: string;
+        extraction_method: string;
+        mojibake_score: number;
         locator_page: number;
       }>(
         `SELECT page.page_number,
@@ -238,6 +385,9 @@ describeDatabase("PostgresDataRepository integration", () => {
                 page.content_sha256,
                 page.speaker_marker_count,
                 page.repeated_header_line_count,
+                page.content_classification,
+                page.extraction_method,
+                page.mojibake_score,
                 locator.page_number AS locator_page
            FROM document_page page
            JOIN document document_row
@@ -259,8 +409,11 @@ describeDatabase("PostgresDataRepository integration", () => {
       );
       expect(result.rows[0]).toMatchObject({
         page_number: 2,
+        content_classification: "extracted_ok",
+        extraction_method: "native_pdf_text",
         locator_page: 2
       });
+      expect(result.rows[0]!.mojibake_score).toBeGreaterThanOrEqual(0);
       expect(result.rows[0]!.raw_content_sha256).toHaveLength(64);
       expect(result.rows[0]!.content_sha256).toHaveLength(64);
       expect(result.rows[0]!.speaker_marker_count).toBeGreaterThanOrEqual(20);
@@ -307,17 +460,17 @@ describeDatabase("PostgresDataRepository integration", () => {
   it("reports approved lifecycle capacity without connection details", async () => {
     const capacity = await repository!.storageCapacity();
     expect(capacity.counts).toMatchObject({
-      currentChunks: 23_795,
-      staleChunks: 17_487,
-      currentEmbeddings: 23_795,
-      staleEmbeddings: 17_487,
-      currentPages: 11_712
+      currentChunks: 24_565,
+      currentEmbeddings: 24_565,
+      currentPages: 12_522
     });
+    expect(capacity.counts.staleChunks).toBeGreaterThanOrEqual(41_282);
+    expect(capacity.counts.staleEmbeddings).toBeGreaterThanOrEqual(41_282);
     expect(capacity.versions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           approvalState: "approved",
-          currentChunks: 23_795
+          currentChunks: 24_565
         })
       ])
     );

@@ -2,22 +2,22 @@
 
 ## 검토 증거
 
-- 실제 401개 PDF, 11,712페이지를 전부 재추출·평가·PostgreSQL 적재했다.
-- extraction failure/OCR-required는 0페이지였고 substantive 11,607, near-empty 105였다.
-- local 4개 PDF의 5개 golden page가 source/page/raw hash와 짧은 구조 marker를 모두 통과했다.
-- table-likely 12페이지, speaker-rich 7,975페이지, suspicious-spacing 214페이지,
-  control-glyph 98페이지였다.
+- 실제 408개 PDF, 12,522페이지를 전부 재추출·평가·PostgreSQL 적재했다.
+- page classification은 `extracted_ok` 12,178, `mojibake_suspected` 172,
+  `unusable_for_retrieval` 166, `empty` 6이다. 제외 page에서 생성된
+  chunk/embedding은 0이다.
+- 기존 401개, 11,712페이지를 별도 재검사한 결과는 모두 `extracted_ok`였다.
+- local 5개 PDF의 6개 golden page가 source/page/raw hash와 짧은 구조 marker를 모두 통과했다.
+- table-likely 40페이지, speaker-rich 7,975페이지였다.
 - 고신뢰 반복 header 543줄을 제거했다. 실제 반복 footer 표본은 0개였다.
-- current page 11,712개는 locator 11,712개와 일치했고 current 문서·page 중복 및
-  embedding 누락은 0이었다.
-- 최종 current chunk/embedding은 23,795개다. 평균 576자, 중앙값 497자, p95 1,180자,
-  40자 미만 2,157개였다.
-- 동일 입력 재실행은 insert 0, embedding 생성 0, unchanged embedding 23,795개 skip이었다.
+- current page 12,522개와 current chunk/embedding 24,565개를 확인했고 embedding 누락은 0이었다.
+- 정책 문서에서 current chunk/embedding 770개가 추가됐다.
+- 동일 입력 재실행은 insert 0, 신규 embedding 0으로 current 24,565개를 유지했다.
 - PostgreSQL hybrid 검색은 `지방소멸` 209.1ms, `청년 정착` 261.0ms,
   `행정사무감사` 290.4ms였고 모두 page/title provenance를 반환했다.
 - gated PostgreSQL integration 3건이 page 품질/source locator까지 통과했다.
-- lifecycle migration 뒤 production approved/current chunk와 embedding은 각각 23,795,
-  page locator는 11,712로 유지됐다. retained stale chunk/embedding은 각각 17,487이다.
+- policy quality version 승인 뒤 production approved/current chunk와 embedding은 각각
+  24,565이고 retained stale chunk/embedding은 각각 41,282이다.
 - 최소 30일 실제 stale purge dry-run은 0건이었다. migration이 기존 stale 행에 보수적
   `stale_at`을 부여했으므로 실제 corpus는 운영자 승인 전까지 유지된다.
 - controlled retired fixture는 chunk/embedding/locator/page/document-version을
@@ -52,6 +52,12 @@
   `incomparable_sources`, 비교는 `evaluable: false`를 반환한다.
 - 최종 token-auth PostgreSQL HTTP smoke는 trend 155.3ms, 비교 315.6ms였고 두 audit
   correlation이 성공했다. 응답 문자열에 `-54.36`은 존재하지 않았다.
+- 2021·2023·2025·2026 도정 업무계획은 공식 page passage로 적재했다. 2020/2022는
+  CID mojibake, 2024는 image-only라 각각 current chunk 0이다.
+- good policy 문서 안의 text-layer 없는 13페이지까지 포함해 mojibake 172,
+  unusable 166페이지의 hash/evidence/exclusion reason을 남겼다. OCR queue는 없다.
+- `청년 스마트팜` policy smoke는 438.1ms에 2023 업무계획 81쪽
+  `native_pdf_text` citation을 반환했고 demo eligibility와 별도 배열로 유지했다.
 
 ## 이번 P1에서 수정한 고신뢰 문제
 
@@ -136,6 +142,21 @@ status, accounting basis, amount semantics, source grain, source unit/multiplier
 demo claim은 검증하지 않고 demo/비공식 source의 공공문서 drafting은 거절한다. 대표
 demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 
+### Hangul 비율 mojibake blind spot
+
+기존 품질 gate는 한글 codepoint 비율을 읽을 수 있는 한국어의 proxy로 과신했다.
+2022 CID 손상은 한글 비율 약 0.39인데도 행정 용어, valid bigram, 조사 evidence가
+모두 0이었고 rare syllable composition은 약 0.675였다.
+
+이제 행정 용어·bigram·조사·rare syllable·spacing·digit/punctuation을 함께 평가하고
+문서/page classification과 extraction method를 DB에 저장한다. mojibake/no-text는 raw
+hash를 유지하되 cleaned text를 비워 chunk/embedding/search에서 제외한다. 제외 page가
+검색 content를 만들 때 품질 gate가 실패한다.
+
+공식 도정 업무계획은 읽을 수 있는 경우 filename 연도를 본문 업무계획/연도 marker와
+검증한다. 공식 prose는 `policy_program` 자격 record로 추론하지 않고 page passage로만
+반환한다.
+
 ## 영역별 남은 위험
 
 ### 정확성·데이터 품질
@@ -151,10 +172,13 @@ demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 - 영천 quarantine은 제공기관 schema 확인 전에는 해제할 수 없다.
 - 31개 zero-only 행, 과세 부분 blank 22행, 전체 blank 과세 1행은 원천 품질 신호이며
   자동 보정하지 않았다.
-- golden은 4개 문서 5페이지의 구조 회귀이며 전체 문장 정확도나 법적 완전성을 입증하지 않는다.
+- golden은 5개 문서 6페이지의 구조 회귀이며 전체 문장 정확도나 법적 완전성을 입증하지 않는다.
 - 실제 반복 footer가 없어 footer 제거는 합성 test만 있다.
 - PDF glyph 순서, 다단 편집, 병합 셀은 PDF.js reading order와 다를 수 있다.
-- near-empty 105페이지는 자동 오류가 아니다. 표지/서식일 수 있어 검토 queue가 필요하다.
+- mojibake/unusable threshold는 현재 회의록과 7개 업무계획으로 보정했다. 다른 출판
+  도구·문서 유형에는 false positive/negative가 있을 수 있다.
+- 2024 업무계획 129페이지와 good 문서의 13페이지는 검색 coverage가 없다.
+- 업무계획은 정책 방향 문서이지 개별 사업 공고가 아니므로 자격·기간의 최종 근거가 아니다.
 - 날짜/기관은 일부 파일명 추론이므로 표지와 불일치할 수 있다.
 
 ### 개인정보·비용
@@ -173,8 +197,8 @@ demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 ### 확장성·운영
 
 - current chunk는 적정 크기로 줄었지만 version 변경 시 stale 행은 의도적으로 남는다.
-  현재 DB에는 이전 released chunk 17,487개가 stale로 보존된다.
-- lifecycle로 승인/보존/purge 안전장치는 생겼지만 실제 stale 17,487개는 아직 purge하지
+  현재 DB에는 이전 두 version의 chunk/embedding 41,282개가 stale로 보존된다.
+- lifecycle로 승인/보존/purge 안전장치는 생겼지만 실제 stale 41,282개는 아직 purge하지
   않았다. 논리/물리 회수량은 운영자 dry-run 승인 후에만 확인할 수 있다.
 - 이전 `VACUUM (ANALYZE)`는 PostgreSQL shared-memory `53100/no space left on device`로
   실패했다. Compose는 `shm_size: 256mb` 예시를 제공하지만 운영 DB는 별도 여유 shared
@@ -199,12 +223,8 @@ demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 ## 다음 우선순위
 
 1. **P1 지방세 종단 coverage:** 2024 단일 점으로 끝나는 시·군의 2023 이전 동일
-   시·군세 scope를 확보하고 연감 간 세목/schema drift를 평가한다. 새로 감지된
-   `datasets/extra/` PDF 7개는 우선 catalog-only로 두고 구조·연도·라이선스를 검증한
-   뒤에만 tax fact 후보로 사용한다.
-2. **P1 OCR:** 승인된 로컬 OCR queue, OCR 전/후 provenance와 OCR golden/품질 점수.
-   현재 corpus 0건 실패는 향후 scan PDF 대응을 입증하지 않는다.
-3. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
-4. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
-5. **P1 운영 자동화:** backup/restore rehearsal, lifecycle scheduler와 경보 전달.
-6. **P2 규모:** provider/dimension별 pgvector partition과 ANN index.
+   시·군세 scope를 확보하고 연감 간 세목/schema drift를 평가한다.
+2. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
+3. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
+4. **P1 운영 자동화:** backup/restore rehearsal, lifecycle scheduler와 경보 전달.
+5. **P2 규모:** provider/dimension별 pgvector partition과 ANN index.

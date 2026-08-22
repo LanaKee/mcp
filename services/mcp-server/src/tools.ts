@@ -88,6 +88,15 @@ function mergeSources(...groups: SourceRef[][]): SourceRef[] {
   return [...new Map(groups.flat().map((source) => [source.sourceId, source])).values()];
 }
 
+function targetedPolicyYear(input: {
+  query: string;
+  asOfDate?: string;
+}): number | null {
+  if (input.asOfDate) return Number(input.asOfDate.slice(0, 4));
+  const match = input.query.match(/\b(20(?:20|21|22|23|24|25|26))\b/u);
+  return match ? Number(match[1]) : null;
+}
+
 function statusLimitations(values: DataStatus[]): string[] {
   const limitations: string[] = [];
   if (values.includes("demo_sample")) {
@@ -350,23 +359,76 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       ["region", "age", "query"]
     ),
     async (input) => {
+      const requestedStatuses = statuses(input);
+      const targetYear = targetedPolicyYear(input);
+      const coverage =
+        targetYear === null
+          ? { records: [], sources: [], dataStatuses: [] }
+          : await repository.getPolicyDocumentCoverage([targetYear]);
       const loaded = await repository.findPolicies({
         region: input.region,
         query: input.query,
-        dataStatuses: statuses(input),
+        dataStatuses: requestedStatuses,
         limit: 100
       });
+      const officialDocuments = requestedStatuses.includes("official_observed")
+        ? await repository.searchDocuments({
+            query: input.query,
+            documentTypes: ["provincial_work_plan"],
+            dateFrom:
+              targetYear === null ? undefined : `${targetYear}-01-01`,
+            dateTo:
+              targetYear === null ? undefined : `${targetYear}-12-31`,
+            limit: 8,
+            dataStatuses: ["official_observed"]
+          })
+        : { records: [], sources: [], dataStatuses: [] };
       const matches = loaded.records
         .map((policy) => evaluatePolicyEligibility(policy, input))
         .sort((left, right) => right.score - left.score);
+      const usedStatuses = [
+        ...new Set([
+          ...loaded.dataStatuses,
+          ...officialDocuments.dataStatuses,
+          ...coverage.dataStatuses
+        ])
+      ];
+      const unavailableCoverage = coverage.records.filter(
+        (item) => !item.retrievalAvailable
+      );
       return {
-        data_status: responseStatus(loaded.dataStatuses),
-        data_statuses: loaded.dataStatuses,
-        result: { matches },
-        sources: loaded.sources,
+        data_status: responseStatus(usedStatuses),
+        data_statuses: usedStatuses,
+        result: {
+          matches,
+          official_document_passages: officialDocuments.records,
+          policy_document_coverage: coverage.records
+        },
+        sources: mergeSources(
+          loaded.sources,
+          officialDocuments.sources,
+          coverage.sources
+        ),
         limitations: [
           "정책 신청 전 최신 공식 공고의 자격과 기간을 확인해야 합니다.",
-          ...statusLimitations(loaded.dataStatuses)
+          ...(matches.some(
+            (match) => match.policy.dataStatus === "demo_sample"
+          )
+            ? [
+                "matches의 demo_sample 자격 판단은 기능 예시이며 공식 정책 근거가 아닙니다."
+              ]
+            : []),
+          ...(officialDocuments.records.length > 0
+            ? [
+                "official_document_passages는 공식 도정 업무계획의 페이지 인용이며, 자격·지원액을 구조화하거나 추론하지 않습니다."
+              ]
+            : []),
+          ...(unavailableCoverage.length > 0
+            ? [
+                `${unavailableCoverage.map((item) => item.year).join(", ")}년도 도정 업무계획 원문은 존재하지만 기계 판독 가능한 본문이 없어 검색 근거로 제공하지 않습니다.`
+              ]
+            : []),
+          ...statusLimitations(usedStatuses)
         ]
       };
     }

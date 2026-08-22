@@ -168,6 +168,7 @@ export interface PostgresHybridSearchInput {
   publishedTo?: string;
   dataStatuses?: string[];
   organization?: string;
+  documentTypes?: string[];
   limit?: number;
   candidateLimit?: number;
 }
@@ -188,6 +189,8 @@ export interface PostgresHybridSearchRow {
   file_path: string | null;
   region_name: string | null;
   organization: string | null;
+  document_type: string;
+  extraction_method: string;
   published_date: string | null;
   data_status: string;
   lexical_score: number | string;
@@ -256,6 +259,8 @@ export function buildPostgresHybridSearchQuery(
           ds.file_path,
           region.region_name,
           d.organization,
+          d.document_type,
+          d.extraction_method,
           d.published_date,
           d.data_status,
           (
@@ -284,10 +289,12 @@ export function buildPostgresHybridSearchQuery(
         WHERE ($8::text IS NULL OR d.region_id = $8)
           AND dc.is_current
           AND dc.approved_current
+          AND d.content_classification = 'extracted_ok'
           AND ($9::date IS NULL OR d.published_date >= $9)
           AND ($10::date IS NULL OR d.published_date <= $10)
           AND d.data_status = ANY($15::text[])
           AND ($16::text IS NULL OR d.organization ILIKE ('%' || $16 || '%'))
+          AND ($17::text[] IS NULL OR d.document_type = ANY($17::text[]))
       ),
       candidates AS (
         SELECT *
@@ -326,6 +333,8 @@ export function buildPostgresHybridSearchQuery(
         file_path,
         region_name,
         organization,
+        document_type,
+        extraction_method,
         published_date::text,
         data_status,
         lexical_score,
@@ -355,7 +364,8 @@ export function buildPostgresHybridSearchQuery(
       candidateLimit,
       ftsQuery,
       input.dataStatuses ?? ["official_observed", "demo_sample"],
-      input.organization ?? null
+      input.organization ?? null,
+      input.documentTypes ?? null
     ]
   };
 }
@@ -375,6 +385,8 @@ export class PostgresHybridSearchRepository {
       filePath: string | null;
       regionName: string | null;
       organization: string | null;
+      documentType: string;
+      extractionMethod: string;
       publishedDate: string | null;
       dataStatus: string;
       lexicalScore: number;
@@ -398,6 +410,8 @@ export class PostgresHybridSearchRepository {
       filePath: row.file_path,
       regionName: row.region_name,
       organization: row.organization,
+      documentType: row.document_type,
+      extractionMethod: row.extraction_method,
       publishedDate: row.published_date,
       dataStatus: row.data_status,
       lexicalScore: Number(row.lexical_score),

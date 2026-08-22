@@ -20,8 +20,9 @@
 - 9개 지방세 원천 grain과 행정안전부 HWPX 연감의 KRW 단위 정규화, 품질 검증,
   격리와 공식 우선 조회
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
-- PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
-- page-level 품질 지표, 반복 머리말 제거, 발언자/표 경계 chunk와 golden 회귀 평가
+- PDF.js 기반 408개 회의록·감사·도정 업무계획 PDF 페이지 추출, chunk, 로컬 임베딩 적재
+- page-level 한국어 plausibility/mojibake 지표, 반복 머리말 제거, 발언자/표 경계
+  chunk와 golden 회귀 평가
 - 승인된 PDF 처리 version만 검색하는 lifecycle, 보존기간·확인 token 기반 purge와 용량 보고
 - PostgreSQL 정규화 스키마, 마이그레이션, Docker Compose
 - 한글 FTS/trigram과 저장 임베딩을 결합하는 PostgreSQL hybrid repository
@@ -228,10 +229,13 @@ ETL은 다음을 수행합니다.
    장/표 marker로 지방세 9개 grain, 공식 연감과 별도 격리 대상을 판별
 6. 명시된 원/천원 단위를 KRW 정수로 바꾸고, 김천의 무표기 납부액은 명시적
    천원 징수자료와 6개 세목 exact match가 있을 때만 천원으로 판정
-7. PDF 원천은 `catalog_only` source로 보존하면서 raw/cleaned page hash와 품질 지표를 기록
+7. PDF 원천은 raw/cleaned page hash, 추출 방식과 품질 지표를 기록하며 읽을 수 있는
+   공식 문서만 `official_observed`로 승격
 8. 문서 전체에서 고신뢰 반복 머리말/꼬리말만 제거하고 발언자 전환과 표 행을 원자적으로 chunk
-9. 텍스트가 없는 문서/페이지는 `ocr_required`, 오류는 `extraction_failed`로 명시
-10. 파싱 오류와 지방세 품질 문제를 각각 `errors.json`,
+9. Unicode 한글 비율 외에 행정 용어·valid bigram·조사·rare syllable·공백/문장부호를
+   검사해 `extracted_ok`, `mojibake_suspected`, `unusable_for_retrieval`, `empty`를 구분
+10. 제외 page는 hash·분류·근거만 보존하고 chunk/embedding/search에 넣지 않음
+11. 파싱 오류와 지방세 품질 문제를 각각 `errors.json`,
     `local-tax.quality.report.json` 및 종료 코드로 노출
 
 `data/generated/`는 재생성 가능하므로 Git에서 제외됩니다.
@@ -264,7 +268,7 @@ ETL은 다음을 수행합니다.
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 40 | 4 | 408 |
+| `data_source` | 445 | 4 | 3 |
 | `population_observation` | 221 | 12 | - |
 | `local_tax_revenue` | 544 | 12 | - |
 | `local_tax_collection_status` | 220 | 0 | - |
@@ -277,14 +281,19 @@ ETL은 다음을 수행합니다.
 | `local_tax_enforcement_statistic` | 90 | 0 | - |
 | `policy_program` | 0 | 3 | - |
 | `council_record` | 46,596 | 5 | - |
-| `document` | 401 | 0 | - |
-| `document_page` | 11,712 | 0 | - |
-| `document_chunk` | 23,795 | 0 | - |
-| `document_chunk_embedding` | 23,795 | 0 | - |
+| `document` | 405 | 0 | 3 |
 
-추가된 `datasets/extra/` PDF 7개는 이번 지방세 coverage 작업에서 catalog-only로만
-등록했다. 기존 검색 corpus인 document 401개와 current chunk/embedding 23,795개는
-변경하지 않았다.
+`datasets/extra/`의 2021·2023·2025·2026 도정 업무계획은 공식 page passage로
+검색된다. 2020·2022는 CID mojibake, 2024는 usable text layer가 없어
+catalog/provenance와 제외 근거만 보존하고 검색에는 넣지 않는다.
+
+| PDF current 항목 | 건수 |
+|---|---:|
+| `document_page` | 12,522 |
+| `document_page` `extracted_ok` | 12,178 |
+| 제외 page (`mojibake_suspected`/`unusable_for_retrieval`/`empty`) | 344 |
+| `document_chunk` | 24,565 |
+| current `document_chunk_embedding` | 24,565 |
 
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
@@ -295,6 +304,8 @@ GROUP BY severity, issue_code ORDER BY severity, issue_code;
 SELECT data_status, count(*) FROM council_record GROUP BY data_status;
 SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
 SELECT text_class, count(*) FROM document_page WHERE is_current GROUP BY text_class;
+SELECT content_classification, count(*) FROM document_page
+WHERE is_current GROUP BY content_classification;
 SELECT is_current, count(*) FROM document_chunk GROUP BY is_current;
 ```
 
@@ -302,7 +313,8 @@ SELECT is_current, count(*) FROM document_chunk GROUP BY is_current;
 
 새 extractor/chunker는 production 검색을 자동 변경하지 않고 `candidate`로 등록된다.
 승인/rollback은 retained chunk와 embedding이 완전한지 확인한 뒤 한 transaction에서
-가시성을 전환한다.
+가시성을 전환한다. 과거 version rollback은 당시 존재하지 않았던 신규 문서를 일시적으로
+숨길 수 있으므로 반환된 document/page/chunk coverage를 확인해야 한다.
 
 ```bash
 # version, current/stale 행, relation/index 크기, 안전한 DB 설정과 경고
@@ -339,8 +351,8 @@ hash를 사용한다. 후보가 바뀌면 기존 token은 실행되지 않는다
 부족이므로 무작정 재시도하지 말고 `/dev/shm`, `shm_size`, disk,
 `maintenance_work_mem`, parallel maintenance 설정을 점검한다.
 
-현재 실측 stale 17,487 chunk/embedding은 migration 시점부터 보존기간을 다시 계산하므로
-30일 dry-run 대상이 0건이며, **실제 stale corpus는 운영자 승인 전까지 삭제하지 않는다.**
+새 policy extraction version 승인 후 이전 23,795개와 legacy 17,487개, 합계 41,282개
+stale chunk/embedding을 보존한다. **실제 stale corpus는 운영자 승인 전까지 삭제하지 않는다.**
 purge는 base `document`/`data_source` provenance를 지우지 않고 version별 처리 상태만
 정리한다. 논리 삭제 뒤 물리 공간 회수는 별도 maintenance window의 VACUUM 책임이다.
 
@@ -367,14 +379,16 @@ PostgreSQL FTS로 최대 200개 lexical 후보를 만든 뒤 cosine rerank한다
 `PostgresHybridSearchRepository`는 PostgreSQL MCP repository의 의회 검색에 연결되어
 구조화 의안과 PDF chunk를 함께 반환한다.
 
-전체 로컬 실행 결과는 PDF 401개, 11,712페이지, 현재 chunk/embedding 23,795개였고
-추출/OCR 필요 문서는 0개였다. 105페이지는 near-empty, 12페이지는 table-likely였고
-반복 머리말 543줄을 제거했다. 동일 입력 재실행은 embedding 23,795개를 모두 skip했다.
-다른 원천에서는 실패 상태가 `document_page`와 page locator에 저장된다.
+전체 로컬 실행 결과는 PDF 408개, 12,522페이지, 현재 chunk/embedding 24,565개다.
+페이지는 `extracted_ok` 12,178, `mojibake_suspected` 172,
+`unusable_for_retrieval` 166,
+`empty` 6이며 제외 page에서 생성된 chunk는 0개다. 기존 401개 corpus만 다시 검사하면
+11,712페이지 전부 `extracted_ok`다. 반복 머리말 543줄을 제거했다.
 
-`pnpm pdf:evaluate`는 짧은 marker만 저장한 local golden 5페이지와 전체 corpus 분포를
-평가해 `data/generated/pdf.quality.report.json`을 만든다. golden 실패, 실패 page 1% 초과,
-OCR-required page 2% 초과만 severe regression으로 비정상 종료한다.
+`pnpm pdf:evaluate`는 짧은 marker만 저장한 local golden 6페이지와 전체 corpus 분포를
+평가해 `data/generated/pdf.quality.report.json`을 만든다. golden 실패, failed page 1%
+초과, excluded-page chunk 오염, 읽을 수 있지만 연도/문서유형 증거를 검증하지 못한
+정책 문서를 severe regression으로 처리한다.
 
 ## 품질 명령
 
@@ -403,8 +417,9 @@ docs/                     설계·도구·데이터 사전·변경 기록
 
 ## 현재 한계
 
-- OCR 엔진은 포함하지 않는다. 텍스트 layer가 없는 PDF는 `ocr_required`로 남긴다.
-- golden은 4개 local PDF의 5페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
+- 2020·2022·2024 업무계획 본문 재수집은 이번 범위 밖이다. 향후 별도 승인된
+  source replacement 또는 OCR 결정 없이는 검색 coverage를 주장하지 않는다.
+- golden은 5개 local PDF의 6페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
 - demo와 공식, 또는 서로 다른 금액 의미/회계 기준/grain/단위를 가로지르는 증감률은
@@ -418,7 +433,7 @@ docs/                     설계·도구·데이터 사전·변경 기록
 - token은 단일 shared secret이며 tenant/role 권한 모델은 없다.
 - rate limit은 process-local이므로 여러 replica에서는 공용 Redis/게이트웨이가 필요하다.
 - TLS 인증서와 secret rotation은 reverse proxy/배포 플랫폼 책임이다.
-- stale 17,487건은 안전 보존 중이며 실제 purge와 물리 공간 회수는 운영자 승인/점검이 필요하다.
+- stale 41,282건은 안전 보존 중이며 실제 purge와 물리 공간 회수는 운영자 승인/점검이 필요하다.
 
 상세 내용은 [아키텍처](docs/architecture.md),
 [데이터 사전](docs/data-dictionary.md), [MCP 도구 명세](docs/mcp-tools.md)를 참고하세요.

@@ -22,6 +22,8 @@ function fixturePlan(): {
     sourcePath,
     pageNumber: 2,
     extractionStatus: "extracted" as const,
+    contentClassification: "extracted_ok" as const,
+    extractionMethod: "native_pdf_text" as const,
     rawContentSha256: rawTextSha256,
     contentSha256: "c".repeat(64),
     text: "○위원장 박영록 질의합니다.",
@@ -37,7 +39,9 @@ function fixturePlan(): {
     files: 1,
     pages: 1,
     extractedPages: 1,
-    ocrRequiredPages: 0,
+    unusableForRetrievalPages: 0,
+    mojibakeSuspectedPages: 0,
+    classifiedEmptyPages: 0,
     failedPages: 0,
     emptyPages: 0,
     nearEmptyPages: 1,
@@ -48,7 +52,9 @@ function fixturePlan(): {
     chunks: 0,
     extractedDocuments: 1,
     partialDocuments: 0,
-    ocrRequiredDocuments: 0,
+    unusableForRetrievalDocuments: 0,
+    mojibakeSuspectedDocuments: 0,
+    emptyDocuments: 0,
     failedDocuments: 0
   };
   return {

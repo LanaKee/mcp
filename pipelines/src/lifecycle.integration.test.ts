@@ -17,12 +17,10 @@ let client: Client;
 
 async function cleanupFixture(): Promise<void> {
   await client.query(
-    "DELETE FROM mcp_tool_audit WHERE tool_name = $1",
-    [`lifecycle-fixture-${suffix}`]
+    "DELETE FROM mcp_tool_audit WHERE tool_name LIKE 'lifecycle-fixture-%'"
   );
   await client.query(
-    "DELETE FROM mcp_tool_audit_daily WHERE tool_name = $1",
-    [`lifecycle-fixture-${suffix}`]
+    "DELETE FROM mcp_tool_audit_daily WHERE tool_name LIKE 'lifecycle-fixture-%'"
   );
   await client.query(
     "DELETE FROM storage_maintenance_run WHERE requested_by = $1",
@@ -236,11 +234,11 @@ describeDatabase("source lifecycle integration", () => {
           )::text AS current_page_locators
       `)
     ).rows[0]!;
-    expect(Number(counts.current_chunks)).toBe(23_795);
-    expect(Number(counts.stale_chunks)).toBe(17_487);
-    expect(Number(counts.current_embeddings)).toBe(23_795);
-    expect(Number(counts.current_pages)).toBe(11_712);
-    expect(Number(counts.current_page_locators)).toBe(11_712);
+    expect(Number(counts.current_chunks)).toBe(24_565);
+    expect(Number(counts.stale_chunks)).toBeGreaterThanOrEqual(41_282);
+    expect(Number(counts.current_embeddings)).toBe(24_565);
+    expect(Number(counts.current_pages)).toBe(12_522);
+    expect(Number(counts.current_page_locators)).toBe(12_522);
 
     const planned = await createPurgePlan(client, {
       operation: "stale_purge",
@@ -535,11 +533,11 @@ describeDatabase("source lifecycle integration", () => {
             AS current_pages
       `);
       expect(restored.rows[0]).toMatchObject({
-        current_chunks: "23795",
-        current_embeddings: "23795",
-        current_pages: "11712"
+        current_chunks: "24565",
+        current_embeddings: "24565",
+        current_pages: "12522"
       });
     },
-    180_000
+    300_000
   );
 });

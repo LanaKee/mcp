@@ -376,10 +376,21 @@ CREATE TABLE IF NOT EXISTS document (
     extraction_status IN (
       'extracted',
       'partial',
-      'ocr_required',
+      'unusable_for_retrieval',
       'extraction_failed',
       'password_required'
     )
+  ),
+  content_classification text NOT NULL CHECK (
+    content_classification IN (
+      'extracted_ok',
+      'mojibake_suspected',
+      'unusable_for_retrieval',
+      'empty'
+    )
+  ),
+  extraction_method text NOT NULL CHECK (
+    extraction_method IN ('native_pdf_text', 'none')
   ),
   page_count integer NOT NULL CHECK (page_count >= 0),
   content_sha256 char(64) NOT NULL,
@@ -416,13 +427,37 @@ CREATE TABLE IF NOT EXISTS document_page (
   document_id uuid NOT NULL REFERENCES document(document_id) ON DELETE CASCADE,
   page_number integer NOT NULL CHECK (page_number > 0),
   extraction_status text NOT NULL CHECK (
-    extraction_status IN ('extracted', 'ocr_required', 'extraction_failed')
+    extraction_status IN (
+      'extracted',
+      'unusable_for_retrieval',
+      'empty',
+      'extraction_failed'
+    )
+  ),
+  content_classification text NOT NULL CHECK (
+    content_classification IN (
+      'extracted_ok',
+      'mojibake_suspected',
+      'unusable_for_retrieval',
+      'empty'
+    )
+  ),
+  extraction_method text NOT NULL CHECK (
+    extraction_method IN ('native_pdf_text', 'none')
   ),
   raw_content_sha256 char(64) NOT NULL,
   content_sha256 char(64) NOT NULL,
   extractor_version text NOT NULL,
   non_whitespace_character_count integer NOT NULL CHECK (non_whitespace_character_count >= 0),
   hangul_ratio real NOT NULL CHECK (hangul_ratio BETWEEN 0 AND 1),
+  hangul_character_count integer NOT NULL CHECK (hangul_character_count >= 0),
+  administrative_term_hit_rate real NOT NULL CHECK (administrative_term_hit_rate BETWEEN 0 AND 1),
+  valid_hangul_bigram_ratio real NOT NULL CHECK (valid_hangul_bigram_ratio BETWEEN 0 AND 1),
+  rare_hangul_syllable_ratio real NOT NULL CHECK (rare_hangul_syllable_ratio BETWEEN 0 AND 1),
+  particle_ratio real NOT NULL CHECK (particle_ratio BETWEEN 0 AND 1),
+  whitespace_boundary_ratio real NOT NULL CHECK (whitespace_boundary_ratio BETWEEN 0 AND 1),
+  digit_punctuation_ratio real NOT NULL CHECK (digit_punctuation_ratio BETWEEN 0 AND 1),
+  mojibake_score real NOT NULL CHECK (mojibake_score BETWEEN 0 AND 1),
   replacement_control_glyph_ratio real NOT NULL CHECK (replacement_control_glyph_ratio BETWEEN 0 AND 1),
   suspicious_spacing_ratio real NOT NULL CHECK (suspicious_spacing_ratio BETWEEN 0 AND 1),
   repeated_header_line_count integer NOT NULL DEFAULT 0 CHECK (repeated_header_line_count >= 0),
@@ -446,10 +481,21 @@ CREATE TABLE IF NOT EXISTS document_processing_version (
     extraction_status IN (
       'extracted',
       'partial',
-      'ocr_required',
+      'unusable_for_retrieval',
       'extraction_failed',
       'password_required'
     )
+  ),
+  content_classification text NOT NULL CHECK (
+    content_classification IN (
+      'extracted_ok',
+      'mojibake_suspected',
+      'unusable_for_retrieval',
+      'empty'
+    )
+  ),
+  extraction_method text NOT NULL CHECK (
+    extraction_method IN ('native_pdf_text', 'none')
   ),
   page_count integer NOT NULL CHECK (page_count >= 0),
   content_sha256 char(64) NOT NULL,
@@ -608,6 +654,8 @@ CREATE INDEX IF NOT EXISTS idx_document_source
   ON document(source_id);
 CREATE INDEX IF NOT EXISTS idx_document_extraction_status
   ON document(extraction_status);
+CREATE INDEX IF NOT EXISTS idx_document_content_classification
+  ON document(content_classification, document_type);
 CREATE INDEX IF NOT EXISTS idx_document_title_trgm
   ON document USING gin(title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_chunk_document_page
@@ -630,6 +678,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_document_page_current
 CREATE INDEX IF NOT EXISTS idx_document_page_retention
   ON document_page(extractor_version, stale_at, page_id)
   WHERE NOT is_current;
+CREATE INDEX IF NOT EXISTS idx_document_page_content_classification
+  ON document_page(content_classification, extraction_method)
+  WHERE is_current;
 CREATE INDEX IF NOT EXISTS idx_document_processing_version_retention
   ON document_processing_version(version_key, stale_at, document_id);
 CREATE INDEX IF NOT EXISTS idx_chunk_embedding_model

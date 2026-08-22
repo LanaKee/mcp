@@ -57,5 +57,16 @@
     "categories": ["plenary", "table_heavy"],
     "expectedMarkers": ["부의된 안건", "11. 김천시 입영지원금"],
     "minimumTableLines": 11
+  },
+  {
+    "id": "provincial-work-plan-title",
+    "sourcePath": "datasets/extra/dojeong_2026.pdf",
+    "sourceSha256": "e4687c3ac3cbf079f5ff3ed1621c44c11acea23d968257f730279b7309f21599",
+    "pageNumber": 1,
+    "rawTextSha256": "f4827c717cee1f1b9f0ff66dc9ab8332e3561c42e6eb7f8155763cb919b00a12",
+    "reason": "Short title-page marker validates official work-plan year and native Korean extraction without retaining a full page.",
+    "categories": ["policy", "title_page", "year_evidence"],
+    "expectedMarkers": ["2026년도 업무계획"],
+    "expectedContentClassification": "extracted_ok"
   }
 ]

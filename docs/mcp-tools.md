@@ -49,8 +49,19 @@
 ## `search_policies`
 
 - 입력: `region`, `age`, `query`, 선택 `stage`, `asOfDate`, `dataStatuses`
-- 출력: 정책별 `eligible`, 부합 이유, 미충족 조건, 점수
-- 데모 정책은 실제 신청 자격을 의미하지 않는다.
+- 출력:
+  - `matches`: 구조화 정책별 `eligible`, 부합 이유, 미충족 조건, 점수
+  - `official_document_passages`: 공식 도정 업무계획의 title, page, locator,
+    `documentType`, `extractionMethod`, passage
+  - 특정 연도를 요청하면 `policy_document_coverage`: source 존재 여부, machine-readable
+    검색 가능 여부, content classification과 제외 이유
+- 현재 `matches`의 정책 자격은 `demo_sample` 기능 예시다. 공식 passage를 이 verdict에
+  합치거나 신청 자격으로 변환하지 않는다.
+- 공식 passage는 `provincial_work_plan` 중 승인된 current chunk와
+  `content_classification=extracted_ok`만 검색한다. mojibake/unusable page는
+  반환되지 않는다.
+- 2020·2022·2024를 지정하면 원문 source는 존재하지만 기계 판독 가능한 본문이
+  없다고 명시하며 정책 coverage를 암시하지 않는다.
 
 ```json
 {"region":"상주시","age":34,"query":"스마트팜","stage":"예비창업"}

@@ -183,6 +183,13 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     ),
     "utf8"
   );
+  const policyDocumentQualityMigration = await readFile(
+    resolve(
+      repositoryRoot,
+      "db/migrations/010_policy_document_text_quality.sql"
+    ),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
@@ -195,6 +202,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(sourceLifecycleMigration);
     await client.query(officialLocalTaxMigration);
     await client.query(localTaxYearbookMigration);
+    await client.query(policyDocumentQualityMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
@@ -206,6 +214,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(sourceLifecycleMigration);
     await client.query(officialLocalTaxMigration);
     await client.query(localTaxYearbookMigration);
+    await client.query(policyDocumentQualityMigration);
   }
 }
 

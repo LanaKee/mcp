@@ -41,7 +41,9 @@ flowchart LR
 - `pipelines/src/load-plan.ts`: 공식/데모 데이터를 결정적 source/fact/locator 계획으로 변환
 - `pipelines/src/db.ts`: transaction, parameterized batch upsert, 실행 상태와 무결성 집계
 - `pipelines/src/pdf.ts`: PDF.js layout 추출, page 품질 점수, 고신뢰 반복 margin 정리,
-  발언자 turn/table-aware deterministic chunk
+  발언자 turn/table-aware deterministic chunk, 도정 업무계획 유형/연도 evidence
+- `pipelines/src/korean-text-quality.ts`: Unicode 범위만 믿지 않는 행정 용어·bigram·조사·
+  syllable composition 기반 mojibake/unusable-text 분류
 - `pipelines/src/pdf-quality.ts`: source/page SHA와 짧은 marker golden 평가, corpus 분포와 severe gate
 - `pipelines/src/embeddings.ts`: 로컬 feature-hash와 명시적 opt-in OpenAI provider
 - `pipelines/src/pdf-db.ts`: document/page/chunk/locator와 streaming embedding batch upsert
@@ -63,13 +65,19 @@ flowchart LR
 - address-level property valuation은 catalog governance만 저장하고 fact/search/embedding에
   넣지 않는다. 영치 장소 문자열도 저장하지 않는다.
 - PDF page는 raw/cleaned hash와 품질 지표를 가지며 현재 extractor 결과만 `is_current`다.
+- page/document는 `extracted_ok`, `mojibake_suspected`,
+  `unusable_for_retrieval`, `empty`와 `native_pdf_text`, `none` extraction method를
+  별도로 저장한다.
+- 제외 page는 raw hash/품질/제외 이유는 보존하지만 cleaned text를
+  chunk/embedding/search에 전달하지 않는다.
 - PDF 처리 version은 `candidate`, `approved`, `retired` lifecycle을 가지며 partial unique
   index로 approved version 하나만 허용한다.
 - 검색 가능한 chunk는 `is_current AND approved_current`이고 해당
   `pdf_processing_version.approval_state = 'approved'`여야 한다.
 - 새 처리 version 적재는 candidate로 보존되며 명시적 승인 전 기존 production 검색을
   바꾸지 않는다. retained version rollback은 embedding 재계산 없이 transaction으로
-  chunk/page/document 가시성을 전환한다.
+  chunk/page/document 가시성을 전환한다. 과거 version에 없던 후발 문서는 rollback
+  동안 숨겨지므로 운영자가 coverage 차이를 승인해야 한다.
 - `services/mcp-server/src/runtime.ts`는 `DATA_REPOSITORY=auto|postgres|memory|disabled`를
   해석한다. `auto`에서 `DATABASE_URL`이 있으면 PostgreSQL을 사용하며 DB 연결/필수
   schema가 실패하면 메모리로 조용히 fallback하지 않는다.
@@ -91,6 +99,9 @@ flowchart LR
 - PostgreSQL 경로는 FTS/trigram으로 bounded candidate를 만든 뒤 저장 `real[]` embedding을
   cosine rerank한다. 배열 전체 ANN scan은 하지 않는다.
 - source context는 current page/chunk locator만 노출해 과거 chunker 결과가 섞이지 않는다.
+- `search_policies`는 demo `policy_program` 자격 평가와 공식
+  `provincial_work_plan` page passage를 별도 배열로 반환한다. 공식 prose에서 자격 필드를
+  추론하거나 demo verdict와 합치지 않는다.
 - stale purge는 최소 보존기간, advisory lock, 정확한 candidate-set hash, bounded
   FK-safe batch를 요구하며 approved/current/provenance를 보호한다.
 - 기본 feature-hash는 lexical 신호이며 semantic provider가 아니다. OpenAI provider는
@@ -142,10 +153,15 @@ flowchart LR
 20. 검증되지 않은 영천 열 교환은 자동 수정하지 않고 quality issue로 격리한다.
 21. demo 값은 claim을 지지·반박하지 않고, 비교 verdict는 양쪽 공식 homogeneous
     series와 exact endpoint가 있어야 한다.
+22. 한글 codepoint 비율만으로 PDF text를 승인하지 않으며
+    mojibake/unusable/empty page는
+    검색 content를 만들 수 없다.
+23. 공식 업무계획 passage는 page citation 문맥일 뿐 demo 정책의 자격 verdict를
+    공식화하지 않는다.
 
 ## 후속 확장
 
-- `ocr_required` PDF의 승인된 OCR 처리
+- 제외된 2020·2022·2024 업무계획의 source replacement 또는 별도 OCR 타당성 결정
 - 지역/연도/서식이 더 다양한 golden PDF와 실제 반복 footer 표본 확충
 - 승인된 scheduler/backup 정책과 operator-run stale purge/VACUUM window
 - corpus가 커질 때 모델별 pgvector partition/ANN index

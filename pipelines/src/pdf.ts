@@ -1,16 +1,25 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { CatalogEntry } from "./catalog.js";
 import { repositoryRoot } from "./etl.js";
+import {
+  classifyDocumentKoreanText,
+  classifyPageKoreanText,
+  scoreKoreanTextPlausibility,
+  type KoreanTextPlausibility,
+  type PdfContentClassification
+} from "./korean-text-quality.js";
 import { officialSourceKey, type PlannedLocator, type PlannedSource } from "./load-plan.js";
 import { resolveGyeongbukRegion } from "./regions.js";
+
+export type PdfExtractionMethod = "native_pdf_text" | "none";
 
 export type PdfExtractionStatus =
   | "extracted"
   | "partial"
-  | "ocr_required"
+  | "unusable_for_retrieval"
   | "extraction_failed"
   | "password_required";
 
@@ -18,7 +27,12 @@ export interface ExtractedPdfPage {
   pageNumber: number;
   rawText: string;
   rawContentSha256: string;
-  status: "extracted" | "ocr_required" | "extraction_failed";
+  status:
+    | "extracted"
+    | "unusable_for_retrieval"
+    | "empty"
+    | "extraction_failed";
+  hasVisualContent: boolean;
   error: string | null;
 }
 
@@ -34,6 +48,14 @@ export interface PdfPageQuality {
   likelyTableLineCount: number;
   likelyTableDensity: number;
   speakerMarkerCount: number;
+  hangulCharacterCount: number;
+  administrativeTermHitRate: number;
+  validHangulBigramRatio: number;
+  rareHangulSyllableRatio: number;
+  particleTokenRatio: number;
+  whitespaceBoundaryRatio: number;
+  digitPunctuationRatio: number;
+  mojibakeScore: number;
   textClass: PdfPageTextClass;
   flags: string[];
 }
@@ -45,7 +67,13 @@ export interface PdfPagePlan {
   sourceKey: string;
   sourcePath: string;
   pageNumber: number;
-  extractionStatus: "extracted" | "ocr_required" | "extraction_failed";
+  extractionStatus:
+    | "extracted"
+    | "unusable_for_retrieval"
+    | "empty"
+    | "extraction_failed";
+  contentClassification: PdfContentClassification;
+  extractionMethod: PdfExtractionMethod;
   rawContentSha256: string;
   contentSha256: string;
   text: string;
@@ -65,6 +93,8 @@ export interface PdfDocumentPlan {
   publishedDate: string | null;
   sourceKey: string;
   extractionStatus: PdfExtractionStatus;
+  contentClassification: PdfContentClassification;
+  extractionMethod: PdfExtractionMethod;
   pageCount: number;
   contentSha256: string;
   dataStatus: "official_observed" | "catalog_only";
@@ -102,7 +132,9 @@ export interface PdfNormalizationPlan {
     files: number;
     pages: number;
     extractedPages: number;
-    ocrRequiredPages: number;
+    unusableForRetrievalPages: number;
+    mojibakeSuspectedPages: number;
+    classifiedEmptyPages: number;
     failedPages: number;
     emptyPages: number;
     nearEmptyPages: number;
@@ -113,7 +145,9 @@ export interface PdfNormalizationPlan {
     chunks: number;
     extractedDocuments: number;
     partialDocuments: number;
-    ocrRequiredDocuments: number;
+    unusableForRetrievalDocuments: number;
+    mojibakeSuspectedDocuments: number;
+    emptyDocuments: number;
     failedDocuments: number;
   };
 }
@@ -123,8 +157,8 @@ export interface PdfChunkingOptions {
   overlapChars?: number;
 }
 
-export const PDF_EXTRACTOR_VERSION = "pdfjs-6.2.108-layout-v2";
-export const PDF_CHUNKER_VERSION = "korean-council-v3";
+export const PDF_EXTRACTOR_VERSION = "pdfjs-6.2.108-layout-v3-mojibake";
+export const PDF_CHUNKER_VERSION = "korean-document-v4-quality-gated";
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -183,9 +217,19 @@ export function extractionStatusForPages(
 ): PdfExtractionStatus {
   const extracted = pages.filter((page) => page.status === "extracted").length;
   const failed = pages.filter((page) => page.status === "extraction_failed").length;
-  const ocrRequired = pages.filter((page) => page.status === "ocr_required").length;
-  if (extracted === 0) return failed > 0 ? "extraction_failed" : "ocr_required";
-  return failed > 0 || ocrRequired > 0 ? "partial" : "extracted";
+  const unusable = pages.filter(
+    (page) => page.status === "unusable_for_retrieval"
+  ).length;
+  const empty = pages.filter((page) => page.status === "empty").length;
+  if (extracted === 0) {
+    if (unusable > 0) return "unusable_for_retrieval";
+    return failed > 0
+      ? "extraction_failed"
+      : empty > 0
+        ? "extracted"
+        : "unusable_for_retrieval";
+  }
+  return failed > 0 || unusable > 0 ? "partial" : "extracted";
 }
 
 function appendItem(line: string, item: string, separator = " "): string {
@@ -270,11 +314,28 @@ export async function extractPdfPages(buffer: Buffer): Promise<{
         const content = await page.getTextContent();
         const rawText = pageTextFromItems(content.items);
         const text = normalizeExtractedText(rawText);
+        let hasVisualContent = false;
+        if (!text) {
+          const operators = await page.getOperatorList();
+          hasVisualContent = operators.fnArray.some((operator) =>
+            [
+              OPS.paintImageXObject,
+              OPS.paintInlineImageXObject,
+              OPS.paintImageMaskXObject,
+              OPS.paintSolidColorImageMask
+            ].includes(operator)
+          );
+        }
         pages.push({
           pageNumber,
           rawText,
           rawContentSha256: sha256(rawText),
-          status: text ? "extracted" : "ocr_required",
+          status: text
+            ? "extracted"
+            : hasVisualContent
+              ? "unusable_for_retrieval"
+              : "empty",
+          hasVisualContent,
           error: null
         });
         page.cleanup();
@@ -284,6 +345,7 @@ export async function extractPdfPages(buffer: Buffer): Promise<{
           rawText: "",
           rawContentSha256: sha256(""),
           status: "extraction_failed",
+          hasVisualContent: false,
           error: safeError(error)
         });
       }
@@ -432,7 +494,8 @@ export function scorePdfPageQuality(
   rawText: string,
   cleanedText: string,
   repeatedHeaderLineCount = 0,
-  repeatedFooterLineCount = 0
+  repeatedFooterLineCount = 0,
+  plausibility: KoreanTextPlausibility = scoreKoreanTextPlausibility(cleanedText)
 ): PdfPageQuality {
   const nonWhitespaceCharacterCount = [...cleanedText].filter(
     (character) => !/\s/u.test(character)
@@ -477,6 +540,7 @@ export function scorePdfPageQuality(
   }
   if (replacementControlGlyphRatio > 0.01) flags.push("control_glyphs");
   if (suspiciousSpacingRatio > 0.03) flags.push("suspicious_spacing");
+  if (plausibility.mojibakeScore >= 0.72) flags.push("low_korean_plausibility");
   if (likelyTableLineCount >= 3 && likelyTableDensity >= 0.1) {
     flags.push("table_likely");
   }
@@ -494,6 +558,14 @@ export function scorePdfPageQuality(
     likelyTableLineCount,
     likelyTableDensity,
     speakerMarkerCount,
+    hangulCharacterCount: plausibility.hangulCharacterCount,
+    administrativeTermHitRate: plausibility.administrativeTermHitRate,
+    validHangulBigramRatio: plausibility.validHangulBigramRatio,
+    rareHangulSyllableRatio: plausibility.rareHangulSyllableRatio,
+    particleTokenRatio: plausibility.particleTokenRatio,
+    whitespaceBoundaryRatio: plausibility.whitespaceBoundaryRatio,
+    digitPunctuationRatio: plausibility.digitPunctuationRatio,
+    mojibakeScore: plausibility.mojibakeScore,
     textClass,
     flags
   };
@@ -504,14 +576,52 @@ export function normalizePdfPages(
   documentId: string,
   sourceKey: string,
   sourcePath: string,
-  pages: ExtractedPdfPage[]
+  pages: ExtractedPdfPage[],
+  documentClassification?: PdfContentClassification
 ): PdfPagePlan[] {
+  const aggregateClassification =
+    documentClassification ??
+    classifyDocumentKoreanText(
+      pages.map((page) => page.rawText).join("\n"),
+      pages.some((page) => page.hasVisualContent)
+    ).classification;
   const patterns = detectRepeatedMarginPatterns(pages);
   return pages.map((page) => {
     const normalized = normalizeExtractedText(page.rawText);
     const cleaned = removeRepeatedMargins(normalized, patterns);
-    const text = normalizeExtractedText(cleaned.text);
+    const extractedText = normalizeExtractedText(cleaned.text);
+    const classified =
+      page.status === "extraction_failed"
+        ? {
+            classification: "empty" as const,
+            evidence: scoreKoreanTextPlausibility("")
+          }
+        : classifyPageKoreanText(
+            extractedText,
+            page.hasVisualContent,
+            aggregateClassification
+          );
+    const contentClassification =
+      page.status === "extraction_failed"
+        ? "empty"
+        : classified.classification;
+    const text =
+      contentClassification === "extracted_ok" ? extractedText : "";
+    const extractionMethod: PdfExtractionMethod =
+      contentClassification === "extracted_ok" ? "native_pdf_text" : "none";
     const pageKey = `${documentKey}:${PDF_EXTRACTOR_VERSION}:page:${page.pageNumber}`;
+    const flags = [...classified.evidence.signals];
+    if (contentClassification !== "extracted_ok") {
+      flags.push(contentClassification);
+    }
+    const quality = scorePdfPageQuality(
+      page.rawText,
+      extractedText,
+      cleaned.repeatedHeaderLineCount,
+      cleaned.repeatedFooterLineCount,
+      classified.evidence
+    );
+    quality.flags = [...new Set([...quality.flags, ...flags])];
     return {
       pageId: deterministicUuid(pageKey),
       pageKey,
@@ -520,19 +630,20 @@ export function normalizePdfPages(
       sourcePath,
       pageNumber: page.pageNumber,
       extractionStatus: page.status,
+      contentClassification,
+      extractionMethod,
       rawContentSha256: page.rawContentSha256,
       contentSha256: sha256(text),
       text,
       error: page.error,
       extractorVersion: PDF_EXTRACTOR_VERSION,
-      quality: scorePdfPageQuality(
-        page.rawText,
-        text,
-        cleaned.repeatedHeaderLineCount,
-        cleaned.repeatedFooterLineCount
-      ),
+      quality,
       metadata: {
-        removedMarginLineHashes: cleaned.removedLineHashes
+        removedMarginLineHashes: cleaned.removedLineHashes,
+        contentClassification,
+        extractionMethod,
+        hasVisualContent: page.hasVisualContent,
+        koreanTextPlausibility: classified.evidence
       }
     };
   });
@@ -692,7 +803,7 @@ export function chunkPdfPages(
   let chunkIndex = 0;
 
   for (const page of pages) {
-    if (!page.text) continue;
+    if (page.contentClassification !== "extracted_ok" || !page.text) continue;
     const segments = semanticSegments(page.text).flatMap((segment) =>
       splitLongSegment(segment, maxChars)
     );
@@ -725,6 +836,8 @@ export function chunkPdfPages(
           rawExtractionPageSha256: page.rawContentSha256,
           extractorVersion: PDF_EXTRACTOR_VERSION,
           chunkerVersion: PDF_CHUNKER_VERSION,
+          extractionMethod: page.extractionMethod,
+          contentClassification: page.contentClassification,
           segmentTypes
         }
       });
@@ -789,30 +902,99 @@ export function chunkPdfPages(
   return chunks;
 }
 
-function documentType(path: string): string {
-  const normalized = path.normalize("NFC");
-  if (normalized.includes("행정사무감사")) return "council_audit_minutes";
-  return "council_minutes";
+interface PdfDocumentIdentity {
+  documentType: string;
+  title: string;
+  organization: string | null;
+  regionId: string | null;
+  publishedDate: string | null;
+  policyYear: number | null;
+  typeEvidence: "content_validated" | "filename_candidate" | "council_path";
+  yearEvidence: string | null;
+}
+
+function policyYearFromPath(path: string): number | null {
+  const match = path.normalize("NFC").match(
+    /(?:^|\/)dojeong_((?:19|20)\d{2})\.pdf$/u
+  );
+  return match ? Number(match[1]) : null;
+}
+
+function documentIdentity(
+  entry: CatalogEntry,
+  extractedText = "",
+  contentClassification: PdfContentClassification = "empty"
+): PdfDocumentIdentity {
+  const policyYear = policyYearFromPath(entry.path);
+  if (policyYear !== null) {
+    const normalizedText = extractedText.normalize("NFC");
+    const hasWorkPlanMarker =
+      /업무\s*계획/u.test(normalizedText) ||
+      /도정.{0,20}(?:계획|방향|운영)/u.test(normalizedText);
+    const yearMatch = normalizedText.match(/(20\d{2})\s*(?:년도|년)/u);
+    const yearEvidence = yearMatch?.[1] ?? null;
+    const contentValidated =
+      contentClassification === "extracted_ok" &&
+      hasWorkPlanMarker &&
+      yearEvidence === String(policyYear);
+    return {
+      documentType: "provincial_work_plan",
+      title: `${policyYear}년도 경상북도 도정 업무계획`,
+      organization: "경상북도",
+      regionId: "47",
+      publishedDate: `${policyYear}-01-01`,
+      policyYear,
+      typeEvidence: contentValidated
+        ? "content_validated"
+        : "filename_candidate",
+      yearEvidence
+    };
+  }
+  const normalized = entry.path.normalize("NFC");
+  const region = resolveGyeongbukRegion(entry.path);
+  return {
+    documentType: normalized.includes("행정사무감사")
+      ? "council_audit_minutes"
+      : "council_minutes",
+    title: entry.fileNameNfc.slice(0, -extname(entry.fileNameNfc).length),
+    organization: region
+      ? region.regionType === "province"
+        ? "경상북도의회"
+        : `${region.regionName}의회`
+      : null,
+    regionId: region?.regionId ?? null,
+    publishedDate: entry.referenceDate,
+    policyYear: null,
+    typeEvidence: "council_path",
+    yearEvidence: null
+  };
 }
 
 function sourceFromCatalog(entry: CatalogEntry): PlannedSource {
+  const policyYear = policyYearFromPath(entry.path);
   return {
     sourceKey: officialSourceKey(entry.path, entry.sha256),
     title: entry.fileNameNfc,
-    provider: resolveGyeongbukRegion(entry.path)?.regionName ?? "공공데이터 원천",
+    provider:
+      policyYear !== null
+        ? "경상북도"
+        : resolveGyeongbukRegion(entry.path)?.regionName ?? "공공데이터 원천",
     sourceUrl: null,
     licenseNote: null,
     filePath: entry.path,
     fileSha256: entry.sha256,
     collectedAt: entry.collectedAt,
-    referenceDate: entry.referenceDate,
+    referenceDate: policyYear !== null ? `${policyYear}-01-01` : entry.referenceDate,
     mediaType: entry.mediaType,
     dataStatus: "catalog_only",
     isOfficial: true,
     metadata: {
       byteSize: entry.byteSize,
       contentKind: entry.contentKind,
-      parseStatus: entry.parseStatus
+      parseStatus: entry.parseStatus,
+      documentTypeCandidate:
+        policyYear !== null ? "provincial_work_plan" : null,
+      policyYearCandidate: policyYear
     }
   };
 }
@@ -828,21 +1010,7 @@ async function normalizePdf(entry: CatalogEntry): Promise<{
   const source = sourceFromCatalog(entry);
   const documentKey = `document-${sha256(source.sourceKey).slice(0, 48)}`;
   const documentId = deterministicUuid(documentKey);
-  const region = resolveGyeongbukRegion(entry.path);
-  const base = {
-    documentId,
-    documentKey,
-    regionId: region?.regionId ?? null,
-    documentType: documentType(entry.path),
-    title: entry.fileNameNfc.slice(0, -extname(entry.fileNameNfc).length),
-    organization: region
-      ? region.regionType === "province"
-        ? "경상북도의회"
-        : `${region.regionName}의회`
-      : null,
-    publishedDate: entry.referenceDate,
-    sourceKey: source.sourceKey
-  };
+  const initialIdentity = documentIdentity(entry);
   const locators: PlannedLocator[] = [
     {
       sourceKey: source.sourceKey,
@@ -859,20 +1027,82 @@ async function normalizePdf(entry: CatalogEntry): Promise<{
 
   try {
     const extracted = await extractPdfPages(await readFile(resolve(repositoryRoot, entry.path)));
-    const extractedPages = extracted.pages.filter((page) => page.status === "extracted");
+    const normalizedDocumentText = extracted.pages
+      .map((page) => normalizeExtractedText(page.rawText))
+      .join("\n");
+    const documentAssessment = classifyDocumentKoreanText(
+      normalizedDocumentText,
+      extracted.pages.some((page) => page.hasVisualContent)
+    );
+    const identity = documentIdentity(
+      entry,
+      normalizedDocumentText,
+      documentAssessment.classification
+    );
+    source.metadata = {
+      ...source.metadata,
+      documentType: identity.documentType,
+      policyYear: identity.policyYear,
+      typeEvidence: identity.typeEvidence,
+      yearEvidence: identity.yearEvidence,
+      contentClassification: documentAssessment.classification,
+      koreanTextPlausibility: documentAssessment.evidence
+    };
     const failedPages = extracted.pages.filter(
       (page) => page.status === "extraction_failed"
     );
-    const ocrPages = extracted.pages.filter((page) => page.status === "ocr_required");
-    const extractionStatus = extractionStatusForPages(extracted.pages);
     const pagePlans = normalizePdfPages(
       documentKey,
       documentId,
       source.sourceKey,
       entry.path,
-      extracted.pages
+      extracted.pages,
+      documentAssessment.classification
     );
-    const chunks = chunkPdfPages(documentKey, documentId, pagePlans);
+    const extractedPages = pagePlans.filter(
+      (page) => page.contentClassification === "extracted_ok"
+    );
+    const unusablePages = pagePlans.filter(
+      (page) => page.contentClassification === "unusable_for_retrieval"
+    );
+    const mojibakePages = pagePlans.filter(
+      (page) => page.contentClassification === "mojibake_suspected"
+    );
+    const classifiedEmptyPages = pagePlans.filter(
+      (page) => page.contentClassification === "empty"
+    );
+    const contentClassification: PdfContentClassification =
+      extractedPages.length > 0
+        ? "extracted_ok"
+        : mojibakePages.length > 0
+          ? "mojibake_suspected"
+          : unusablePages.length > 0
+            ? "unusable_for_retrieval"
+            : "empty";
+    const extractionStatus: PdfExtractionStatus =
+      extractedPages.length > 0
+        ? failedPages.length > 0 ||
+          mojibakePages.length > 0
+          ? "partial"
+          : "extracted"
+        : contentClassification === "empty"
+          ? "extracted"
+          : failedPages.length === pagePlans.length
+            ? "extraction_failed"
+            : "unusable_for_retrieval";
+    const extractionMethod: PdfExtractionMethod =
+      extractedPages.length > 0 ? "native_pdf_text" : "none";
+    const policyIdentityValidated =
+      identity.documentType !== "provincial_work_plan" ||
+      contentClassification !== "extracted_ok" ||
+      identity.typeEvidence === "content_validated";
+    source.dataStatus =
+      contentClassification === "extracted_ok" && policyIdentityValidated
+        ? "official_observed"
+        : "catalog_only";
+    const chunks = policyIdentityValidated
+      ? chunkPdfPages(documentKey, documentId, pagePlans)
+      : [];
     for (const page of pagePlans) {
       locators.push({
         sourceKey: source.sourceKey,
@@ -880,7 +1110,7 @@ async function normalizePdf(entry: CatalogEntry): Promise<{
         entityKey: page.pageKey,
         pageNumber: page.pageNumber,
         rowNumber: null,
-        sectionName: page.extractionStatus,
+        sectionName: `${page.contentClassification}:${page.extractionMethod}`,
         characterStart: null,
         characterEnd: null,
         locatorText: `${entry.path}#page=${page.pageNumber}`
@@ -922,26 +1152,63 @@ async function normalizePdf(entry: CatalogEntry): Promise<{
       0
     );
     const document: PdfDocumentPlan = {
-      ...base,
+      documentId,
+      documentKey,
+      regionId: identity.regionId,
+      documentType: identity.documentType,
+      title: identity.title,
+      organization: identity.organization,
+      publishedDate: identity.publishedDate,
+      sourceKey: source.sourceKey,
       extractionStatus,
+      contentClassification,
+      extractionMethod,
       pageCount: extracted.pageCount,
       contentSha256: sha256(
         pagePlans
-          .map((page) => `${page.pageNumber}:${page.contentSha256}`)
+          .map(
+            (page) =>
+              `${page.pageNumber}:${page.contentClassification}:${page.contentSha256}`
+          )
           .join("\n")
       ),
-      dataStatus: extractedPages.length > 0 ? "official_observed" : "catalog_only",
+      dataStatus:
+        extractedPages.length > 0 && policyIdentityValidated
+          ? "official_observed"
+          : "catalog_only",
       metadata: {
         sourcePath: entry.path,
         sourceSha256: entry.sha256,
         extractorVersion: PDF_EXTRACTOR_VERSION,
         chunkerVersion: PDF_CHUNKER_VERSION,
         extractedPages: extractedPages.length,
-        ocrRequiredPages: ocrPages.map((page) => page.pageNumber),
+        unusableForRetrievalPages: unusablePages.map(
+          (page) => page.pageNumber
+        ),
+        mojibakeSuspectedPages: mojibakePages.map((page) => page.pageNumber),
+        classifiedEmptyPages: classifiedEmptyPages.map(
+          (page) => page.pageNumber
+        ),
         failedPages: failedPages.map((page) => ({
           pageNumber: page.pageNumber,
           error: page.error
         })),
+        contentClassification,
+        extractionMethod,
+        documentTypeEvidence: identity.typeEvidence,
+        policyYear: identity.policyYear,
+        yearEvidence: identity.yearEvidence,
+        policyIdentityValidated,
+        koreanTextPlausibility: documentAssessment.evidence,
+        retrievalExcluded: contentClassification !== "extracted_ok",
+        retrievalExclusionReason:
+          contentClassification === "mojibake_suspected"
+            ? "broken_cmap_mojibake"
+            : contentClassification === "unusable_for_retrieval"
+              ? "no_usable_text_layer"
+              : contentClassification === "empty"
+                ? "empty_document"
+                : null,
         quality: {
           emptyPages,
           nearEmptyPages,
@@ -953,24 +1220,46 @@ async function normalizePdf(entry: CatalogEntry): Promise<{
       }
     };
     const failure =
-      extractionStatus === "extracted"
+      extractionStatus === "extracted" &&
+      contentClassification === "extracted_ok" &&
+      policyIdentityValidated
         ? null
         : {
             sourcePath: entry.path,
             status: extractionStatus,
             error:
-              extractionStatus === "partial"
-                ? `${failedPages.length} failed pages; ${ocrPages.length} OCR-required pages`
-                : extractionStatus === "ocr_required"
-                  ? "No extractable text; OCR is required"
+              !policyIdentityValidated
+                ? "Policy filename year/type could not be validated against extracted document text"
+                : extractionStatus === "partial"
+                ? `${failedPages.length} failed pages; ${unusablePages.length} unusable pages; ${mojibakePages.length} mojibake-suspected pages`
+                : extractionStatus === "unusable_for_retrieval"
+                  ? contentClassification === "mojibake_suspected"
+                    ? "Native text is mojibake-suspected; content ingestion was excluded"
+                    : "No usable Korean text layer; content ingestion was excluded"
                   : "No usable text was extracted because page extraction failed"
           };
-    return { source, document, pagePlans, chunks, locators, failure };
+    return {
+      source,
+      document,
+      pagePlans,
+      chunks,
+      locators,
+      failure
+    };
   } catch (error) {
     const classified = classifyPdfExtractionError(error);
     const document: PdfDocumentPlan = {
-      ...base,
+      documentId,
+      documentKey,
+      regionId: initialIdentity.regionId,
+      documentType: initialIdentity.documentType,
+      title: initialIdentity.title,
+      organization: initialIdentity.organization,
+      publishedDate: initialIdentity.publishedDate,
+      sourceKey: source.sourceKey,
       extractionStatus: classified.status,
+      contentClassification: "empty",
+      extractionMethod: "none",
       pageCount: 0,
       contentSha256: sha256(`failed:${entry.sha256}:${classified.status}`),
       dataStatus: "catalog_only",
@@ -1024,7 +1313,9 @@ export async function normalizePdfCatalog(
       files: entries.length,
       pages: 0,
       extractedPages: 0,
-      ocrRequiredPages: 0,
+      unusableForRetrievalPages: 0,
+      mojibakeSuspectedPages: 0,
+      classifiedEmptyPages: 0,
       failedPages: 0,
       emptyPages: 0,
       nearEmptyPages: 0,
@@ -1035,7 +1326,9 @@ export async function normalizePdfCatalog(
       chunks: 0,
       extractedDocuments: 0,
       partialDocuments: 0,
-      ocrRequiredDocuments: 0,
+      unusableForRetrievalDocuments: 0,
+      mojibakeSuspectedDocuments: 0,
+      emptyDocuments: 0,
       failedDocuments: 0
     }
   };
@@ -1051,10 +1344,16 @@ export async function normalizePdfCatalog(
     if (normalized.failure) plan.failures.push(normalized.failure);
     plan.summary.pages += normalized.document.pageCount;
     plan.summary.extractedPages += normalized.pagePlans.filter(
-      (page) => page.extractionStatus === "extracted"
+      (page) => page.contentClassification === "extracted_ok"
     ).length;
-    plan.summary.ocrRequiredPages += normalized.pagePlans.filter(
-      (page) => page.extractionStatus === "ocr_required"
+    plan.summary.unusableForRetrievalPages += normalized.pagePlans.filter(
+      (page) => page.contentClassification === "unusable_for_retrieval"
+    ).length;
+    plan.summary.mojibakeSuspectedPages += normalized.pagePlans.filter(
+      (page) => page.contentClassification === "mojibake_suspected"
+    ).length;
+    plan.summary.classifiedEmptyPages += normalized.pagePlans.filter(
+      (page) => page.contentClassification === "empty"
     ).length;
     plan.summary.failedPages += normalized.pagePlans.filter(
       (page) => page.extractionStatus === "extraction_failed"
@@ -1082,12 +1381,18 @@ export async function normalizePdfCatalog(
       0
     );
     plan.summary.chunks += normalized.chunks.length;
-    if (normalized.document.extractionStatus === "extracted") {
+    if (normalized.document.contentClassification === "mojibake_suspected") {
+      plan.summary.mojibakeSuspectedDocuments += 1;
+    } else if (
+      normalized.document.contentClassification === "unusable_for_retrieval"
+    ) {
+      plan.summary.unusableForRetrievalDocuments += 1;
+    } else if (normalized.document.contentClassification === "empty") {
+      plan.summary.emptyDocuments += 1;
+    } else if (normalized.document.extractionStatus === "extracted") {
       plan.summary.extractedDocuments += 1;
     } else if (normalized.document.extractionStatus === "partial") {
       plan.summary.partialDocuments += 1;
-    } else if (normalized.document.extractionStatus === "ocr_required") {
-      plan.summary.ocrRequiredDocuments += 1;
     } else {
       plan.summary.failedDocuments += 1;
     }

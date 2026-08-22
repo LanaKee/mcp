@@ -19,6 +19,7 @@ import type {
   DataRepository,
   DocumentSearchHit,
   FactDataStatus,
+  PolicyDocumentCoverage,
   RepositoryReadiness,
   RepositoryResult,
   SourceContext,
@@ -594,6 +595,7 @@ export class PostgresDataRepository implements DataRepository {
     query: string;
     region?: string;
     organization?: string;
+    documentTypes?: string[];
     dateFrom?: string;
     dateTo?: string;
     limit: number;
@@ -615,6 +617,7 @@ export class PostgresDataRepository implements DataRepository {
       },
       regionId,
       organization: input.organization,
+      documentTypes: input.documentTypes,
       publishedFrom: input.dateFrom,
       publishedTo: input.dateTo,
       dataStatuses: [...input.dataStatuses],
@@ -638,7 +641,9 @@ export class PostgresDataRepository implements DataRepository {
         dataStatus: row.dataStatus as FactDataStatus,
         recordType: "document_chunk",
         pageStart: row.pageStart,
-        pageEnd: row.pageEnd
+        pageEnd: row.pageEnd,
+        documentType: row.documentType,
+        extractionMethod: row.extractionMethod as "native_pdf_text"
       }
     }));
     return {
@@ -649,6 +654,64 @@ export class PostgresDataRepository implements DataRepository {
       dataStatuses: [
         ...new Set(records.map((record) => record.metadata.dataStatus))
       ]
+    };
+  }
+
+  async getPolicyDocumentCoverage(
+    years: number[]
+  ): Promise<RepositoryResult<PolicyDocumentCoverage>> {
+    const requested = [...new Set(years)]
+      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 2100)
+      .slice(0, 20);
+    if (requested.length === 0) {
+      return { records: [], sources: [], dataStatuses: [] };
+    }
+    const result = await this.executor.query<{
+      policy_year: number;
+      title: string;
+      source_key: string;
+      file_path: string | null;
+      data_status: DataStatus;
+      content_classification: PolicyDocumentCoverage["contentClassification"];
+      retrieval_available: boolean;
+      exclusion_reason: string | null;
+    }>(
+      `SELECT
+         (document_row.metadata->>'policyYear')::integer AS policy_year,
+         document_row.title,
+         source.source_key,
+         source.file_path,
+         document_row.data_status,
+         document_row.content_classification,
+         EXISTS (
+           SELECT 1
+             FROM document_chunk chunk
+            WHERE chunk.document_id = document_row.document_id
+              AND chunk.is_current
+              AND chunk.approved_current
+         ) AS retrieval_available,
+         document_row.metadata->>'retrievalExclusionReason' AS exclusion_reason
+       FROM document document_row
+       JOIN data_source source ON source.source_id = document_row.source_id
+       WHERE document_row.document_type = 'provincial_work_plan'
+         AND (document_row.metadata->>'policyYear')::integer = ANY($1::integer[])
+       ORDER BY policy_year`,
+      [requested]
+    );
+    const records = result.rows.map((row) => ({
+      year: row.policy_year,
+      title: row.title,
+      sourceId: row.source_key,
+      sourcePath: row.file_path,
+      dataStatus: row.data_status,
+      contentClassification: row.content_classification,
+      retrievalAvailable: row.retrieval_available,
+      exclusionReason: row.exclusion_reason
+    }));
+    return {
+      records,
+      sources: await this.sourcesByKeys(records.map((record) => record.sourceId)),
+      dataStatuses: [...new Set(records.map((record) => record.dataStatus))]
     };
   }
 

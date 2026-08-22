@@ -106,6 +106,16 @@ async function pdfIntegrity(client: Client): Promise<IntegrityCount[]> {
       ) page_quality
       GROUP BY quality_status
     UNION ALL
+    SELECT 'document_content_classification', content_classification, count(*)::text
+      FROM document
+      GROUP BY content_classification
+    UNION ALL
+    SELECT 'document_page_content_classification',
+           CASE WHEN is_current THEN content_classification ELSE 'stale' END,
+           count(*)::text
+      FROM document_page
+      GROUP BY CASE WHEN is_current THEN content_classification ELSE 'stale' END
+    UNION ALL
     SELECT 'document_chunk', CASE WHEN is_current THEN 'current' ELSE 'stale' END,
            count(*)::text
       FROM document_chunk
@@ -191,7 +201,9 @@ export async function loadPdfDatabase(
         documents: plan.documents.map((document) => [
           document.documentKey,
           document.contentSha256,
-          document.extractionStatus
+          document.extractionStatus,
+          document.contentClassification,
+          document.extractionMethod
         ]),
         pages: plan.pages.map((page) => [
           page.pageId,
@@ -310,6 +322,8 @@ export async function loadPdfDatabase(
           "source_id",
           "ingestion_run_id",
           "extraction_status",
+          "content_classification",
+          "extraction_method",
           "page_count",
           "content_sha256",
           "data_status",
@@ -326,6 +340,8 @@ export async function loadPdfDatabase(
           sourceId(sourceIds, row.sourceKey),
           ingestionRunId,
           row.extractionStatus,
+          row.contentClassification,
+          row.extractionMethod,
           row.pageCount,
           row.contentSha256,
           row.dataStatus,
@@ -343,6 +359,8 @@ export async function loadPdfDatabase(
               "source_id",
               "ingestion_run_id",
               "extraction_status",
+              "content_classification",
+              "extraction_method",
               "page_count",
               "content_sha256",
               "data_status",
@@ -368,6 +386,8 @@ export async function loadPdfDatabase(
           "document_id",
           "version_key",
           "extraction_status",
+          "content_classification",
+          "extraction_method",
           "page_count",
           "content_sha256",
           "data_status",
@@ -379,6 +399,8 @@ export async function loadPdfDatabase(
           row.documentId,
           processingVersion.versionKey,
           row.extractionStatus,
+          row.contentClassification,
+          row.extractionMethod,
           row.pageCount,
           row.contentSha256,
           row.dataStatus,
@@ -389,6 +411,8 @@ export async function loadPdfDatabase(
         conflictColumns: ["document_id", "version_key"],
         updateColumns: [
           "extraction_status",
+          "content_classification",
+          "extraction_method",
           "page_count",
           "content_sha256",
           "data_status",
@@ -421,11 +445,21 @@ export async function loadPdfDatabase(
           "document_id",
           "page_number",
           "extraction_status",
+          "content_classification",
+          "extraction_method",
           "raw_content_sha256",
           "content_sha256",
           "extractor_version",
           "non_whitespace_character_count",
           "hangul_ratio",
+          "hangul_character_count",
+          "administrative_term_hit_rate",
+          "valid_hangul_bigram_ratio",
+          "rare_hangul_syllable_ratio",
+          "particle_ratio",
+          "whitespace_boundary_ratio",
+          "digit_punctuation_ratio",
+          "mojibake_score",
           "replacement_control_glyph_ratio",
           "suspicious_spacing_ratio",
           "repeated_header_line_count",
@@ -446,11 +480,21 @@ export async function loadPdfDatabase(
           row.documentId,
           row.pageNumber,
           row.extractionStatus,
+          row.contentClassification,
+          row.extractionMethod,
           row.rawContentSha256,
           row.contentSha256,
           row.extractorVersion,
           row.quality.nonWhitespaceCharacterCount,
           row.quality.hangulRatio,
+          row.quality.hangulCharacterCount,
+          row.quality.administrativeTermHitRate,
+          row.quality.validHangulBigramRatio,
+          row.quality.rareHangulSyllableRatio,
+          row.quality.particleTokenRatio,
+          row.quality.whitespaceBoundaryRatio,
+          row.quality.digitPunctuationRatio,
+          row.quality.mojibakeScore,
           row.quality.replacementControlGlyphRatio,
           row.quality.suspiciousSpacingRatio,
           row.quality.repeatedHeaderLineCount,
@@ -475,11 +519,21 @@ export async function loadPdfDatabase(
           "document_id",
           "page_number",
           "extraction_status",
+          "content_classification",
+          "extraction_method",
           "raw_content_sha256",
           "content_sha256",
           "extractor_version",
           "non_whitespace_character_count",
           "hangul_ratio",
+          "hangul_character_count",
+          "administrative_term_hit_rate",
+          "valid_hangul_bigram_ratio",
+          "rare_hangul_syllable_ratio",
+          "particle_ratio",
+          "whitespace_boundary_ratio",
+          "digit_punctuation_ratio",
+          "mojibake_score",
           "replacement_control_glyph_ratio",
           "suspicious_spacing_ratio",
           "repeated_header_line_count",

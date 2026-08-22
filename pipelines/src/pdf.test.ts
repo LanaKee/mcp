@@ -27,6 +27,8 @@ function pagePlan(text: string, pageNumber = 7): PdfPagePlan {
     sourcePath: "datasets/example.pdf",
     pageNumber,
     extractionStatus: "extracted",
+    contentClassification: "extracted_ok",
+    extractionMethod: "native_pdf_text",
     rawContentSha256: hash(text),
     contentSha256: hash(text),
     text,
@@ -86,6 +88,36 @@ describe("PDF normalization", () => {
     expect(first[0]?.sectionTitle).toBe("행정사무감사");
   });
 
+  it("never chunks pages excluded as mojibake or unusable", () => {
+    const rawText = "빃켇쐚싊 붆흖칻뺂 쭒왪휺숾 ".repeat(20);
+    const excluded = normalizePdfPages(
+      "corrupt-document",
+      deterministicUuid("corrupt-document"),
+      "source",
+      "datasets/extra/dojeong_2020.pdf",
+      [
+        {
+          pageNumber: 1,
+          rawText,
+          rawContentSha256: hash(rawText),
+          status: "extracted",
+          hasVisualContent: true,
+          error: null
+        }
+      ],
+      "mojibake_suspected"
+    );
+    expect(excluded[0]?.contentClassification).toBe("mojibake_suspected");
+    expect(excluded[0]?.text).toBe("");
+    expect(
+      chunkPdfPages(
+        "corrupt-document",
+        deterministicUuid("corrupt-document"),
+        excluded
+      )
+    ).toEqual([]);
+  });
+
   it("removes only confident repeated margins and preserves navigation prose", () => {
     const extracted: ExtractedPdfPage[] = Array.from({ length: 4 }, (_, index) => {
       const rawText = [
@@ -100,6 +132,7 @@ describe("PDF normalization", () => {
         rawText,
         rawContentSha256: hash(rawText),
         status: "extracted" as const,
+        hasVisualContent: true,
         error: null
       };
     });
@@ -189,7 +222,7 @@ describe("PDF normalization", () => {
     expect(quality.flags).toContain("table_likely");
   });
 
-  it("classifies encrypted, OCR, and general extraction failures explicitly", () => {
+  it("classifies encrypted, unusable, and general extraction failures explicitly", () => {
     expect(
       classifyPdfExtractionError(
         Object.assign(new Error("No password given"), { name: "PasswordException" })
@@ -204,10 +237,11 @@ describe("PDF normalization", () => {
           pageNumber: 1,
           rawText: "",
           rawContentSha256: hash(""),
-          status: "ocr_required",
+          status: "unusable_for_retrieval",
+          hasVisualContent: true,
           error: null
         }
       ])
-    ).toBe("ocr_required");
+    ).toBe("unusable_for_retrieval");
   });
 });

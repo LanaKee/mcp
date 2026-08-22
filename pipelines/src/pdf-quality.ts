@@ -22,6 +22,7 @@ export interface PdfGoldenFixture {
   minimumSpeakerMarkers?: number;
   minimumTableLines?: number;
   minimumRepeatedHeaderLines?: number;
+  expectedContentClassification?: PdfPagePlan["contentClassification"];
 }
 
 export interface PdfGoldenResult {
@@ -45,6 +46,9 @@ export interface PdfQualityReport {
   };
   distribution: {
     pageTextClasses: Record<string, number>;
+    pageContentClassifications: Record<string, number>;
+    documentContentClassifications: Record<string, number>;
+    extractionMethods: Record<string, number>;
     flagCounts: Record<string, number>;
     percentiles: Record<string, Record<string, number>>;
   };
@@ -103,7 +107,11 @@ export function evaluateGoldenFixtures(
       repeatedHeaders:
         page !== undefined &&
         page.quality.repeatedHeaderLineCount >=
-          (fixture.minimumRepeatedHeaderLines ?? 0)
+          (fixture.minimumRepeatedHeaderLines ?? 0),
+      contentClassification:
+        page !== undefined &&
+        (fixture.expectedContentClassification === undefined ||
+          page.contentClassification === fixture.expectedContentClassification)
     };
     const failures = Object.entries(checks)
       .filter(([, passed]) => !passed)
@@ -145,19 +153,45 @@ export function buildPdfQualityReport(
   const goldenResults = evaluateGoldenFixtures(plan, catalog, fixtures);
   const goldenPassed = goldenResults.filter((result) => result.passed).length;
   const pageTextClasses: Record<string, number> = {};
+  const pageContentClassifications: Record<string, number> = {};
+  const documentContentClassifications: Record<string, number> = {};
+  const extractionMethods: Record<string, number> = {};
   const flagCounts: Record<string, number> = {};
   for (const page of plan.pages) {
     pageTextClasses[page.quality.textClass] =
       (pageTextClasses[page.quality.textClass] ?? 0) + 1;
+    pageContentClassifications[page.contentClassification] =
+      (pageContentClassifications[page.contentClassification] ?? 0) + 1;
+    extractionMethods[page.extractionMethod] =
+      (extractionMethods[page.extractionMethod] ?? 0) + 1;
     for (const flag of page.quality.flags) {
       flagCounts[flag] = (flagCounts[flag] ?? 0) + 1;
     }
   }
+  for (const document of plan.documents) {
+    documentContentClassifications[document.contentClassification] =
+      (documentContentClassifications[document.contentClassification] ?? 0) + 1;
+  }
   const maximumFailedPages = Math.max(1, Math.ceil(plan.summary.pages * 0.01));
-  const maximumOcrRequiredPages = Math.max(
-    1,
-    Math.ceil(plan.summary.pages * 0.02)
+  const excludedPageIds = new Set(
+    plan.pages
+      .filter((page) => page.contentClassification !== "extracted_ok")
+      .map((page) => page.pageId)
   );
+  const excludedPageNumbers = new Set(
+    plan.pages
+      .filter((page) => excludedPageIds.has(page.pageId))
+      .map((page) => `${page.documentId}:${page.pageNumber}`)
+  );
+  const excludedContentChunks = plan.chunks.filter((chunk) =>
+    excludedPageNumbers.has(`${chunk.documentId}:${chunk.pageStart}`)
+  ).length;
+  const invalidPolicyIdentityDocuments = plan.documents.filter(
+    (document) =>
+      document.documentType === "provincial_work_plan" &&
+      document.contentClassification === "extracted_ok" &&
+      document.metadata.policyIdentityValidated !== true
+  ).length;
   const severeRegressions: string[] = [];
   if (goldenPassed !== goldenResults.length) {
     severeRegressions.push(
@@ -169,9 +203,14 @@ export function buildPdfQualityReport(
       `${plan.summary.failedPages} failed pages exceeded ${maximumFailedPages}`
     );
   }
-  if (plan.summary.ocrRequiredPages > maximumOcrRequiredPages) {
+  if (excludedContentChunks > 0) {
     severeRegressions.push(
-      `${plan.summary.ocrRequiredPages} OCR-required pages exceeded ${maximumOcrRequiredPages}`
+      `${excludedContentChunks} chunk(s) were created from excluded pages`
+    );
+  }
+  if (invalidPolicyIdentityDocuments > 0) {
+    severeRegressions.push(
+      `${invalidPolicyIdentityDocuments} extracted policy document(s) lacked validated type/year evidence`
     );
   }
   return {
@@ -187,6 +226,9 @@ export function buildPdfQualityReport(
     },
     distribution: {
       pageTextClasses,
+      pageContentClassifications,
+      documentContentClassifications,
+      extractionMethods,
       flagCounts,
       percentiles: {
         nonWhitespaceCharacterCount: percentiles(
@@ -196,6 +238,12 @@ export function buildPdfQualityReport(
         ),
         hangulRatio: percentiles(
           plan.pages.map((page) => page.quality.hangulRatio)
+        ),
+        mojibakeScore: percentiles(
+          plan.pages.map((page) => page.quality.mojibakeScore)
+        ),
+        administrativeTermHitRate: percentiles(
+          plan.pages.map((page) => page.quality.administrativeTermHitRate)
         ),
         replacementControlGlyphRatio: percentiles(
           plan.pages.map(
@@ -216,7 +264,8 @@ export function buildPdfQualityReport(
     severeRegressionCriteria: {
       goldenPassRate: "100%",
       maximumFailedPages,
-      maximumOcrRequiredPages
+      excludedContentChunks: 0,
+      invalidPolicyIdentityDocuments: 0
     },
     severeRegressions
   };

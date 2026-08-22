@@ -21,11 +21,13 @@
 
 - golden pass rate가 100% 미만
 - page extraction failure가 평가 page의 1% 초과
-- OCR-required page가 평가 page의 2% 초과
+- excluded(`mojibake_suspected`/`unusable_for_retrieval`/`empty`) page에서 chunk가 생성됨
+- 읽을 수 있는 정책 문서의 유형/연도 evidence 검증 실패
 
-그 밖의 분포 변화는 report하되 자동 실패시키지 않아 새로운 문서 유형을 오류로 단정하지 않는다.
+unusable page 증가는 결함을 올바르게 찾은 결과일 수 있으므로 그 자체로 실패시키지
+않는다. 그 밖의 분포 변화는 report하되 자동 실패시키지 않는다.
 
-## 전체 corpus 결과
+## 당시 baseline corpus 결과
 
 - 401 PDF / 11,712 page, extraction failure 0, OCR-required 0
 - golden 5/5 통과
@@ -46,4 +48,12 @@ turn을 bounded packing하는 방식으로 바꿔 현재 chunk를 23,795개로 �
 - golden은 local 4개 PDF의 5페이지 구조 회귀이며 전체 의미 정확도를 입증하지 않는다.
 - corpus에서 고신뢰 반복 footer가 발견되지 않아 footer 제거는 합성 unit test만 있다.
 - table-likely는 layout/tab/숫자 heuristic이며 셀 구조 복원이나 표 의미 이해가 아니다.
-- OCR 엔진과 semantic embedding은 포함하지 않는다.
+- 별도 text recovery와 semantic embedding은 포함하지 않는다.
+
+## 후속 정정
+
+새 도정 업무계획에서 Hangul codepoint를 내는 CID mojibake가 발견되어 당시
+Hangul-ratio 중심 품질 지표를 보강했다. 현재 408 PDF 결과와 오판 원인은
+`CHANGES_POLICY_DOCUMENT_INGESTION.md`와
+`MISTAKE_HANGUL_RATIO_MOJIBAKE_BLINDSPOT.md`를 따른다. 기존 401 PDF를 새 gate로
+재검사한 결과는 11,712페이지 모두 `extracted_ok`였다.

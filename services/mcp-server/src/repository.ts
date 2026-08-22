@@ -81,7 +81,24 @@ export interface DocumentSearchHit extends CouncilSearchHit {
     recordType: "document_chunk";
     pageStart: number;
     pageEnd: number;
+    documentType: string;
+    extractionMethod: "native_pdf_text";
   };
+}
+
+export interface PolicyDocumentCoverage {
+  year: number;
+  title: string;
+  sourceId: string;
+  sourcePath: string | null;
+  dataStatus: DataStatus;
+  contentClassification:
+    | "extracted_ok"
+    | "mojibake_suspected"
+    | "unusable_for_retrieval"
+    | "empty";
+  retrievalAvailable: boolean;
+  exclusionReason: string | null;
 }
 
 export interface DocumentRepository {
@@ -89,11 +106,15 @@ export interface DocumentRepository {
     query: string;
     region?: string;
     organization?: string;
+    documentTypes?: string[];
     dateFrom?: string;
     dateTo?: string;
     limit: number;
     dataStatuses: readonly FactDataStatus[];
   }): Promise<RepositoryResult<DocumentSearchHit>>;
+  getPolicyDocumentCoverage(
+    years: number[]
+  ): Promise<RepositoryResult<PolicyDocumentCoverage>>;
 }
 
 export interface CouncilRepository {
@@ -369,11 +390,18 @@ export class InMemoryDataRepository implements DataRepository {
     query: string;
     region?: string;
     organization?: string;
+    documentTypes?: string[];
     dateFrom?: string;
     dateTo?: string;
     limit: number;
     dataStatuses: readonly FactDataStatus[];
   }): Promise<RepositoryResult<DocumentSearchHit>> {
+    return { records: [], sources: [], dataStatuses: [] };
+  }
+
+  async getPolicyDocumentCoverage(
+    _years: number[]
+  ): Promise<RepositoryResult<PolicyDocumentCoverage>> {
     return { records: [], sources: [], dataStatuses: [] };
   }
 
