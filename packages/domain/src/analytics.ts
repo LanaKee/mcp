@@ -4,6 +4,9 @@ import type {
   LocalTaxRecord,
   PolicyMatch,
   PolicyRecord,
+  PeerComparison,
+  PeerRegionExclusion,
+  PeerRegionSeries,
   PopulationRecord,
   TrendPoint,
   TrendSummary
@@ -341,5 +344,159 @@ export function evaluatePolicyEligibility(
     reasons,
     unmetConditions,
     score: reasons.length * 10 - unmetConditions.length * 5
+  };
+}
+
+/**
+ * Compares the same measure across peer regions, and refuses when the series
+ * are not the same measurement.
+ *
+ * Peer comparison is the easiest way to produce a confident wrong answer from
+ * this data: two counties' tax figures can differ because one is 예산 and the
+ * other 결산, or because one series is 천원 and the other 원, and the resulting
+ * ranking looks entirely plausible. So comparability is settled before any
+ * ranking exists, and a mismatch returns a refusal rather than a caveated
+ * number — a caveat under a chart is not read.
+ *
+ * Regions are not required to be comparable across their whole history. The
+ * loaded data switches measurement basis mid-series (인구 moves from
+ * tax_year_reported_population to resident_registration_snapshot in 2025), so
+ * demanding one basis per region would reject almost every real comparison.
+ * Instead the largest basis shared by the group is selected, and the years
+ * outside it are dropped with the reason stated.
+ */
+export function comparePeerRegions(input: {
+  metric: string;
+  unit: string;
+  series: Array<{ region: string; points: ComparableTrendPoint[] }>;
+}): PeerComparison {
+  const excluded: PeerRegionExclusion[] = [];
+  const withData: Array<{ region: string; points: ComparableTrendPoint[] }> = [];
+  for (const entry of input.series) {
+    if (entry.points.length === 0) {
+      excluded.push({
+        region: entry.region,
+        reason: "no_observations",
+        detail: "요청한 기간에 적재된 관측이 없습니다."
+      });
+      continue;
+    }
+    withData.push(entry);
+  }
+
+  const refuse = (reason: string): PeerComparison => ({
+    metric: input.metric,
+    unit: input.unit,
+    commonYears: [],
+    included: [],
+    excluded,
+    levelRanking: [],
+    changeRanking: null,
+    changeRankingUnavailableReason: "insufficient_common_years",
+    comparabilityBasis: null,
+    comparabilityRefusalReason: reason
+  });
+
+  if (withData.length < 2) {
+    return refuse("비교 가능한 지역이 2개 미만이라 동료 비교를 수행할 수 없습니다.");
+  }
+
+  // Candidate bases, scored by how much comparable surface each one yields —
+  // regions multiplied by shared years, not regions alone. Maximising region
+  // count alone collapses most real comparisons to a single common year, which
+  // can rank levels but says nothing about direction, and direction is what a
+  // peer comparison is usually asked for. Ties go to the wider group.
+  const bases = new Set(
+    withData.flatMap((entry) => entry.points.map(compatibilityKey))
+  );
+  let best: {
+    key: string;
+    regions: Array<{ region: string; points: ComparableTrendPoint[] }>;
+    years: number[];
+  } | null = null;
+  for (const key of bases) {
+    const regions = withData
+      .map((entry) => ({
+        region: entry.region,
+        points: entry.points.filter((point) => compatibilityKey(point) === key)
+      }))
+      .filter((entry) => entry.points.length > 0);
+    if (regions.length < 2) continue;
+    let years = regions[0]!.points.map((point) => point.year);
+    for (const entry of regions.slice(1)) {
+      const present = new Set(entry.points.map((point) => point.year));
+      years = years.filter((year) => present.has(year));
+    }
+    years = [...new Set(years)].sort((left, right) => left - right);
+    if (years.length === 0) continue;
+    const score = regions.length * years.length;
+    const bestScore = best ? best.regions.length * best.years.length : -1;
+    const tie = score === bestScore && best && regions.length > best.regions.length;
+    if (score > bestScore || tie) best = { key, regions, years };
+  }
+
+  if (!best) {
+    return refuse(
+      "지역 간에 회계 기준·단위·집계 수준이 같으면서 공통으로 관측된 연도가 있는 조합이 없습니다."
+    );
+  }
+
+  const participating = new Set(best.regions.map((entry) => entry.region));
+  for (const entry of withData) {
+    if (participating.has(entry.region)) continue;
+    excluded.push({
+      region: entry.region,
+      reason: "incompatible_with_peers",
+      detail:
+        "다른 지역과 회계 기준·단위·집계 수준이 달라 같은 축에 놓을 수 없습니다."
+    });
+  }
+
+  const included: PeerRegionSeries[] = best.regions.map((entry) => {
+    const points = entry.points
+      .filter((point) => best!.years.includes(point.year))
+      .sort((left, right) => left.year - right.year);
+    return {
+      region: entry.region,
+      years: points.map((point) => point.year),
+      values: points.map((point) => point.value),
+      summary: points.length >= 2 ? summarizeTrend(points) : null,
+      summaryUnavailableReason: points.length >= 2 ? null : "insufficient_points",
+      sourceIds: [...new Set(points.map((point) => point.sourceId))]
+    };
+  });
+
+  const latestYear = best.years.at(-1)!;
+  const levelRanking = included
+    .map((series) => ({
+      region: series.region,
+      year: latestYear,
+      value: series.values[series.years.indexOf(latestYear)]!
+    }))
+    .sort((left, right) => right.value - left.value);
+
+  const changeRanking =
+    best.years.length >= 2
+      ? included
+          .map((series) => ({
+            region: series.region,
+            changePercent: series.summary?.changePercent ?? null,
+            absoluteChange: series.summary?.absoluteChange ?? 0
+          }))
+          .sort((left, right) => left.absoluteChange - right.absoluteChange)
+      : null;
+
+  return {
+    metric: input.metric,
+    unit: input.unit,
+    commonYears: best.years,
+    included,
+    excluded,
+    levelRanking,
+    changeRanking,
+    changeRankingUnavailableReason:
+      changeRanking === null ? "insufficient_common_years" : null,
+    comparabilityBasis: best.regions[0]!.points[0]!.compatibility,
+    comparabilityRefusalReason: null
   };
 }

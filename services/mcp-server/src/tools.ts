@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   analyzeComparableTrend,
+  comparePeerRegions,
   comparePopulationAndTax,
   comparisonInputSchema,
   councilSearchInputSchema,
@@ -16,6 +17,7 @@ import {
   pressReleaseSearchInputSchema,
   localTaxTrendPoints,
   populationTrendPoints,
+  peerComparisonInputSchema,
   populationTrendInputSchema,
   regionalEvidencePackInputSchema,
   sourceContextInputSchema,
@@ -348,6 +350,116 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
             : []),
           ...taxCoverageLimitations(taxes.records),
           ...statusLimitations(usedStatuses)
+        ]
+      };
+    }
+  );
+
+  add(
+    "compare_peer_regions",
+    "여러 시군의 같은 지표를 비교합니다. 회계 기준·단위·집계 수준이 다르거나 공통 관측 연도가 없으면 순위를 만들지 않고 비교 불가 사유를 돌려줍니다.",
+    peerComparisonInputSchema,
+    objectSchema(
+      {
+        regions: {
+          type: "array",
+          items: { type: "string", minLength: 1, maxLength: 80 },
+          minItems: 2,
+          maxItems: 8
+        },
+        metric: { type: "string", enum: ["population", "local_tax_revenue"] },
+        startYear: year,
+        endYear: year,
+        taxCategory: { type: "string", maxLength: 60 },
+        dataStatuses: factStatusProperty
+      },
+      ["regions", "metric", "startYear", "endYear"]
+    ),
+    async (input) => {
+      const dataStatuses = statuses(input);
+      const collected = await Promise.all(
+        [...new Set(input.regions)].map(async (region) => {
+          if (input.metric === "population") {
+            const loaded = await repository.getPopulationTrend({
+              region,
+              startYear: input.startYear,
+              endYear: input.endYear,
+              dataStatuses
+            });
+            return {
+              region,
+              points: populationTrendPoints(loaded.records),
+              sources: loaded.sources,
+              dataStatuses: loaded.dataStatuses
+            };
+          }
+          const loaded = await repository.getLocalTaxTrend({
+            region,
+            startYear: input.startYear,
+            endYear: input.endYear,
+            taxCategory: input.taxCategory ?? "합계",
+            dataStatuses
+          });
+          return {
+            region,
+            points: localTaxTrendPoints(loaded.records),
+            sources: loaded.sources,
+            dataStatuses: loaded.dataStatuses
+          };
+        })
+      );
+      const comparison = comparePeerRegions({
+        metric: input.metric,
+        unit: input.metric === "population" ? "명" : "원",
+        series: collected.map(({ region, points }) => ({ region, points }))
+      });
+      const includedRegions = new Set(
+        comparison.included.map((series) => series.region)
+      );
+      // Only the regions that survived comparability contribute sources and
+      // statuses; citing an excluded region's source would imply it took part.
+      const contributing = collected.filter((entry) =>
+        includedRegions.has(entry.region)
+      );
+      const observedStatuses = [
+        ...new Set(contributing.flatMap((entry) => entry.dataStatuses))
+      ];
+      return {
+        data_status: responseStatus(observedStatuses),
+        data_statuses: observedStatuses,
+        result: comparison,
+        sources: [
+          ...new Map(
+            contributing
+              .flatMap((entry) => entry.sources)
+              .map((source) => [source.sourceId, source])
+          ).values()
+        ],
+        limitations: [
+          ...(comparison.commonYears.length > 0
+            ? [
+                `비교는 모든 포함 지역이 같은 기준으로 함께 관측한 ${comparison.commonYears.join(
+                  ", "
+                )}년에 한해 수행됩니다. 그 밖의 연도는 기준이 달라 계산에서 제외되었습니다.`
+              ]
+            : []),
+          ...(comparison.comparabilityBasis
+            ? [
+                `사용된 측정 기준: ${JSON.stringify(
+                  Object.fromEntries(
+                    Object.entries(comparison.comparabilityBasis).filter(
+                      ([, value]) => value !== null
+                    )
+                  )
+                )}`
+              ]
+            : []),
+          "제외된 지역은 값이 없거나 낮다는 뜻이 아니라, 같은 기준으로 놓을 수 없다는 뜻입니다.",
+          "인구·세수 규모는 시군 규모에 크게 좌우되므로, 순위 자체를 정책 성과로 해석해서는 안 됩니다.",
+          ...(comparison.comparabilityRefusalReason
+            ? [comparison.comparabilityRefusalReason]
+            : []),
+          ...statusLimitations(observedStatuses)
         ]
       };
     }

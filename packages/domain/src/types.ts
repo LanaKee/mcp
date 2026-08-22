@@ -116,6 +116,51 @@ export interface ComparableTrendAnalysis {
   segments: TrendSeriesSegment[];
 }
 
+/**
+ * One region's contribution to a peer comparison, or the reason it was left out.
+ *
+ * An excluded region is reported rather than dropped. A comparison that quietly
+ * omits the region a reader asked about invites them to conclude the region is
+ * average, which is the opposite of what the data supports.
+ */
+export interface PeerRegionSeries {
+  region: string;
+  years: number[];
+  values: number[];
+  summary: TrendSummary | null;
+  summaryUnavailableReason: TrendSummaryUnavailableReason | null;
+  sourceIds: string[];
+}
+
+export interface PeerRegionExclusion {
+  region: string;
+  reason:
+    | "no_observations"
+    | "incompatible_with_peers";
+  detail: string;
+}
+
+export interface PeerComparison {
+  metric: string;
+  unit: string;
+  /** The years every included region observed. Comparisons use only these. */
+  commonYears: number[];
+  included: PeerRegionSeries[];
+  excluded: PeerRegionExclusion[];
+  /** Ranking by the latest common year's level, highest first. */
+  levelRanking: Array<{ region: string; year: number; value: number }>;
+  /**
+   * Ranking by change across the common window, most negative first. Null when
+   * fewer than two common years exist, because a single point has no change.
+   */
+  changeRanking:
+    | Array<{ region: string; changePercent: number | null; absoluteChange: number }>
+    | null;
+  changeRankingUnavailableReason: "insufficient_common_years" | null;
+  comparabilityBasis: TrendCompatibility | null;
+  comparabilityRefusalReason: string | null;
+}
+
 export interface ToolEnvelope<T> {
   dataStatus: DataStatus;
   result: T;

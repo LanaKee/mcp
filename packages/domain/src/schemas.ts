@@ -191,6 +191,20 @@ export const draftPublicDocumentInputSchema = z
   })
   .strict();
 
+export const peerComparisonInputSchema = z
+  .object({
+    regions: z.array(z.string().min(1).max(80)).min(2).max(8),
+    metric: z.enum(["population", "local_tax_revenue"]),
+    startYear: yearSchema,
+    endYear: yearSchema,
+    taxCategory: z.string().min(1).max(60).optional(),
+    dataStatuses: factDataStatusesSchema
+  })
+  .strict()
+  .refine((value) => value.startYear <= value.endYear, {
+    message: "startYear는 endYear보다 클 수 없습니다."
+  });
+
 export const regionalEvidencePackInputSchema = z
   .object({
     region: z.string().min(1).max(80),
@@ -241,6 +255,10 @@ export type MemberBillSearchInput = z.infer<typeof memberBillSearchInputSchema>;
 export type VerifyClaimInput = z.infer<typeof verifyClaimInputSchema>;
 export type DraftPublicDocumentInput = z.infer<
   typeof draftPublicDocumentInputSchema
+>;
+export type PeerComparisonInput = z.infer<typeof peerComparisonInputSchema>;
+export type RegionalEvidencePackInput = z.infer<
+  typeof regionalEvidencePackInputSchema
 >;
 export type DatasetSearchInput = z.infer<typeof datasetSearchInputSchema>;
 export type DatasetDescribeInput = z.infer<typeof datasetDescribeInputSchema>;
