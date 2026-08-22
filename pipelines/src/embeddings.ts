@@ -151,9 +151,16 @@ export async function embedChangedChunks(
   options: {
     batchSize?: number;
     onProgress?: (progress: { generated: number; skipped: number; total: number }) => void;
+    onBatch?: (embeddings: ChunkEmbeddingPlan[]) => Promise<void>;
+    collect?: boolean;
   } = {}
-): Promise<{ embeddings: ChunkEmbeddingPlan[]; skipped: number }> {
-  const batchSize = options.batchSize ?? 64;
+): Promise<{
+  embeddings: ChunkEmbeddingPlan[];
+  generated: number;
+  skipped: number;
+}> {
+  const batchSize =
+    options.batchSize ?? (provider.descriptor.provider === "local" ? 256 : 64);
   const changed = chunks.filter(
     (chunk) =>
       chunk.content.trim().length > 0 &&
@@ -161,12 +168,14 @@ export async function embedChangedChunks(
   );
   const skipped = chunks.length - changed.length;
   const embeddings: ChunkEmbeddingPlan[] = [];
+  let generated = 0;
   for (let offset = 0; offset < changed.length; offset += batchSize) {
     const batch = changed.slice(offset, offset + batchSize);
     const vectors = await provider.embed(batch.map((chunk) => chunk.content));
     if (vectors.length !== batch.length) {
       throw new Error("Embedding provider returned a different number of vectors");
     }
+    const batchPlans: ChunkEmbeddingPlan[] = [];
     for (let index = 0; index < batch.length; index += 1) {
       const chunk = batch[index]!;
       const embedding = vectors[index]!;
@@ -175,7 +184,7 @@ export async function embedChangedChunks(
           `Embedding dimension mismatch for chunk ${chunk.chunkKey}: expected ${provider.descriptor.dimensions}, received ${embedding.length}`
         );
       }
-      embeddings.push({
+      batchPlans.push({
         ...provider.descriptor,
         chunkId: chunk.chunkId,
         contentSha256: chunk.contentSha256,
@@ -186,8 +195,11 @@ export async function embedChangedChunks(
         }
       });
     }
+    await options.onBatch?.(batchPlans);
+    generated += batchPlans.length;
+    if (options.collect !== false) embeddings.push(...batchPlans);
     options.onProgress?.({
-      generated: embeddings.length,
+      generated,
       skipped,
       total: chunks.length
     });
@@ -195,5 +207,5 @@ export async function embedChangedChunks(
   if (changed.length === 0) {
     options.onProgress?.({ generated: 0, skipped, total: chunks.length });
   }
-  return { embeddings, skipped };
+  return { embeddings, generated, skipped };
 }

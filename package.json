@@ -16,6 +16,7 @@
     "db:load": "pnpm --filter @gb/pipelines db:load",
     "db:normalize": "pnpm --filter @gb/pipelines db:normalize",
     "pdf:normalize": "pnpm --filter @gb/pipelines pdf:normalize",
+    "pdf:evaluate": "pnpm --filter @gb/pipelines pdf:evaluate",
     "dev": "pnpm --filter @gb/mcp-server dev:http",
     "start": "pnpm --filter @gb/mcp-server start:http"
   },

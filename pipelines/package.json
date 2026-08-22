@@ -12,7 +12,8 @@
     "db:schema": "tsx src/db-cli.ts schema",
     "db:load": "tsx src/db-cli.ts load",
     "db:normalize": "tsx src/db-cli.ts normalize",
-    "pdf:normalize": "tsx src/pdf-cli.ts"
+    "pdf:normalize": "tsx src/pdf-cli.ts",
+    "pdf:evaluate": "tsx src/pdf-evaluate.ts"
   },
   "dependencies": {
     "@gb/retrieval": "workspace:*",

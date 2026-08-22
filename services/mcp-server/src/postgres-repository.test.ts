@@ -9,6 +9,25 @@ class RecordingExecutor {
     if (text.includes("FROM dim_region")) {
       return { rows: [{ region_id: "47110" } as T] };
     }
+    if (text.includes("FROM data_source")) {
+      return {
+        rows: [
+          {
+            source_id: "00000000-0000-5000-8000-000000000001",
+            source_key: "source-key",
+            logical_source_id: null,
+            title: "source",
+            provider: "provider",
+            source_url: null,
+            collected_at: null,
+            data_status: "official_observed",
+            is_official: true,
+            file_path: "datasets/source.pdf",
+            license_note: null
+          } as T
+        ]
+      };
+    }
     return { rows: [] };
   }
 }
@@ -89,6 +108,25 @@ describe("PostgresDataRepository query contracts", () => {
     expect(call.values[0]).toBe("search_council_records");
     expect(call.values[3]).toBe(125);
     expect(call.values[9]).toBe("trace_1234-safe");
+  });
+
+  it("filters stale page and chunk locators from source context", async () => {
+    const executor = new RecordingExecutor();
+    const repository = new PostgresDataRepository(executor);
+
+    await repository.getSourceContexts(["source-key"]);
+
+    const locatorQuery = executor.calls.find((call) =>
+      call.text.includes("FROM source_locator sl")
+    );
+    expect(locatorQuery?.text).toContain("dc.is_current");
+    expect(locatorQuery?.text).toContain("dp.is_current");
+    expect(locatorQuery?.text).toContain(
+      "sl.entity_type NOT IN ('document_chunk', 'document_page')"
+    );
+    expect(locatorQuery?.values).toEqual([
+      ["00000000-0000-5000-8000-000000000001"]
+    ]);
   });
 
   it("closes its injected pool exactly once per close call", async () => {

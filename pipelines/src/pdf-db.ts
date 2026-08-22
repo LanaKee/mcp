@@ -87,17 +87,36 @@ async function pdfIntegrity(client: Client): Promise<IntegrityCount[]> {
     SELECT 'document' AS table_name, extraction_status AS data_status, count(*)::text AS row_count
       FROM document GROUP BY extraction_status
     UNION ALL
-    SELECT 'document_chunk', 'all', count(*)::text FROM document_chunk
+    SELECT 'document_page', page_status, count(*)::text
+      FROM (
+        SELECT CASE WHEN is_current THEN extraction_status ELSE 'stale' END AS page_status
+          FROM document_page
+      ) pages
+      GROUP BY page_status
     UNION ALL
-    SELECT 'document_chunk_embedding',
+    SELECT 'document_page_quality', quality_status, count(*)::text
+      FROM (
+        SELECT CASE WHEN is_current THEN text_class ELSE 'stale' END AS quality_status
+          FROM document_page
+      ) page_quality
+      GROUP BY quality_status
+    UNION ALL
+    SELECT 'document_chunk', CASE WHEN is_current THEN 'current' ELSE 'stale' END,
+           count(*)::text
+      FROM document_chunk
+      GROUP BY is_current
+    UNION ALL
+    SELECT 'document_chunk_embedding_current',
            provider || ':' || model || ':' || model_version,
            count(*)::text
-      FROM document_chunk_embedding
+      FROM document_chunk_embedding embedding
+      JOIN document_chunk chunk ON chunk.chunk_id = embedding.chunk_id
+      WHERE chunk.is_current
       GROUP BY provider, model, model_version
     UNION ALL
     SELECT 'source_locator', entity_type, count(*)::text
       FROM source_locator
-      WHERE entity_type IN ('document', 'document_chunk', 'pdf_page_status')
+      WHERE entity_type IN ('document', 'document_page', 'document_chunk')
       GROUP BY entity_type
     ORDER BY 1, 2
   `);
@@ -153,6 +172,12 @@ export async function loadPdfDatabase(
           document.contentSha256,
           document.extractionStatus
         ]),
+        pages: plan.pages.map((page) => [
+          page.pageId,
+          page.rawContentSha256,
+          page.contentSha256,
+          page.quality
+        ]),
         chunks: plan.chunks.map((chunk) => [chunk.chunkId, chunk.contentSha256]),
         provider: provider.descriptor
       })
@@ -164,7 +189,7 @@ export async function loadPdfDatabase(
        RETURNING ingestion_run_id`,
       [
         "gyeongbuk-pdf-normalizer",
-        "0.1.0",
+        "0.2.0",
         inputSha256,
         plan.failures.length,
         JSON.stringify(plan.failures.slice(0, 200))
@@ -173,10 +198,6 @@ export async function loadPdfDatabase(
     ingestionRunId = run.rows[0]!.ingestion_run_id;
 
     const existing = await existingEmbeddingHashes(client, plan, provider);
-    const embedded = await embedChangedChunks(provider, plan.chunks, existing, {
-      batchSize: options.embeddingBatchSize,
-      onProgress: options.onEmbeddingProgress
-    });
 
     await client.query("BEGIN");
     transactionStarted = true;
@@ -308,6 +329,94 @@ export async function loadPdfDatabase(
     );
 
     await client.query(
+      "UPDATE document_page SET is_current = false WHERE document_id = ANY($1::uuid[])",
+      [plan.documents.map((document) => document.documentId)]
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "document_page",
+        columns: [
+          "page_id",
+          "page_key",
+          "document_id",
+          "page_number",
+          "extraction_status",
+          "raw_content_sha256",
+          "content_sha256",
+          "extractor_version",
+          "non_whitespace_character_count",
+          "hangul_ratio",
+          "replacement_control_glyph_ratio",
+          "suspicious_spacing_ratio",
+          "repeated_header_line_count",
+          "repeated_footer_line_count",
+          "likely_table_line_count",
+          "likely_table_density",
+          "speaker_marker_count",
+          "text_class",
+          "error_text",
+          "ingestion_run_id",
+          "is_current",
+          "metadata"
+        ],
+        rows: plan.pages.map((row) => [
+          row.pageId,
+          row.pageKey,
+          row.documentId,
+          row.pageNumber,
+          row.extractionStatus,
+          row.rawContentSha256,
+          row.contentSha256,
+          row.extractorVersion,
+          row.quality.nonWhitespaceCharacterCount,
+          row.quality.hangulRatio,
+          row.quality.replacementControlGlyphRatio,
+          row.quality.suspiciousSpacingRatio,
+          row.quality.repeatedHeaderLineCount,
+          row.quality.repeatedFooterLineCount,
+          row.quality.likelyTableLineCount,
+          row.quality.likelyTableDensity,
+          row.quality.speakerMarkerCount,
+          row.quality.textClass,
+          row.error,
+          ingestionRunId,
+          true,
+          JSON.stringify({
+            ...row.metadata,
+            flags: row.quality.flags,
+            sourcePath: row.sourcePath
+          })
+        ]),
+        conflictColumns: ["page_id"],
+        updateColumns: [
+          "page_key",
+          "document_id",
+          "page_number",
+          "extraction_status",
+          "raw_content_sha256",
+          "content_sha256",
+          "extractor_version",
+          "non_whitespace_character_count",
+          "hangul_ratio",
+          "replacement_control_glyph_ratio",
+          "suspicious_spacing_ratio",
+          "repeated_header_line_count",
+          "repeated_footer_line_count",
+          "likely_table_line_count",
+          "likely_table_density",
+          "speaker_marker_count",
+          "text_class",
+          "error_text",
+          "ingestion_run_id",
+          "is_current",
+          "metadata"
+        ]
+      })
+    );
+
+    await client.query(
       "UPDATE document_chunk SET is_current = false WHERE document_id = ANY($1::uuid[])",
       [plan.documents.map((document) => document.documentId)]
     );
@@ -402,43 +511,55 @@ export async function loadPdfDatabase(
       })
     );
 
-    addCounts(
-      totals,
-      await upsertRows(client, {
-        table: "document_chunk_embedding",
-        columns: [
-          "chunk_id",
-          "provider",
-          "model",
-          "model_version",
-          "dimensions",
-          "retrieval_mode",
-          "embedding",
-          "content_sha256",
-          "metadata"
-        ],
-        rows: embedded.embeddings.map((row) => [
-          row.chunkId,
-          row.provider,
-          row.model,
-          row.version,
-          row.dimensions,
-          row.retrievalMode,
-          row.embedding,
-          row.contentSha256,
-          JSON.stringify(row.metadata)
-        ]),
-        conflictColumns: ["chunk_id", "provider", "model", "model_version"],
-        updateColumns: [
-          "dimensions",
-          "retrieval_mode",
-          "embedding",
-          "content_sha256",
-          "generated_at",
-          "metadata"
-        ]
-      })
-    );
+    const embedded = await embedChangedChunks(provider, plan.chunks, existing, {
+      batchSize: options.embeddingBatchSize,
+      onProgress: options.onEmbeddingProgress,
+      collect: false,
+      onBatch: async (batch) => {
+        addCounts(
+          totals,
+          await upsertRows(client, {
+            table: "document_chunk_embedding",
+            columns: [
+              "chunk_id",
+              "provider",
+              "model",
+              "model_version",
+              "dimensions",
+              "retrieval_mode",
+              "embedding",
+              "content_sha256",
+              "metadata"
+            ],
+            rows: batch.map((row) => [
+              row.chunkId,
+              row.provider,
+              row.model,
+              row.version,
+              row.dimensions,
+              row.retrievalMode,
+              row.embedding,
+              row.contentSha256,
+              JSON.stringify(row.metadata)
+            ]),
+            conflictColumns: [
+              "chunk_id",
+              "provider",
+              "model",
+              "model_version"
+            ],
+            updateColumns: [
+              "dimensions",
+              "retrieval_mode",
+              "embedding",
+              "content_sha256",
+              "generated_at",
+              "metadata"
+            ]
+          })
+        );
+      }
+    });
 
     await client.query("COMMIT");
     transactionStarted = false;
@@ -467,7 +588,7 @@ export async function loadPdfDatabase(
       insertedCount: totals.inserted,
       updatedCount: totals.updated,
       errorCount: plan.failures.length,
-      embeddingsGenerated: embedded.embeddings.length,
+      embeddingsGenerated: embedded.generated,
       embeddingsSkipped: embedded.skipped,
       integrity: await pdfIntegrity(client)
     };

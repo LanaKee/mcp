@@ -155,6 +155,10 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     resolve(repositoryRoot, "db/migrations/005_http_hardening_audit.sql"),
     "utf8"
   );
+  const pdfPageQualityMigration = await readFile(
+    resolve(repositoryRoot, "db/migrations/006_pdf_page_quality.sql"),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
@@ -163,6 +167,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(pdfDocumentsMigration);
     await client.query(repositoryAuditMigration);
     await client.query(httpHardeningMigration);
+    await client.query(pdfPageQualityMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
@@ -170,6 +175,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(pdfDocumentsMigration);
     await client.query(repositoryAuditMigration);
     await client.query(httpHardeningMigration);
+    await client.query(pdfPageQualityMigration);
   }
 }
 

@@ -665,7 +665,16 @@ export class PostgresDataRepository implements DataRepository {
                    ON sl.entity_type = 'document_chunk'
                   AND dc.chunk_key = sl.entity_key
                   AND dc.is_current
+                 LEFT JOIN document_page dp
+                   ON sl.entity_type = 'document_page'
+                  AND dp.page_key = sl.entity_key
+                  AND dp.is_current
                  WHERE sl.source_id = ANY($1::uuid[])
+                   AND (
+                     sl.entity_type NOT IN ('document_chunk', 'document_page')
+                     OR dc.chunk_id IS NOT NULL
+                     OR dp.page_id IS NOT NULL
+                   )
                )
                SELECT
                  source_id, entity_type, entity_key, page_number, row_number,

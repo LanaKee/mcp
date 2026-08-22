@@ -74,4 +74,86 @@ describeDatabase("PostgresDataRepository integration", () => {
       await pool.end();
     }
   });
+
+  it("persists current page quality and page source provenance", async () => {
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const result = await pool.query<{
+        page_number: number;
+        raw_content_sha256: string;
+        content_sha256: string;
+        speaker_marker_count: number;
+        repeated_header_line_count: number;
+        locator_page: number;
+      }>(
+        `SELECT page.page_number,
+                page.raw_content_sha256,
+                page.content_sha256,
+                page.speaker_marker_count,
+                page.repeated_header_line_count,
+                locator.page_number AS locator_page
+           FROM document_page page
+           JOIN document document_row
+             ON document_row.document_id = page.document_id
+           JOIN data_source source
+             ON source.source_id = document_row.source_id
+           JOIN source_locator locator
+             ON locator.source_id = source.source_id
+            AND locator.entity_type = 'document_page'
+            AND locator.entity_key = page.page_key
+          WHERE source.file_path = $1
+            AND page.page_number = $2
+            AND page.is_current
+          LIMIT 1`,
+        [
+          "datasets/경상북도 김천시_의회 회의록_20231226/226회/제226회 김천시의회 본회의 2차(20220209).pdf",
+          2
+        ]
+      );
+      expect(result.rows[0]).toMatchObject({
+        page_number: 2,
+        locator_page: 2
+      });
+      expect(result.rows[0]!.raw_content_sha256).toHaveLength(64);
+      expect(result.rows[0]!.content_sha256).toHaveLength(64);
+      expect(result.rows[0]!.speaker_marker_count).toBeGreaterThanOrEqual(20);
+      expect(result.rows[0]!.repeated_header_line_count).toBe(1);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("excludes stale chunk locators from source context", async () => {
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const stale = await pool.query<{
+        source_key: string;
+        chunk_key: string;
+      }>(
+        `SELECT source.source_key, chunk.chunk_key
+           FROM document_chunk chunk
+           JOIN document document_row
+             ON document_row.document_id = chunk.document_id
+           JOIN data_source source
+             ON source.source_id = document_row.source_id
+          WHERE NOT chunk.is_current
+          LIMIT 1`
+      );
+      if (!stale.rows[0]) return;
+      const contexts = await repository!.getSourceContexts([
+        stale.rows[0]!.source_key
+      ]);
+      const locators = contexts.records[0]?.locators ?? [];
+      expect(
+        locators.some(
+          (locator) => locator.entityKey === stale.rows[0]!.chunk_key
+        )
+      ).toBe(false);
+      expect(
+        locators.some((locator) => locator.entityType === "document_chunk")
+      ).toBe(true);
+    } finally {
+      await pool.end();
+    }
+  });
 });

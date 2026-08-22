@@ -1,0 +1,61 @@
+[
+  {
+    "id": "plenary-opening",
+    "sourcePath": "datasets/경상북도 김천시_의회 회의록_20231226/211회/제211회 김천시의회 본회의 1차(20200420).pdf",
+    "sourceSha256": "75d9391483f43a03bce7c199096123058431e39b45952ae5f3f325c657f63730",
+    "pageNumber": 2,
+    "rawTextSha256": "b86dfde61b4737102a88d64b1d2c9e8a51ec3c1d8aa5054b2aefbcd13b90944b",
+    "reason": "Plenary opening with chair and clerk transitions.",
+    "categories": ["plenary", "speaker_transition"],
+    "expectedMarkers": ["○의장 김세운", "개의를 선포합니다"],
+    "minimumSpeakerMarkers": 3
+  },
+  {
+    "id": "audit-speaker-exchange",
+    "sourcePath": "datasets/2006년도 행정사무감사/[2006년도 행정사무감사] 김천시의회 산업건설위원회 1차(20061031).pdf",
+    "sourceSha256": "68626f4ce8a9824f0c2cf55587a528d57ddb4c54764a3813c78622d60bea964e",
+    "pageNumber": 71,
+    "rawTextSha256": "0f6b761c8aaecc6f981f095fdabf012bedcbe707afef1dc829743761a8ac7b89",
+    "reason": "Administrative audit page with dense official/member speaker changes.",
+    "categories": ["committee", "audit", "speaker_transition"],
+    "expectedMarkers": ["○환경관리과장 맹봉준", "○김규승위원"],
+    "minimumSpeakerMarkers": 20
+  },
+  {
+    "id": "contents-table-and-header",
+    "sourcePath": "datasets/경상북도 김천시_의회 회의록_20231226/226회/제226회 김천시의회 본회의 2차(20220209).pdf",
+    "sourceSha256": "b127f21c974fb95f9a181535d7e2ceb26acace5a6ba2c635c283043e44d4f555",
+    "pageNumber": 1,
+    "rawTextSha256": "ea30adaf1962d0ed926c2d9ab8841e6b2a1294e51977896cf92ec9cf0b95837e",
+    "reason": "Table-like agenda listing plus a repeated printed running header.",
+    "categories": ["table_heavy", "repeated_header", "footer_artifact"],
+    "expectedMarkers": ["- 세정과", "- 회계과"],
+    "forbiddenMarkers": ["(제226회-제2차) 1", ""],
+    "minimumTableLines": 8,
+    "minimumRepeatedHeaderLines": 1
+  },
+  {
+    "id": "alternating-header-speakers",
+    "sourcePath": "datasets/경상북도 김천시_의회 회의록_20231226/226회/제226회 김천시의회 본회의 2차(20220209).pdf",
+    "sourceSha256": "b127f21c974fb95f9a181535d7e2ceb26acace5a6ba2c635c283043e44d4f555",
+    "pageNumber": 2,
+    "rawTextSha256": "34fb9a6bda1c0415fb3c0ec7f6f8c2767f2258c87420079b23fea712e12aa085",
+    "reason": "Alternating running-header layout with dense question-and-answer transitions.",
+    "categories": ["repeated_header", "speaker_transition"],
+    "expectedMarkers": ["○기획예산실장 김윤수", "○박영록의원"],
+    "forbiddenMarkers": ["2 (제226회-제2차)"],
+    "minimumSpeakerMarkers": 20,
+    "minimumRepeatedHeaderLines": 1
+  },
+  {
+    "id": "table-heavy-agenda",
+    "sourcePath": "datasets/경상북도 김천시_의회 회의록_20231226/230회/제230회-김천시의회 본회의 제5차.pdf",
+    "sourceSha256": "4f575a414c933903bdd68d5c9f42d6d21846f2ebd250892c2019c6d0022745dd",
+    "pageNumber": 1,
+    "rawTextSha256": "c387c1e1bdd8eb7bdaeb0b0de329aa4f27580c240168fbb52bc19b0d46c234c1",
+    "reason": "Dense numbered agenda and page-reference leader rows.",
+    "categories": ["plenary", "table_heavy"],
+    "expectedMarkers": ["부의된 안건", "11. 김천시 입영지원금"],
+    "minimumTableLines": 11
+  }
+]
