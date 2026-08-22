@@ -15,7 +15,19 @@ export interface LocalTaxRecord {
   fiscalYear: number;
   taxCategory: string;
   revenueAmountWon: number;
-  accountingBasis: "settlement" | "budget";
+  accountingBasis: "settlement" | "budget" | "reported";
+  amountSemantics?:
+    | "collected_amount"
+    | "payment_amount"
+    | "reported_total_tax_burden"
+    | "demo_settlement";
+  sourceGrain?:
+    | "collection_status"
+    | "payment_media"
+    | "per_capita_burden"
+    | "demo_sample";
+  unitOriginal?: "KRW" | "thousand_KRW";
+  unitMultiplier?: 1 | 1000;
   sourceId: string;
   dataStatus: DataStatus;
 }
@@ -78,4 +90,3 @@ export interface PolicyMatch {
   unmetConditions: string[];
   score: number;
 }
-

@@ -1,12 +1,17 @@
 import { parse } from "csv-parse/sync";
 import iconv from "iconv-lite";
 import { parseReferenceDate } from "./dates.js";
+import {
+  detectLocalTaxCsvKind,
+  type LocalTaxCsvKind
+} from "./local-tax.js";
 import { inferGyeongbukRegion } from "./regions.js";
 
 export type CsvKind =
   | "population_annual"
   | "population_local"
   | "council_agenda"
+  | LocalTaxCsvKind
   | "other";
 
 export interface DecodedCsv {
@@ -29,6 +34,8 @@ export function decodeKoreanCsv(buffer: Buffer): {
 }
 
 export function detectCsvKind(headers: string[]): CsvKind {
+  const localTaxKind = detectLocalTaxCsvKind(headers);
+  if (localTaxKind) return localTaxKind;
   const compact = headers.map(clean).join("|");
   if (
     compact.includes("년월") &&

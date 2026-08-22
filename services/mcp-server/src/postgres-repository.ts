@@ -243,7 +243,21 @@ export class PostgresDataRepository implements DataRepository {
         fiscal_year: number;
         tax_category: string;
         revenue_amount_won: string | number;
-        accounting_basis: "budget" | "settlement";
+        accounting_basis: "budget" | "settlement" | "reported";
+        amount_semantics:
+          | "collected_amount"
+          | "payment_amount"
+          | "reported_total_tax_burden"
+          | "demo_settlement"
+          | null;
+        source_grain:
+          | "collection_status"
+          | "payment_media"
+          | "per_capita_burden"
+          | "demo_sample"
+          | null;
+        unit_original: "KRW" | "thousand_KRW" | null;
+        unit_multiplier: number | null;
       }
     >(
       `WITH ranked AS (
@@ -254,6 +268,10 @@ export class PostgresDataRepository implements DataRepository {
            t.tax_category,
            t.revenue_amount_won,
            t.accounting_basis,
+           t.amount_semantics,
+           t.source_grain,
+           t.unit_original,
+           t.unit_multiplier,
            t.data_status,
            ds.source_key,
            ds.title,
@@ -264,8 +282,17 @@ export class PostgresDataRepository implements DataRepository {
            ds.file_path,
            ds.license_note,
            row_number() OVER (
-             PARTITION BY t.region_id, t.fiscal_year, t.tax_category, t.accounting_basis
-             ORDER BY CASE t.data_status WHEN 'official_observed' THEN 0 ELSE 1 END, ds.source_key
+             PARTITION BY t.region_id, t.fiscal_year, t.tax_category
+             ORDER BY
+               CASE t.data_status WHEN 'official_observed' THEN 0 ELSE 1 END,
+               CASE t.source_grain
+                 WHEN 'collection_status' THEN 0
+                 WHEN 'per_capita_burden' THEN 1
+                 WHEN 'payment_media' THEN 2
+                 ELSE 3
+               END,
+               t.is_aggregate DESC,
+               ds.source_key
            ) AS rank
          FROM local_tax_revenue t
          JOIN dim_region r ON r.region_id = t.region_id
@@ -296,6 +323,13 @@ export class PostgresDataRepository implements DataRepository {
         taxCategory: row.tax_category,
         revenueAmountWon: Number(row.revenue_amount_won),
         accountingBasis: row.accounting_basis,
+        amountSemantics: row.amount_semantics ?? undefined,
+        sourceGrain: row.source_grain ?? undefined,
+        unitOriginal: row.unit_original ?? undefined,
+        unitMultiplier:
+          row.unit_multiplier === null
+            ? undefined
+            : (Number(row.unit_multiplier) as 1 | 1000),
         sourceId: row.source_key,
         dataStatus: row.data_status
       })),

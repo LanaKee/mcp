@@ -40,7 +40,11 @@ describe("domain analytics", () => {
       sourceId: "t",
       dataStatus: "demo_sample"
     }));
-    expect(comparePopulationAndTax(populations, taxes, 2022, 2024)[0]?.matches).toBe(true);
+    expect(comparePopulationAndTax(populations, taxes, 2022, 2024)[0]).toMatchObject({
+      matches: true,
+      populationDataStatuses: ["demo_sample"],
+      taxDataStatuses: ["demo_sample"]
+    });
   });
 
   it("explains age-34 smart farm eligibility", () => {
@@ -69,4 +73,3 @@ describe("domain analytics", () => {
     expect(result.reasons).toHaveLength(4);
   });
 });
-

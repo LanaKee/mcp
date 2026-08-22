@@ -97,6 +97,26 @@ export function comparePopulationAndTax(
         regionName,
         populationTrend,
         taxTrend,
+        populationDataStatuses: [
+          ...new Set(populationRows.map((record) => record.dataStatus))
+        ],
+        taxDataStatuses: [
+          ...new Set(taxRows.map((record) => record.dataStatus))
+        ],
+        taxAmountSemantics: [
+          ...new Set(
+            taxRows
+              .map((record) => record.amountSemantics)
+              .filter((value): value is NonNullable<typeof value> => Boolean(value))
+          )
+        ],
+        taxSourceGrains: [
+          ...new Set(
+            taxRows
+              .map((record) => record.sourceGrain)
+              .filter((value): value is NonNullable<typeof value> => Boolean(value))
+          )
+        ],
         matches: populationTrend.direction === "decrease" && taxTrend.direction === "increase"
       };
     })
@@ -159,4 +179,3 @@ export function evaluatePolicyEligibility(
     score: reasons.length * 10 - unmetConditions.length * 5
   };
 }
-

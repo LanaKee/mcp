@@ -13,6 +13,7 @@ import {
   summarizeTrend,
   verifyClaimInputSchema,
   type DataStatus,
+  type LocalTaxRecord,
   type SourceRef
 } from "@gb/domain";
 import type { z } from "zod";
@@ -94,6 +95,24 @@ function statusLimitations(values: DataStatus[]): string[] {
     limitations.push("official_observed도 원출처와 기준일을 함께 확인해야 합니다.");
   }
   return limitations;
+}
+
+function taxCoverageLimitations(rows: LocalTaxRecord[]): string[] {
+  const statuses = [...new Set(rows.map((row) => row.dataStatus))];
+  if (
+    statuses.length === 1 &&
+    statuses[0] === "demo_sample"
+  ) {
+    return [
+      "요청한 지역·연도에는 공식 지방세가 없어 demo_sample만 반환했습니다."
+    ];
+  }
+  if (statuses.length > 1) {
+    return [
+      "공식 자료가 없는 연도만 demo_sample을 사용했으며 각 점의 dataStatus를 반드시 구분해야 합니다."
+    ];
+  }
+  return [];
 }
 
 export function createToolRegistry(repository: DataRepository): ToolRegistry {
@@ -183,19 +202,35 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       if (rows.length === 0) {
         throw new Error("해당 지역·기간의 지방세 데이터가 없습니다.");
       }
+      const accountingBases = [...new Set(rows.map((row) => row.accountingBasis))];
+      const amountSemantics = [
+        ...new Set(rows.map((row) => row.amountSemantics).filter(Boolean))
+      ];
+      const sourceGrains = [
+        ...new Set(rows.map((row) => row.sourceGrain).filter(Boolean))
+      ];
       return {
         data_status: responseStatus(loaded.dataStatuses),
         data_statuses: loaded.dataStatuses,
         result: {
           region: rows[0]!.regionName,
           tax_category: input.taxCategory ?? "합계",
-          accounting_basis: rows[0]!.accountingBasis,
+          accounting_basis:
+            accountingBases.length === 1 ? accountingBases[0] : "mixed",
+          amount_semantics:
+            amountSemantics.length === 1 ? amountSemantics[0] : amountSemantics,
+          source_grains: sourceGrains,
           unit: "원",
           points: rows.map((row) => ({
             year: row.fiscalYear,
             value: row.revenueAmountWon,
             sourceId: row.sourceId,
-            dataStatus: row.dataStatus
+            dataStatus: row.dataStatus,
+            accountingBasis: row.accountingBasis,
+            amountSemantics: row.amountSemantics ?? null,
+            sourceGrain: row.sourceGrain ?? null,
+            sourceUnit: row.unitOriginal ?? null,
+            sourceUnitMultiplier: row.unitMultiplier ?? null
           })),
           summary: summarizeTrend(
             rows.map((row) => ({
@@ -208,6 +243,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         sources: loaded.sources,
         limitations: [
           "국세는 범위 밖입니다.",
+          ...taxCoverageLimitations(rows),
           ...statusLimitations(loaded.dataStatuses)
         ]
       };
@@ -252,6 +288,9 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       const usedStatuses = [
         ...new Set([...population.dataStatuses, ...taxes.dataStatuses])
       ];
+      const mixedTaxCoverage = comparison.some(
+        (item) => item.taxDataStatuses.length > 1
+      );
       return {
         data_status: responseStatus(usedStatuses),
         data_statuses: usedStatuses,
@@ -263,6 +302,12 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         sources: mergeSources(population.sources, taxes.sources),
         limitations: [
           "동시 변화는 상관관계만 보여 주며 인과관계를 입증하지 않습니다.",
+          ...(mixedTaxCoverage
+            ? [
+                "일부 지역 추세는 공식 자료가 없는 연도에만 demo_sample을 사용하며 상태 배열로 명시합니다."
+              ]
+            : []),
+          ...taxCoverageLimitations(taxes.records),
           ...statusLimitations(usedStatuses)
         ]
       };
@@ -374,6 +419,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
       if (!row) throw new Error("검증에 필요한 기준 데이터가 없습니다.");
       const actualValue =
         "populationTotal" in row ? row.populationTotal : row.revenueAmountWon;
+      const taxRow = "revenueAmountWon" in row ? row : null;
       const difference = input.claimedValue - actualValue;
       const tolerancePercent = input.tolerancePercent ?? 1;
       const differencePercent =
@@ -392,10 +438,16 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
           difference_percent: differencePercent,
           tolerance_percent: tolerancePercent,
           source_id: row.sourceId,
-          record_data_status: row.dataStatus
+          record_data_status: row.dataStatus,
+          accounting_basis: taxRow?.accountingBasis ?? null,
+          amount_semantics: taxRow?.amountSemantics ?? null,
+          source_grain: taxRow?.sourceGrain ?? null
         },
         sources: loaded.sources,
-        limitations: statusLimitations(loaded.dataStatuses)
+        limitations: [
+          ...(taxRow ? taxCoverageLimitations([taxRow]) : []),
+          ...statusLimitations(loaded.dataStatuses)
+        ]
       };
     }
   );

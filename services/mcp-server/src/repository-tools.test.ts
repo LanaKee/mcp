@@ -1,4 +1,4 @@
-import type { PopulationRecord, SourceRef } from "@gb/domain";
+import type { LocalTaxRecord, PopulationRecord, SourceRef } from "@gb/domain";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { loadDemoData, type DemoDataStore } from "./data-store.js";
 import {
@@ -48,6 +48,40 @@ class FakeRepository extends InMemoryDataRepository {
 
   override async writeAudit(event: AuditEvent) {
     this.audits.push(event);
+  }
+
+  override async getLocalTaxTrend() {
+    const records: LocalTaxRecord[] = [
+      {
+        regionId: "47150",
+        regionName: "김천시",
+        fiscalYear: 2023,
+        taxCategory: "합계",
+        revenueAmountWon: 90,
+        accountingBasis: "settlement",
+        sourceId: "demo-tax",
+        dataStatus: "demo_sample"
+      },
+      {
+        regionId: "47150",
+        regionName: "김천시",
+        fiscalYear: 2024,
+        taxCategory: "합계",
+        revenueAmountWon: 100,
+        accountingBasis: "settlement",
+        amountSemantics: "collected_amount",
+        sourceGrain: "collection_status",
+        unitOriginal: "thousand_KRW",
+        unitMultiplier: 1000,
+        sourceId: officialSource.sourceId,
+        dataStatus: "official_observed"
+      }
+    ];
+    return {
+      records,
+      sources: [officialSource],
+      dataStatuses: ["demo_sample", "official_observed"] as const
+    };
   }
 }
 
@@ -122,5 +156,40 @@ describe("repository-injected tools", () => {
     expect(JSON.stringify(repository.audits[0]!.requestMetadata)).not.toContain(
       "private query text"
     );
+  });
+
+  it("labels official and sample tax points without an ambiguous trend envelope", async () => {
+    const repository = new FakeRepository(store);
+    const response = await executeTool(
+      createToolRegistry(repository),
+      "get_local_tax_revenue_trend",
+      {
+        region: "김천시",
+        startYear: 2023,
+        endYear: 2024
+      }
+    );
+    const result = response.result as {
+      accounting_basis: string;
+      amount_semantics: string[];
+      points: Array<{
+        dataStatus: string;
+        amountSemantics: string | null;
+        sourceGrain: string | null;
+      }>;
+    };
+    expect(response.data_status).toBe("mixed");
+    expect(result.points).toEqual([
+      expect.objectContaining({
+        dataStatus: "demo_sample",
+        amountSemantics: null
+      }),
+      expect.objectContaining({
+        dataStatus: "official_observed",
+        amountSemantics: "collected_amount",
+        sourceGrain: "collection_status"
+      })
+    ]);
+    expect(response.limitations.join(" ")).toContain("각 점의 dataStatus");
   });
 });

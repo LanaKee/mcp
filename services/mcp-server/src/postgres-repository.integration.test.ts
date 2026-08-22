@@ -34,6 +34,56 @@ describeDatabase("PostgresDataRepository integration", () => {
     expect(documents.records[0]!.metadata.pageStart).toBeGreaterThan(0);
   });
 
+  it("prefers official normalized tax and retains row provenance", async () => {
+    const taxes = await repository!.getLocalTaxTrend({
+      region: "김천시",
+      startYear: 2024,
+      endYear: 2024,
+      taxCategory: "합계",
+      dataStatuses: ["official_observed", "demo_sample"]
+    });
+    expect(taxes.records).toHaveLength(1);
+    expect(taxes.records[0]).toMatchObject({
+      regionId: "47150",
+      dataStatus: "official_observed",
+      accountingBasis: "settlement",
+      amountSemantics: "collected_amount",
+      sourceGrain: "collection_status",
+      unitOriginal: "thousand_KRW",
+      unitMultiplier: 1000
+    });
+
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const provenance = await pool.query<{
+        source_row: number;
+        locator_row: number;
+      }>(
+        `SELECT tax.source_row, locator.row_number AS locator_row
+           FROM local_tax_revenue tax
+           JOIN source_locator locator
+             ON locator.source_id = tax.source_id
+            AND locator.entity_type = 'local_tax_revenue'
+            AND locator.row_number = tax.source_row
+          WHERE tax.region_id = $1
+            AND tax.fiscal_year = $2
+            AND tax.tax_category = '합계'
+            AND tax.data_status = 'official_observed'
+          LIMIT 1`,
+        ["47150", 2024]
+      );
+      expect(provenance.rows[0]).toMatchObject({
+        source_row: expect.any(Number),
+        locator_row: expect.any(Number)
+      });
+      expect(provenance.rows[0]!.source_row).toBe(
+        provenance.rows[0]!.locator_row
+      );
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("persists an HTTP-safe audit correlation ID", async () => {
     const correlationId = `itest-${Date.now()}`;
     await repository!.writeAudit({

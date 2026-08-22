@@ -259,17 +259,28 @@ export class InMemoryDataRepository implements DataRepository {
     taxCategory: string;
     dataStatuses: readonly FactDataStatus[];
   }): Promise<RepositoryResult<LocalTaxRecord>> {
-    return this.result(
-      this.store.taxes.filter(
-        (row) =>
-          (!input.region ||
-            row.regionName.normalize("NFC").includes(input.region.normalize("NFC"))) &&
-          row.fiscalYear >= input.startYear &&
-          row.fiscalYear <= input.endYear &&
-          row.taxCategory === input.taxCategory &&
-          input.dataStatuses.includes(row.dataStatus as FactDataStatus)
-      )
+    const filtered = this.store.taxes.filter(
+      (row) =>
+        (!input.region ||
+          row.regionName.normalize("NFC").includes(input.region.normalize("NFC"))) &&
+        row.fiscalYear >= input.startYear &&
+        row.fiscalYear <= input.endYear &&
+        row.taxCategory === input.taxCategory &&
+        input.dataStatuses.includes(row.dataStatus as FactDataStatus)
     );
+    const selected = new Map<string, LocalTaxRecord>();
+    for (const row of filtered) {
+      const key = `${row.regionId}:${row.fiscalYear}:${row.taxCategory}`;
+      const existing = selected.get(key);
+      if (
+        !existing ||
+        (existing.dataStatus === "demo_sample" &&
+          row.dataStatus === "official_observed")
+      ) {
+        selected.set(key, row);
+      }
+    }
+    return this.result([...selected.values()]);
   }
 
   async findPolicies(input: {

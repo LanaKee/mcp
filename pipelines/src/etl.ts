@@ -13,6 +13,13 @@ import {
   parsePopulationWorkbook,
   type WorkbookPopulationRow
 } from "./xlsx.js";
+import {
+  emptyLocalTaxNormalization,
+  normalizeLocalTaxSources,
+  type LocalTaxCsvKind,
+  type LocalTaxNormalizationResult,
+  type LocalTaxSourceInput
+} from "./local-tax.js";
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const generatedDirectory = resolve(repositoryRoot, "data/generated");
@@ -42,6 +49,7 @@ export interface EtlResult {
   catalog: CatalogEntry[];
   population: OfficialPopulationRow[];
   council: OfficialCouncilRow[];
+  localTax: LocalTaxNormalizationResult;
   errors: EtlError[];
 }
 
@@ -52,6 +60,8 @@ export interface EtlSummary {
   byContentKind: Record<string, number>;
   normalizedPopulationRows: number;
   normalizedCouncilRows: number;
+  normalizedLocalTaxRows: Record<string, number>;
+  localTaxQualityIssues: Record<string, number>;
   errors: EtlError[];
   writes?: Record<string, "updated" | "unchanged">;
 }
@@ -77,6 +87,7 @@ export async function collectEtlData(): Promise<EtlResult> {
   const catalog = await buildCatalog(datasetDirectory, repositoryRoot);
   const population: OfficialPopulationRow[] = [];
   const council: OfficialCouncilRow[] = [];
+  const localTaxInputs: LocalTaxSourceInput[] = [];
   const errors: EtlError[] = catalog
     .filter((entry) => entry.error)
     .map((entry) => ({ path: entry.path, error: entry.error! }));
@@ -86,6 +97,23 @@ export async function collectEtlData(): Promise<EtlResult> {
       const absolute = resolve(repositoryRoot, entry.path);
       if (entry.extension === ".csv" && entry.parseStatus === "parsed") {
         const parsed = parseKoreanCsv(await readFile(absolute));
+        if (parsed.kind !== "other" && parsed.kind.startsWith("local_tax_")) {
+          localTaxInputs.push({
+            path: entry.path,
+            sha256: entry.sha256,
+            headers: parsed.headers,
+            rows: parsed.rows,
+            kind: parsed.kind as LocalTaxCsvKind
+          });
+        } else if (parsed.kind === "property_valuation_microdata") {
+          localTaxInputs.push({
+            path: entry.path,
+            sha256: entry.sha256,
+            headers: parsed.headers,
+            rows: parsed.rows,
+            kind: parsed.kind
+          });
+        }
         const populationRows = normalizeAnnualPopulation(parsed, entry.fileNameNfc);
         const councilRows = normalizeCouncilRows(parsed, entry.fileNameNfc);
         population.push(
@@ -132,7 +160,22 @@ export async function collectEtlData(): Promise<EtlResult> {
     }
   }
 
-  return { catalog, population, council, errors };
+  const localTax =
+    localTaxInputs.length > 0
+      ? normalizeLocalTaxSources(localTaxInputs)
+      : emptyLocalTaxNormalization();
+  errors.push(
+    ...localTax.qualityIssues
+      .filter((issue) => issue.severity === "error")
+      .map((issue) => ({
+        path: issue.sourcePath,
+        error: `${issue.issueCode}${
+          issue.sourceRow ? ` at row ${issue.sourceRow}` : ""
+        }: ${issue.message}`
+      }))
+  );
+
+  return { catalog, population, council, localTax, errors };
 }
 
 export async function runEtl(write: boolean): Promise<{
@@ -157,6 +200,25 @@ export async function runEtl(write: boolean): Promise<{
     ),
     normalizedPopulationRows: result.population.length,
     normalizedCouncilRows: result.council.length,
+    normalizedLocalTaxRows: {
+      collection: result.localTax.collection.length,
+      paymentMedia: result.localTax.paymentMedia.length,
+      assessment: result.localTax.assessment.length,
+      perCapita: result.localTax.perCapita.length,
+      taxpayer: result.localTax.taxpayer.length,
+      exemption: result.localTax.exemption.length,
+      unrefunded: result.localTax.unrefunded.length,
+      enforcement: result.localTax.enforcement.length,
+      headlineRevenue: result.localTax.headlineRevenue.length
+    },
+    localTaxQualityIssues: Object.fromEntries(
+      ["info", "warning", "error"].map((severity) => [
+        severity,
+        result.localTax.qualityIssues.filter(
+          (issue) => issue.severity === severity
+        ).length
+      ])
+    ),
     errors: result.errors
   };
 
@@ -173,6 +235,21 @@ export async function runEtl(write: boolean): Promise<{
       council: await writeIfChanged(
         resolve(generatedDirectory, "council.normalized.json"),
         result.council
+      ),
+      localTax: await writeIfChanged(
+        resolve(generatedDirectory, "local-tax.normalized.json"),
+        result.localTax
+      ),
+      localTaxQuality: await writeIfChanged(
+        resolve(generatedDirectory, "local-tax.quality.report.json"),
+        {
+          reportVersion: "local-tax-quality-v1",
+          counts: summary.normalizedLocalTaxRows,
+          qualityIssues: result.localTax.qualityIssues,
+          reconciliations: result.localTax.reconciliations,
+          excludedPropertyRows: result.localTax.excludedPropertyRows,
+          quarantinedRows: result.localTax.quarantinedRows
+        }
       ),
       errors: await writeIfChanged(
         resolve(generatedDirectory, "errors.json"),

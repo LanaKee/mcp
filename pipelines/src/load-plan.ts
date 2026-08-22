@@ -14,6 +14,18 @@ import {
   resolveGyeongbukRegion,
   type GyeongbukRegion
 } from "./regions.js";
+import {
+  taxQualityIssueKey,
+  type NormalizedTaxAssessment,
+  type NormalizedTaxCollection,
+  type NormalizedTaxEnforcement,
+  type NormalizedTaxExemption,
+  type NormalizedTaxPaymentMedia,
+  type NormalizedTaxPerCapita,
+  type NormalizedTaxUnrefunded,
+  type NormalizedTaxpayerStatus,
+  type TaxQualityIssue
+} from "./local-tax.js";
 
 export type DataStatus = "official_observed" | "demo_sample" | "catalog_only";
 
@@ -59,9 +71,45 @@ export interface PlannedLocalTax {
   fiscalYear: number;
   taxCategory: string;
   revenueAmountWon: number;
-  accountingBasis: "budget" | "settlement";
+  accountingBasis: "budget" | "settlement" | "reported";
+  amountSemantics:
+    | "demo_settlement"
+    | "collected_amount"
+    | "payment_amount"
+    | "reported_total_tax_burden";
+  sourceGrain:
+    | "demo_sample"
+    | "collection_status"
+    | "payment_media"
+    | "per_capita_burden";
+  unitOriginal: "KRW" | "thousand_KRW";
+  unitMultiplier: 1 | 1000;
+  unitProvenance: string;
+  isAggregate: boolean;
+  sourceRow: number | null;
   sourceKey: string;
   dataStatus: "official_observed" | "demo_sample";
+  metadata: Record<string, unknown>;
+}
+
+type PlannedTaxFact<T> = Omit<T, "sourcePath" | "sourceSha256"> & {
+  sourceKey: string;
+};
+
+export type PlannedTaxCollection = PlannedTaxFact<NormalizedTaxCollection>;
+export type PlannedTaxPaymentMedia =
+  PlannedTaxFact<NormalizedTaxPaymentMedia>;
+export type PlannedTaxAssessment = PlannedTaxFact<NormalizedTaxAssessment>;
+export type PlannedTaxPerCapita = PlannedTaxFact<NormalizedTaxPerCapita>;
+export type PlannedTaxpayerStatus = PlannedTaxFact<NormalizedTaxpayerStatus>;
+export type PlannedTaxExemption = PlannedTaxFact<NormalizedTaxExemption>;
+export type PlannedTaxUnrefunded = PlannedTaxFact<NormalizedTaxUnrefunded>;
+export type PlannedTaxEnforcement = PlannedTaxFact<NormalizedTaxEnforcement>;
+
+export interface PlannedTaxQualityIssue
+  extends Omit<TaxQualityIssue, "sourcePath" | "sourceSha256"> {
+  issueKey: string;
+  sourceKey: string;
 }
 
 export interface PlannedPolicy {
@@ -121,6 +169,15 @@ export interface LoadPlan {
   sources: PlannedSource[];
   population: PlannedPopulation[];
   localTax: PlannedLocalTax[];
+  taxCollection: PlannedTaxCollection[];
+  taxPaymentMedia: PlannedTaxPaymentMedia[];
+  taxAssessment: PlannedTaxAssessment[];
+  taxPerCapita: PlannedTaxPerCapita[];
+  taxTaxpayer: PlannedTaxpayerStatus[];
+  taxExemption: PlannedTaxExemption[];
+  taxUnrefunded: PlannedTaxUnrefunded[];
+  taxEnforcement: PlannedTaxEnforcement[];
+  taxQualityIssues: PlannedTaxQualityIssue[];
   policies: PlannedPolicy[];
   council: PlannedCouncil[];
   locators: PlannedLocator[];
@@ -234,6 +291,12 @@ function validatedRegion(regionId: string, regionName: string): GyeongbukRegion 
 function integer(value: string): number | null {
   const parsed = Number(value.replace(/[,\s]/g, ""));
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function isAggregateCategoryForPlan(value: string): boolean {
+  return ["합계", "총계", "소계", "계"].includes(
+    value.normalize("NFC").replace(/\s+/gu, "")
+  );
 }
 
 function uniqueBy<T>(rows: T[], key: (row: T) => string): T[] {
@@ -357,6 +420,208 @@ function addOfficialCouncil(
   });
 }
 
+function taxEntityKey(
+  entityType: string,
+  sourceKey: string,
+  sourceRow: number,
+  suffix = ""
+): string {
+  return `${entityType}-${sha256(
+    [sourceKey, sourceRow, suffix].join("\u0000")
+  ).slice(0, 40)}`;
+}
+
+function addTaxLocator(
+  plan: Omit<LoadPlan, "inputSha256">,
+  input: {
+    sourceKey: string;
+    sourcePath: string;
+    sourceRow: number;
+    entityType: string;
+    suffix?: string;
+    sectionName?: string | null;
+  }
+): void {
+  plan.locators.push({
+    sourceKey: input.sourceKey,
+    entityType: input.entityType,
+    entityKey: taxEntityKey(
+      input.entityType,
+      input.sourceKey,
+      input.sourceRow,
+      input.suffix
+    ),
+    pageNumber: null,
+    rowNumber: input.sourceRow,
+    sectionName: input.sectionName ?? null,
+    characterStart: null,
+    characterEnd: null,
+    locatorText: `${input.sourcePath}#row=${input.sourceRow}`
+  });
+}
+
+function taxSourceKey(
+  plan: Omit<LoadPlan, "inputSha256">,
+  sourcePath: string,
+  sourceSha256: string
+): string | null {
+  const sourceKey = officialSourceKey(sourcePath, sourceSha256);
+  return plan.sources.some((source) => source.sourceKey === sourceKey)
+    ? sourceKey
+    : null;
+}
+
+function addOfficialTaxData(
+  etl: EtlResult,
+  plan: Omit<LoadPlan, "inputSha256">
+): void {
+  if (!etl.localTax) return;
+  const addRows = <
+    T extends { sourcePath: string; sourceSha256: string; sourceRow: number }
+  >(
+    rows: T[],
+    target: Array<Omit<T, "sourcePath" | "sourceSha256"> & { sourceKey: string }>,
+    entityType: string,
+    section: (row: T) => string | null
+  ): void => {
+    for (const row of rows) {
+      const sourceKey = taxSourceKey(plan, row.sourcePath, row.sourceSha256);
+      if (!sourceKey) {
+        plan.rejected.push({
+          entityType,
+          sourcePath: row.sourcePath,
+          sourceRow: row.sourceRow,
+          reason: "Source catalog entry is missing"
+        });
+        continue;
+      }
+      const {
+        sourcePath,
+        sourceSha256: _sourceSha256,
+        ...fact
+      } = row;
+      target.push({ ...fact, sourceKey });
+      addTaxLocator(plan, {
+        sourceKey,
+        sourcePath,
+        sourceRow: row.sourceRow,
+        entityType,
+        suffix: section(row) ?? "",
+        sectionName: section(row)
+      });
+    }
+  };
+
+  addRows(
+    etl.localTax.collection,
+    plan.taxCollection,
+    "local_tax_collection_status",
+    (row) => `${row.fiscalYear}:${row.taxCategory}`
+  );
+  addRows(
+    etl.localTax.paymentMedia,
+    plan.taxPaymentMedia,
+    "local_tax_payment_media",
+    (row) =>
+      `${row.fiscalYear}:${row.taxCategory}:${row.paymentMethod ?? "none"}`
+  );
+  addRows(
+    etl.localTax.assessment,
+    plan.taxAssessment,
+    "local_tax_assessment_status",
+    (row) => `${row.fiscalYear}:${row.taxCategory}`
+  );
+  addRows(
+    etl.localTax.perCapita,
+    plan.taxPerCapita,
+    "local_tax_per_capita_burden",
+    (row) => String(row.fiscalYear)
+  );
+  addRows(
+    etl.localTax.taxpayer,
+    plan.taxTaxpayer,
+    "local_tax_taxpayer_status",
+    (row) =>
+      `${row.fiscalYear}:${row.taxCategory}:${row.taxpayerType}:${row.jurisdictionScope}`
+  );
+  addRows(
+    etl.localTax.exemption,
+    plan.taxExemption,
+    "local_tax_exemption_status",
+    (row) => `${row.fiscalYear}:${row.taxCategory}`
+  );
+  addRows(
+    etl.localTax.unrefunded,
+    plan.taxUnrefunded,
+    "local_tax_unrefunded_status",
+    (row) =>
+      `${row.fiscalYear}:${row.taxCategory}:${row.unrefundedType}:${row.taxpayerType}`
+  );
+  addRows(
+    etl.localTax.enforcement,
+    plan.taxEnforcement,
+    "local_tax_enforcement_statistic",
+    (row) => `${row.enforcementDate}:${row.agency}`
+  );
+
+  for (const row of etl.localTax.headlineRevenue) {
+    const sourceKey = taxSourceKey(plan, row.sourcePath, row.sourceSha256);
+    if (!sourceKey) {
+      plan.rejected.push({
+        entityType: "local_tax_revenue",
+        sourcePath: row.sourcePath,
+        sourceRow: row.sourceRow,
+        reason: "Source catalog entry is missing"
+      });
+      continue;
+    }
+    plan.localTax.push({
+      regionId: row.regionId,
+      fiscalYear: row.fiscalYear,
+      taxCategory: row.taxCategory,
+      revenueAmountWon: row.revenueAmountWon,
+      accountingBasis: row.accountingBasis,
+      amountSemantics: row.amountSemantics,
+      sourceGrain: row.sourceGrain,
+      unitOriginal: row.unitOriginal,
+      unitMultiplier: row.unitMultiplier,
+      unitProvenance: row.unitProvenance,
+      isAggregate: row.isAggregate,
+      sourceRow: row.sourceRow,
+      sourceKey,
+      dataStatus: "official_observed",
+      metadata: row.metadata
+    });
+    addTaxLocator(plan, {
+      sourceKey,
+      sourcePath: row.sourcePath,
+      sourceRow: row.sourceRow,
+      entityType: "local_tax_revenue",
+      suffix: `${row.fiscalYear}:${row.taxCategory}:${row.accountingBasis}`,
+      sectionName: `${row.sourceGrain}:${row.amountSemantics}`
+    });
+  }
+
+  for (const qualityIssue of etl.localTax.qualityIssues) {
+    const sourceKey = taxSourceKey(
+      plan,
+      qualityIssue.sourcePath,
+      qualityIssue.sourceSha256
+    );
+    if (!sourceKey) continue;
+    const {
+      sourcePath: _sourcePath,
+      sourceSha256: _sourceSha256,
+      ...issueValue
+    } = qualityIssue;
+    plan.taxQualityIssues.push({
+      ...issueValue,
+      issueKey: taxQualityIssueKey(qualityIssue),
+      sourceKey
+    });
+  }
+}
+
 async function addDemoData(plan: Omit<LoadPlan, "inputSha256">): Promise<void> {
   const sampleDirectory = resolve(repositoryRoot, "data/sample");
   const definitions = JSON.parse(
@@ -459,8 +724,16 @@ async function addDemoData(plan: Omit<LoadPlan, "inputSha256">): Promise<void> {
       taxCategory: row.tax_category ?? "",
       revenueAmountWon,
       accountingBasis,
+      amountSemantics: "demo_settlement",
+      sourceGrain: "demo_sample",
+      unitOriginal: "KRW",
+      unitMultiplier: 1,
+      unitProvenance: "demo_declared_krw",
+      isAggregate: isAggregateCategoryForPlan(row.tax_category ?? ""),
+      sourceRow: index + 2,
       sourceKey,
-      dataStatus: "demo_sample"
+      dataStatus: "demo_sample",
+      metadata: { demo: true }
     });
   }
 
@@ -578,11 +851,34 @@ export async function createLoadPlan(
         contentKind: entry.contentKind,
         encoding: entry.encoding,
         parseStatus: entry.parseStatus,
-        error: entry.error
+        error: entry.error,
+        governance:
+          entry.contentKind === "property_valuation_microdata"
+            ? {
+                decision: "catalog_only_row_access_denied",
+                reason:
+                  "Address-level property microdata is excluded from analytics, search, embeddings, and general tool responses"
+              }
+            : entry.contentKind === "local_tax_enforcement"
+              ? {
+                  decision: "location_text_omitted",
+                  reason:
+                    "Only enforcement counts and amounts are normalized"
+                }
+              : undefined
       }
     })),
     population: [],
     localTax: [],
+    taxCollection: [],
+    taxPaymentMedia: [],
+    taxAssessment: [],
+    taxPerCapita: [],
+    taxTaxpayer: [],
+    taxExemption: [],
+    taxUnrefunded: [],
+    taxEnforcement: [],
+    taxQualityIssues: [],
     policies: [],
     council: [],
     locators: [],
@@ -596,6 +892,7 @@ export async function createLoadPlan(
 
   for (const row of etl.population) addOfficialPopulation(row, plan);
   for (const row of etl.council) addOfficialCouncil(row, plan);
+  addOfficialTaxData(etl, plan);
   if (options.includeDemo !== false) await addDemoData(plan);
 
   plan.sources = uniqueBy(plan.sources, (row) => row.sourceKey);
@@ -607,6 +904,42 @@ export async function createLoadPlan(
     plan.localTax,
     (row) =>
       `${row.regionId}:${row.fiscalYear}:${row.taxCategory}:${row.accountingBasis}:${row.sourceKey}`
+  );
+  plan.taxCollection = uniqueBy(
+    plan.taxCollection,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxPaymentMedia = uniqueBy(
+    plan.taxPaymentMedia,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxAssessment = uniqueBy(
+    plan.taxAssessment,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxPerCapita = uniqueBy(
+    plan.taxPerCapita,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxTaxpayer = uniqueBy(
+    plan.taxTaxpayer,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxExemption = uniqueBy(
+    plan.taxExemption,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxUnrefunded = uniqueBy(
+    plan.taxUnrefunded,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxEnforcement = uniqueBy(
+    plan.taxEnforcement,
+    (row) => `${row.sourceKey}:${row.sourceRow}`
+  );
+  plan.taxQualityIssues = uniqueBy(
+    plan.taxQualityIssues,
+    (row) => row.issueKey
   );
   plan.policies = uniqueBy(plan.policies, (row) => row.policyId);
   plan.council = uniqueBy(plan.council, (row) => row.councilRecordId);
@@ -622,6 +955,15 @@ export async function createLoadPlan(
         sources: plan.sources.map((row) => row.sourceKey),
         population: plan.population,
         localTax: plan.localTax,
+        taxCollection: plan.taxCollection,
+        taxPaymentMedia: plan.taxPaymentMedia,
+        taxAssessment: plan.taxAssessment,
+        taxPerCapita: plan.taxPerCapita,
+        taxTaxpayer: plan.taxTaxpayer,
+        taxExemption: plan.taxExemption,
+        taxUnrefunded: plan.taxUnrefunded,
+        taxEnforcement: plan.taxEnforcement,
+        taxQualityIssues: plan.taxQualityIssues,
         policies: plan.policies,
         council: plan.council
       })

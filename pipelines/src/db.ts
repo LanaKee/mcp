@@ -39,6 +39,15 @@ export interface DatabaseLoadResult {
     sources: number;
     population: number;
     localTax: number;
+    taxCollection: number;
+    taxPaymentMedia: number;
+    taxAssessment: number;
+    taxPerCapita: number;
+    taxTaxpayer: number;
+    taxExemption: number;
+    taxUnrefunded: number;
+    taxEnforcement: number;
+    taxQualityIssues: number;
     policies: number;
     council: number;
     locators: number;
@@ -163,6 +172,10 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     resolve(repositoryRoot, "db/migrations/007_source_lifecycle_retention.sql"),
     "utf8"
   );
+  const officialLocalTaxMigration = await readFile(
+    resolve(repositoryRoot, "db/migrations/008_official_local_tax_facts.sql"),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
@@ -173,6 +186,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(httpHardeningMigration);
     await client.query(pdfPageQualityMigration);
     await client.query(sourceLifecycleMigration);
+    await client.query(officialLocalTaxMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
@@ -182,6 +196,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(httpHardeningMigration);
     await client.query(pdfPageQualityMigration);
     await client.query(sourceLifecycleMigration);
+    await client.query(officialLocalTaxMigration);
   }
 }
 
@@ -216,6 +231,33 @@ async function integrityCounts(client: Client): Promise<IntegrityCount[]> {
     UNION ALL
     SELECT 'local_tax_revenue', data_status, count(*)::text
       FROM local_tax_revenue GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_collection_status', data_status, count(*)::text
+      FROM local_tax_collection_status GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_payment_media', data_status, count(*)::text
+      FROM local_tax_payment_media GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_assessment_status', data_status, count(*)::text
+      FROM local_tax_assessment_status GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_per_capita_burden', data_status, count(*)::text
+      FROM local_tax_per_capita_burden GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_taxpayer_status', data_status, count(*)::text
+      FROM local_tax_taxpayer_status GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_exemption_status', data_status, count(*)::text
+      FROM local_tax_exemption_status GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_unrefunded_status', data_status, count(*)::text
+      FROM local_tax_unrefunded_status GROUP BY data_status
+    UNION ALL
+    SELECT 'local_tax_enforcement_statistic', data_status, count(*)::text
+      FROM local_tax_enforcement_statistic GROUP BY data_status
+    UNION ALL
+    SELECT 'data_quality_issue', severity, count(*)::text
+      FROM data_quality_issue GROUP BY severity
     UNION ALL
     SELECT 'policy_program', data_status, count(*)::text
       FROM policy_program GROUP BY data_status
@@ -400,6 +442,533 @@ export async function loadDatabase(
     addCounts(
       totals,
       await upsertRows(client, {
+        table: "local_tax_collection_status",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "assessed_amount_won",
+          "collected_amount_won",
+          "refunded_amount_won",
+          "written_off_amount_won",
+          "uncollected_amount_won",
+          "reported_collection_rate",
+          "computed_collection_rate",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxCollection.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.taxCategory,
+          row.assessedAmountWon,
+          row.collectedAmountWon,
+          row.refundedAmountWon,
+          row.writtenOffAmountWon,
+          row.uncollectedAmountWon,
+          row.reportedCollectionRate,
+          row.computedCollectionRate,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          row.isAggregate,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "assessed_amount_won",
+          "collected_amount_won",
+          "refunded_amount_won",
+          "written_off_amount_won",
+          "uncollected_amount_won",
+          "reported_collection_rate",
+          "computed_collection_rate",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_payment_media",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "payment_method",
+          "electronic_notice",
+          "payment_count",
+          "payment_amount_won",
+          "reported_media_share",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxPaymentMedia.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.taxCategory,
+          row.paymentMethod,
+          row.electronicNotice,
+          row.paymentCount,
+          row.paymentAmountWon,
+          row.reportedMediaShare,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          row.isAggregate,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "payment_method",
+          "electronic_notice",
+          "payment_count",
+          "payment_amount_won",
+          "reported_media_share",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_assessment_status",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "assessed_count",
+          "assessed_amount_won",
+          "non_taxable_count",
+          "non_taxable_amount_won",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxAssessment.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.taxCategory,
+          row.assessedCount,
+          row.assessedAmountWon,
+          row.nonTaxableCount,
+          row.nonTaxableAmountWon,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          row.isAggregate,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "assessed_count",
+          "assessed_amount_won",
+          "non_taxable_count",
+          "non_taxable_amount_won",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_per_capita_burden",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "per_resident_amount_won",
+          "per_household_amount_won",
+          "total_local_tax_amount_won",
+          "population_count",
+          "household_count",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxPerCapita.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.perResidentAmountWon,
+          row.perHouseholdAmountWon,
+          row.totalLocalTaxAmountWon,
+          row.populationCount,
+          row.householdCount,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "per_resident_amount_won",
+          "per_household_amount_won",
+          "total_local_tax_amount_won",
+          "population_count",
+          "household_count",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_taxpayer_status",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "taxpayer_type",
+          "jurisdiction_scope",
+          "taxpayer_count",
+          "is_aggregate",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxTaxpayer.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.taxCategory,
+          row.taxpayerType,
+          row.jurisdictionScope,
+          row.taxpayerCount,
+          row.isAggregate,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "taxpayer_type",
+          "jurisdiction_scope",
+          "taxpayer_count",
+          "is_aggregate",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_exemption_status",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "non_taxable_amount_won",
+          "reduction_amount_won",
+          "assessed_amount_won",
+          "reported_exemption_rate",
+          "computed_exemption_rate",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxExemption.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.taxCategory,
+          row.nonTaxableAmountWon,
+          row.reductionAmountWon,
+          row.assessedAmountWon,
+          row.reportedExemptionRate,
+          row.computedExemptionRate,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          row.isAggregate,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "non_taxable_amount_won",
+          "reduction_amount_won",
+          "assessed_amount_won",
+          "reported_exemption_rate",
+          "computed_exemption_rate",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_unrefunded_status",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "unrefunded_type",
+          "taxpayer_type",
+          "current_count",
+          "current_amount_won",
+          "cumulative_count",
+          "cumulative_amount_won",
+          "reported_cumulative_change",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxUnrefunded.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.taxCategory,
+          row.unrefundedType,
+          row.taxpayerType,
+          row.currentCount,
+          row.currentAmountWon,
+          row.cumulativeCount,
+          row.cumulativeAmountWon,
+          row.reportedCumulativeChange,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          row.isAggregate,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          "{}"
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "tax_category",
+          "unrefunded_type",
+          "taxpayer_type",
+          "current_count",
+          "current_amount_won",
+          "cumulative_count",
+          "cumulative_amount_won",
+          "reported_cumulative_change",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
+          "ingestion_run_id",
+          "data_status"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "local_tax_enforcement_statistic",
+        columns: [
+          "region_id",
+          "fiscal_year",
+          "enforcement_date",
+          "agency",
+          "delinquency_count",
+          "delinquency_amount_won",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "source_id",
+          "source_row",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ],
+        rows: plan.taxEnforcement.map((row) => [
+          row.regionId,
+          row.fiscalYear,
+          row.enforcementDate,
+          row.agency,
+          row.delinquencyCount,
+          row.delinquencyAmountWon,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          ingestionRunId,
+          "official_observed",
+          JSON.stringify({ locationTextStored: false })
+        ]),
+        conflictColumns: ["source_id", "source_row"],
+        updateColumns: [
+          "region_id",
+          "fiscal_year",
+          "enforcement_date",
+          "agency",
+          "delinquency_count",
+          "delinquency_amount_won",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "ingestion_run_id",
+          "data_status",
+          "metadata"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
+        table: "data_quality_issue",
+        columns: [
+          "issue_key",
+          "severity",
+          "issue_code",
+          "entity_type",
+          "source_id",
+          "source_row",
+          "field_name",
+          "message",
+          "observed",
+          "expected",
+          "quarantined",
+          "ingestion_run_id",
+          "metadata"
+        ],
+        rows: plan.taxQualityIssues.map((row) => [
+          row.issueKey,
+          row.severity,
+          row.issueCode,
+          row.entityType,
+          sourceId(sourceIds, row.sourceKey),
+          row.sourceRow,
+          row.fieldName,
+          row.message,
+          JSON.stringify(row.observed),
+          JSON.stringify(row.expected),
+          row.quarantined,
+          ingestionRunId,
+          "{}"
+        ]),
+        conflictColumns: ["issue_key"],
+        updateColumns: [
+          "severity",
+          "issue_code",
+          "entity_type",
+          "source_id",
+          "source_row",
+          "field_name",
+          "message",
+          "observed",
+          "expected",
+          "quarantined",
+          "ingestion_run_id"
+        ]
+      })
+    );
+
+    addCounts(
+      totals,
+      await upsertRows(client, {
         table: "local_tax_revenue",
         columns: [
           "region_id",
@@ -407,8 +976,16 @@ export async function loadDatabase(
           "tax_category",
           "revenue_amount_won",
           "accounting_basis",
+          "amount_semantics",
+          "source_grain",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
           "source_id",
           "ingestion_run_id",
+          "source_row",
+          "metadata",
           "data_status"
         ],
         rows: plan.localTax.map((row) => [
@@ -417,8 +994,16 @@ export async function loadDatabase(
           row.taxCategory,
           row.revenueAmountWon,
           row.accountingBasis,
+          row.amountSemantics,
+          row.sourceGrain,
+          row.unitOriginal,
+          row.unitMultiplier,
+          row.unitProvenance,
+          row.isAggregate,
           sourceId(sourceIds, row.sourceKey),
           ingestionRunId,
+          row.sourceRow,
+          JSON.stringify(row.metadata),
           row.dataStatus
         ]),
         conflictColumns: [
@@ -430,7 +1015,15 @@ export async function loadDatabase(
         ],
         updateColumns: [
           "revenue_amount_won",
+          "amount_semantics",
+          "source_grain",
+          "unit_original",
+          "unit_multiplier",
+          "unit_provenance",
+          "is_aggregate",
           "ingestion_run_id",
+          "source_row",
+          "metadata",
           "data_status"
         ]
       })
@@ -620,6 +1213,15 @@ export async function loadDatabase(
         sources: plan.sources.length,
         population: plan.population.length,
         localTax: plan.localTax.length,
+        taxCollection: plan.taxCollection.length,
+        taxPaymentMedia: plan.taxPaymentMedia.length,
+        taxAssessment: plan.taxAssessment.length,
+        taxPerCapita: plan.taxPerCapita.length,
+        taxTaxpayer: plan.taxTaxpayer.length,
+        taxExemption: plan.taxExemption.length,
+        taxUnrefunded: plan.taxUnrefunded.length,
+        taxEnforcement: plan.taxEnforcement.length,
+        taxQualityIssues: plan.taxQualityIssues.length,
         policies: plan.policies.length,
         council: plan.council.length,
         locators: plan.locators.length

@@ -81,6 +81,16 @@ describe("PostgresDataRepository query contracts", () => {
     expect(call.text).not.toContain("합계' OR true --");
     expect(call.text).toContain("t.tax_category = $3");
     expect(call.text).toContain("LIMIT 5000");
+    expect(call.text).toContain(
+      "PARTITION BY t.region_id, t.fiscal_year, t.tax_category"
+    );
+    expect(call.text).not.toContain(
+      "PARTITION BY t.region_id, t.fiscal_year, t.tax_category, t.accounting_basis"
+    );
+    expect(call.text).toContain(
+      "CASE t.data_status WHEN 'official_observed' THEN 0 ELSE 1 END"
+    );
+    expect(call.text).toContain("WHEN 'collection_status' THEN 0");
     expect(call.values).toEqual([
       2022,
       2024,
