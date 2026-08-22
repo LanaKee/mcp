@@ -126,11 +126,25 @@ export function describeDatasetFile(
   };
 }
 
+/**
+ * Describes every dataset file, or only those the caller asks for.
+ *
+ * Cataloguing reads and hashes each file, so a caller that needs a handful of
+ * entries should pass `includePath` rather than building the whole tree and
+ * filtering afterwards; the corpus is large enough that the difference is two
+ * minutes.
+ */
 export async function buildCatalog(
   datasetDirectory: string,
-  repositoryRoot: string
+  repositoryRoot: string,
+  includePath?: (relativePath: string) => boolean
 ): Promise<CatalogEntry[]> {
-  const paths = await walk(datasetDirectory);
+  const allPaths = await walk(datasetDirectory);
+  const paths = includePath
+    ? allPaths.filter((path) =>
+        includePath(relative(repositoryRoot, path).normalize("NFC"))
+      )
+    : allPaths;
   return Promise.all(
     paths.map(async (path): Promise<CatalogEntry> => {
       const fileStat = await stat(path);

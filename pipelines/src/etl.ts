@@ -40,7 +40,7 @@ import {
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const generatedDirectory = resolve(repositoryRoot, "data/generated");
-const datasetDirectory = resolve(repositoryRoot, "datasets");
+export const datasetDirectory = resolve(repositoryRoot, "datasets");
 
 export interface EtlError {
   path: string;

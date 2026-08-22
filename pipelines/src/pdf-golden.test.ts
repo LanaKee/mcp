@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { collectEtlData, repositoryRoot } from "./etl.js";
+import { buildCatalog } from "./catalog.js";
+import { datasetDirectory, repositoryRoot } from "./etl.js";
 import { normalizePdfCatalog } from "./pdf.js";
 import {
   evaluateGoldenFixtures,
@@ -16,11 +17,14 @@ describe.skipIf(!localCorpusAvailable)("local PDF golden pages", () => {
     "matches source hashes, page hashes, structural markers, and cleaned margins",
     async () => {
       const fixtures = await loadPdfGoldenFixtures();
-      const { catalog } = await collectEtlData();
       const paths = new Set(fixtures.map((fixture) => fixture.sourcePath));
-      const plan = await normalizePdfCatalog(
-        catalog.filter((entry) => paths.has(entry.path))
+      // Cataloguing the whole datasets/ tree reads and hashes every file, which
+      // grows with each new dataset and has nothing to do with PDF golden
+      // pages. Only the six fixture PDFs are described here.
+      const catalog = await buildCatalog(datasetDirectory, repositoryRoot, (path) =>
+        paths.has(path)
       );
+      const plan = await normalizePdfCatalog(catalog);
       const results = evaluateGoldenFixtures(plan, catalog, fixtures);
       expect(results).toHaveLength(fixtures.length);
       expect(results.every((result) => result.passed)).toBe(true);
