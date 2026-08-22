@@ -3,5 +3,6 @@ packages:
   - services/*
   - packages/*
   - pipelines
+  - prototype
   - benchmark
 
