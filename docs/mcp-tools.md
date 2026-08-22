@@ -108,7 +108,8 @@
 ## 오류
 
 MCP 오류는 `isError: true` content로 반환한다. stdio는 local transport이므로 HTTP
-token/rate limit을 적용하지 않는다.
+token/rate limit을 적용하지 않는다. 호스팅용 `/mcp`(Streamable HTTP)는 같은 tool을
+노출하지만 HTTP auth와 rate limit을 그대로 적용한다.
 
 HTTP `/api/**`는 설정 시 bearer/API token을 요구하고 다음 상태를 구분한다.
 

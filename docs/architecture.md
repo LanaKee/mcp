@@ -19,6 +19,7 @@ flowchart LR
   RET --> TOOLS[Purpose-specific MCP Tools]
   DOMAIN --> TOOLS
   TOOLS --> STDIO[stdio JSON-RPC]
+  TOOLS --> MCPHTTP[Streamable HTTP /mcp]
   TOOLS --> HTTP[HTTP Demo API]
   TOOLS --> AUDIT[(Redacted Audit)]
   HTTP --> WEB[Korean Responsive UI]
@@ -112,15 +113,23 @@ flowchart LR
 
 ### 전달
 
-- stdio MCP는 공식 `@modelcontextprotocol/sdk`의 `Server`와
-  `StdioServerTransport`를 사용한다.
+- MCP server 인스턴스는 `mcp-server.ts`의 `createMcpServer()` 하나로 만든다.
+  stdio(`StdioServerTransport`)와 호스팅용 `/mcp`(`StreamableHTTPServerTransport`)가
+  이를 공유하므로 원격 client가 로컬과 다른 tool 목록을 볼 수 없다.
+- `/mcp` 세션은 `mcp-http.ts`가 소유한다. 동시 세션 상한, idle 회수, shutdown drain을
+  담당하며 알 수 없는 세션은 새로 발급하지 않고 `404`로 거절한다.
 - HTTP는 Node 내장 서버이며 MCP와 같은 registry/validation/실행 함수를 호출한다.
 - `/health`는 프로세스 생존, 공개 `/ready`는 내부 mode/detail 없이 ready 여부만 돌려준다.
 - token 전용 `/api/admin/storage`만 current/stale 용량, lifecycle version과
   shared-memory 관련 PostgreSQL 설정을 반환한다.
 - HTTP와 stdio는 같은 repository를 주입하고 SIGINT/SIGTERM에서 pool을 닫는다.
+  HTTP 모드는 listener를 닫기 전에 MCP 세션을 먼저 drain한다. SSE 응답이 열려 있으면
+  `server.close()`가 끝나지 않기 때문이다.
 - `http-security.ts`는 token digest 비교, correlation ID, trusted-proxy 정책, bounded
   token bucket, JSON shape 제한을 담당한다. stdio에는 적용하지 않는다.
+  `/mcp`는 auth와 rate limit을 모두 거치되, 경로가 아니라 JSON-RPC method로 비용을
+  판단한다. 프로토콜 트래픽은 cheap 예산을, expensive tool의 `tools/call`만 추가로
+  expensive 예산을 소비한다.
 - `/api/**`는 선택 token auth를 거치고 PDF hybrid/데모/초안 route는 더 낮은 rate
   budget과 별도 operation timeout을 사용한다.
 - Node request/header timeout과 PostgreSQL statement/query timeout이 장시간 작업을

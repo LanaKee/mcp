@@ -10,7 +10,7 @@
 ## 구현 범위
 
 - 반응형 한국어 웹 UI와 대표 질문 4개
-- 공식 `@modelcontextprotocol/sdk` 기반 stdio MCP 서버
+- 공식 `@modelcontextprotocol/sdk` 기반 MCP 서버(로컬 stdio + 호스팅용 Streamable HTTP)
 - 같은 도구를 호출하는 HTTP API와 데모 오케스트레이션
 - 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 주장 검증, 출처 조회,
   근거 제한형 행정문서 초안 등 8개 도구
@@ -475,7 +475,7 @@ pnpm pdf:evaluate
 
 ```text
 apps/web/                 정적 반응형 데모 UI
-services/mcp-server/      stdio MCP + HTTP API
+services/mcp-server/      MCP 서버(stdio · Streamable HTTP) + HTTP API
 packages/domain/          Zod 입력, 공통 타입, 분석·초안 로직
 packages/retrieval/       한글 lexical/hybrid 검색
 packages/evaluation/      평가 결과 판정
