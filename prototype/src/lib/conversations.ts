@@ -37,10 +37,21 @@ export function readConversations(): Conversation[] {
   }
 }
 
+/**
+ * 대화를 저장한다.
+ *
+ * 진행 중인 턴은 **저장본에서만** 실패로 굳힌다. 새로고침 뒤에 영원히 도는
+ * 스피너를 남기지 않기 위한 것이지, 지금 돌고 있는 요청에 대한 판단이 아니다.
+ *
+ * 그래서 저장 뒤에 알림을 보내지 않는다. 보내면 방금 질문을 보낸 화면이 자기가
+ * 쓴 저장본을 되읽어, 아직 응답을 기다리는 턴을 "요청이 중단되었습니다"로
+ * 덮어썼다. 실제로 `/chat`에서 후속 질문을 보낼 때마다 그렇게 됐다. 같은 탭의
+ * 상태는 이미 호출부가 들고 있고, 다른 탭은 브라우저의 `storage` 이벤트로
+ * 알게 된다.
+ */
 export function writeConversations(next: Conversation[]): void {
   if (typeof window === "undefined") return;
   try {
-    // 진행 중 표시로 남은 턴은 새로고침 뒤에 영원히 도는 것처럼 보이므로 실패로 굳힌다.
     const settled = next.map((conversation) => ({
       ...conversation,
       turns: conversation.turns.map((turn) =>
@@ -53,15 +64,25 @@ export function writeConversations(next: Conversation[]): void {
   } catch {
     // 용량 초과 등은 무시한다. 화면 상태는 메모리에 남아 있다.
   }
+}
+
+/** 다른 탭이 대화를 바꿨을 때만 부른다. `storage`는 쓴 탭에서는 울리지 않는다. */
+export function notifyConversations(): void {
+  if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(EVENT));
 }
 
 export function subscribeConversations(listener: () => void): () => void {
+  // `storage`는 값을 쓴 탭에서는 울리지 않으므로, 자기가 쓴 것을 되읽는 일이
+  // 없다. EVENT는 같은 탭의 다른 화면이 명시적으로 알릴 때만 쓴다.
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === KEY) listener();
+  };
+  window.addEventListener("storage", onStorage);
   window.addEventListener(EVENT, listener);
-  window.addEventListener("storage", listener);
   return () => {
     window.removeEventListener(EVENT, listener);
-    window.removeEventListener("storage", listener);
+    window.removeEventListener("storage", onStorage);
   };
 }
 

@@ -34,9 +34,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* 모바일에서 10px 스크롤바는 좁은 화면을 더 좁게 만들 뿐이고, 터치 기기에는
+   드래그할 커서도 없다. 포인터가 있는 화면에서만 굵은 스크롤바를 그린다. */
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
 }
 
 ::-webkit-scrollbar-thumb {
@@ -68,4 +72,20 @@ textarea {
 
 .shimmer {
   animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* 화면 폭보다 넓은 표는 카드 안에서 가로로 밀어 본다. iOS에서 관성 스크롤이
+   없으면 손가락을 뗄 때 즉시 멈춰 표를 읽기가 어렵다. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 노치와 홈 인디케이터. 값이 없는 기기에서는 0이 되어 아무 일도 하지 않는다. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
 }

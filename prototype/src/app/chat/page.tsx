@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUp,
+  List,
   Microphone,
   PencilSimple,
   Plus,
@@ -29,7 +30,7 @@ import type { Block } from "@/lib/blocks";
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-ink-950" />}>
+    <Suspense fallback={<div className="min-h-dvh bg-ink-950" />}>
       <ChatScreen />
     </Suspense>
   );
@@ -42,6 +43,7 @@ function ChatScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const running = useRef(new Set<string>());
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -214,10 +216,14 @@ function ChatScreen() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    // h-screen은 모바일 브라우저 주소창이 접힐 때 실제 화면보다 커져서 입력창을
+    // 화면 밖으로 밀어낸다. dvh는 그 변화를 따라간다.
+    <div className="flex h-dvh overflow-hidden">
       <Sidebar
         conversations={conversations}
         activeId={activeId}
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
         onSelect={(id) => {
           setActiveId(id);
           router.replace(`/chat?c=${id}`);
@@ -228,9 +234,23 @@ function ChatScreen() {
         }}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden py-6 pr-6">
-        <div className="mb-3 flex items-center justify-end gap-4 text-muted">
-          <button type="button" aria-label="새 대화" onClick={() => router.push("/ask")}>
+      <main className="safe-top flex min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 md:py-6 md:pr-6 md:pl-0">
+        <div className="mb-3 flex items-center gap-4 text-muted">
+          <button
+            type="button"
+            aria-label="메뉴 열기"
+            onClick={() => setMenuOpen(true)}
+            className="md:hidden"
+          >
+            <List size={20} />
+          </button>
+          <span className="text-[13px] font-bold text-[#d5d9de] md:hidden">G : TEXFLOW</span>
+          <button
+            type="button"
+            aria-label="새 대화"
+            className="ml-auto"
+            onClick={() => router.push("/ask")}
+          >
             <PencilSimple size={18} />
           </button>
           <button
@@ -246,8 +266,8 @@ function ChatScreen() {
           </button>
         </div>
 
-        <section className="flex min-h-0 flex-1 flex-col rounded-3xl bg-panel/45 p-7">
-          <div className="min-h-0 flex-1 space-y-10 overflow-y-auto pr-2">
+        <section className="safe-bottom flex min-h-0 flex-1 flex-col rounded-2xl bg-panel/45 p-3 md:rounded-3xl md:p-7">
+          <div className="min-h-0 flex-1 space-y-8 overflow-y-auto md:space-y-10 md:pr-2">
             <AnimatePresence initial={false}>
               {active && active.turns.length > 0 ? (
                 active.turns.map((turn) => (
@@ -274,7 +294,7 @@ function ChatScreen() {
             <div ref={bottom} />
           </div>
 
-          <div className="relative mt-6 rounded-2xl border border-ink-700 bg-ink-850/70 px-5 pt-4 pb-12">
+          <div className="relative mt-4 rounded-2xl border border-ink-700 bg-ink-850/70 px-4 pt-3.5 pb-12 md:mt-6 md:px-5 md:pt-4">
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value.slice(0, 400))}
@@ -291,7 +311,7 @@ function ChatScreen() {
             <div className="absolute bottom-3.5 left-5 text-muted">
               <Plus size={17} />
             </div>
-            <div className="absolute right-16 bottom-3.5 flex items-center gap-3 text-muted">
+            <div className="absolute right-16 bottom-3.5 hidden items-center gap-3 text-muted sm:flex">
               <Microphone size={16} />
               <Waveform size={16} />
             </div>

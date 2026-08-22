@@ -50,15 +50,15 @@ export default function AskPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-16">
+    <main className="safe-top safe-bottom flex min-h-dvh items-center justify-center px-5 py-12 sm:px-6 sm:py-16">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: "easeOut" }}
         className="w-full max-w-[640px]"
       >
-        <h1 className="text-[34px] font-bold tracking-tight">무엇이 궁금한가요?</h1>
-        <p className="mt-2 text-[15px] text-muted">경북의 여러 데이터를 연결해 질문에 답합니다</p>
+        <h1 className="text-[26px] font-bold tracking-tight sm:text-[34px]">무엇이 궁금한가요?</h1>
+        <p className="mt-2 text-[14px] text-muted sm:text-[15px]">경북의 여러 데이터를 연결해 질문에 답합니다</p>
 
         {ready && personaLabel(persona) ? (
           <p className="mt-3 inline-flex rounded-full border border-ink-700 bg-ink-850 px-3 py-1 text-xs text-muted">
@@ -66,7 +66,7 @@ export default function AskPage() {
           </p>
         ) : null}
 
-        <div className="relative mt-8 rounded-3xl border border-ink-700 bg-ink-850/80 p-6 pb-16 transition-colors focus-within:border-mint-600/60">
+        <div className="relative mt-6 rounded-2xl border border-ink-700 bg-ink-850/80 p-4 pb-16 sm:mt-8 sm:rounded-3xl sm:p-6 transition-colors focus-within:border-mint-600/60">
           <textarea
             ref={inputRef}
             value={value}
@@ -79,7 +79,7 @@ export default function AskPage() {
             }}
             rows={3}
             placeholder={placeholder}
-            className="w-full resize-none bg-transparent text-[15px] leading-7 outline-none placeholder:text-[#565b63]"
+            className="w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-[#565b63]"
           />
           <motion.button
             type="button"
@@ -88,14 +88,14 @@ export default function AskPage() {
             whileTap={{ scale: 0.94 }}
             disabled={value.trim().length === 0}
             aria-label="질문 보내기"
-            className="absolute right-5 bottom-5 grid h-10 w-10 place-items-center rounded-xl bg-mint-400 text-ink-950 transition-opacity disabled:opacity-35"
+            className="absolute right-4 bottom-4 grid h-10 w-10 sm:right-5 sm:bottom-5 place-items-center rounded-xl bg-mint-400 text-ink-950 transition-opacity disabled:opacity-35"
           >
             <ArrowUp size={18} strokeWidth={2.6} />
           </motion.button>
         </div>
 
-        <p className="mt-8 text-[13px] font-semibold">추천 질문</p>
-        <div className="mt-3 flex flex-wrap gap-3">
+        <p className="mt-6 text-[13px] font-semibold sm:mt-8">추천 질문</p>
+        <div className="mt-3 flex flex-wrap gap-2 sm:gap-3">
           {(questions.length > 0
             ? questions.slice(0, 6).map((item) => item.question)
             : FALLBACK_SUGGESTIONS
@@ -105,7 +105,7 @@ export default function AskPage() {
               type="button"
               whileHover={{ y: -2 }}
               onClick={() => submit(question)}
-              className="max-w-full truncate rounded-full border border-mint-600/35 bg-mint-950/60 px-5 py-2.5 text-[13px] text-mint-400/90 transition-colors hover:border-mint-500/70 hover:text-mint-400"
+              className="max-w-full truncate rounded-full border border-mint-600/35 bg-mint-950/60 px-4 py-2 text-[12.5px] sm:px-5 sm:py-2.5 sm:text-[13px] text-mint-400/90 transition-colors hover:border-mint-500/70 hover:text-mint-400"
             >
               {question}
             </motion.button>

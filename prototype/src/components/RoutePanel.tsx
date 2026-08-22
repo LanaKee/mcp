@@ -24,11 +24,11 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
       >
         <TreeStructure size={13} />
         에이전트 경로
-        <span className="text-[#5f646c]">
+        <span className="min-w-0 truncate text-[#5f646c]">
           후보 {route.consideredDatasets.length} · 호출 {route.plan.length} · 근거{" "}
           {route.evidenceCount} · 출처 {route.sourceCount}
         </span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} className="ml-auto">
+        <motion.span animate={{ rotate: open ? 180 : 0 }} className="ml-auto shrink-0">
           <CaretDown size={14} />
         </motion.span>
       </button>
@@ -85,7 +85,7 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
                     {route.plan.map((step, index) => (
                       <li key={`${step.tool}-${index}`}>
                         <p className="font-medium text-mint-400/90">{step.tool}</p>
-                        <pre className="mt-1 overflow-x-auto rounded-lg bg-black/25 px-2.5 py-2 text-[10.5px] text-[#9aa1aa]">
+                        <pre className="scroll-x mt-1 rounded-lg bg-black/25 px-2.5 py-2 text-[10.5px] text-[#9aa1aa]">
                           {JSON.stringify(step.arguments)}
                         </pre>
                         {step.reason ? (

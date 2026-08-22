@@ -50,22 +50,22 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-[70%] rounded-2xl bg-ink-800 px-5 py-4 text-[13.5px] leading-6 whitespace-pre-wrap"
+          className="max-w-[85%] rounded-2xl bg-ink-800 px-4 py-3 text-[13.5px] leading-6 whitespace-pre-wrap sm:max-w-[70%] sm:px-5 sm:py-4"
         >
           {turn.question}
         </motion.div>
       </div>
 
-      <div className="flex gap-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-mint-400 text-ink-950">
-          <Ghost size={19} weight="fill" />
+      <div className="flex gap-2.5 sm:gap-3">
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-mint-400 text-ink-950 sm:h-9 sm:w-9">
+          <Ghost size={17} weight="fill" />
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-bold">G : TEXFLOW</span>
             <span className="text-[11.5px] text-muted">{connectedLabel(turn)}</span>
-            <span className="ml-auto flex items-center gap-2 text-[11px] text-muted">
+            <span className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-muted">
               {relativeTime(turn.createdAt)}
               <PencilSimple size={13} className="opacity-60" />
               <button

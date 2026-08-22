@@ -22,14 +22,14 @@ export default function IntakePage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-16">
+    <main className="safe-top safe-bottom flex min-h-dvh items-center justify-center px-5 py-12 sm:px-6 sm:py-16">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: "easeOut" }}
         className="w-full max-w-[470px]"
       >
-        <h1 className="text-[28px] font-bold tracking-tight">먼저, 당신의 상황을 알려주세요</h1>
+        <h1 className="text-[24px] font-bold tracking-tight sm:text-[28px]">먼저, 당신의 상황을 알려주세요</h1>
         <p className="mt-2 text-sm text-muted">
           정책을 검색하는 것보다 중요한 건 &lsquo;이 정책이 나에게 해당되는가?&rsquo;입니다
         </p>
@@ -80,7 +80,7 @@ export default function IntakePage() {
             type="submit"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.985 }}
-            className="mt-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-mint-400 py-4 text-[15px] font-bold text-ink-950 transition-colors hover:bg-mint-500"
+            className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-mint-400 py-4 sm:mt-10 text-[15px] font-bold text-ink-950 transition-colors hover:bg-mint-500"
           >
             맞춤 브리핑 시작하기
             <ArrowRight size={17} />
@@ -115,8 +115,8 @@ function Field({
   suffix?: string;
 }) {
   return (
-    <label className="flex items-center gap-4 rounded-2xl border border-ink-700 bg-ink-850 px-5 py-4 transition-colors focus-within:border-mint-600/70">
-      <span className="flex w-[62px] shrink-0 items-center gap-1.5 text-[11px] text-muted">
+    <label className="flex items-center gap-3 rounded-2xl border border-ink-700 bg-ink-850 px-4 py-4 sm:gap-4 sm:px-5 transition-colors focus-within:border-mint-600/70">
+      <span className="flex w-[70px] shrink-0 items-center gap-1.5 text-[11px] whitespace-nowrap text-muted">
         {icon}
         {label}
       </span>
@@ -127,7 +127,7 @@ function Field({
           placeholder={placeholder}
           list={list}
           inputMode={inputMode}
-          className="w-full bg-transparent text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-[#4d5158]"
+          className="w-full bg-transparent text-base font-semibold outline-none placeholder:font-normal placeholder:text-[#4d5158]"
         />
         {suffix && value ? <span className="text-[15px] font-semibold">{suffix}</span> : null}
       </span>

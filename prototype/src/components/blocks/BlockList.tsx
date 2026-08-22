@@ -19,7 +19,7 @@ import type { Block, MetricItem } from "@/lib/blocks";
  * 브리핑 화면으로 읽히지 않기 때문이다.
  */
 
-const card = "rounded-2xl bg-panel/70 p-5 ring-1 ring-white/5";
+const card = "rounded-2xl bg-panel/70 p-4 ring-1 ring-white/5 sm:p-5";
 
 export function BlockList({ blocks }: { blocks: Block[] }) {
   return (
@@ -95,8 +95,8 @@ function BlockView({ block }: { block: Block }) {
       return (
         <div className={card}>
           {block.title ? <p className="text-[13px] font-semibold">{block.title}</p> : null}
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full border-collapse text-left text-[12px]">
+          <div className="scroll-x mt-3">
+            <table className="w-max min-w-full border-collapse text-left text-[12px]">
               <thead>
                 <tr className="text-muted">
                   {block.columns.map((column) => (
@@ -310,7 +310,7 @@ function SeriesChart({ block }: { block: Extract<Block, { kind: "series" }> }) {
         <p className="text-[13px] font-semibold">{block.title}</p>
         {block.unit ? <span className="text-[11px] text-muted">단위: {block.unit}</span> : null}
       </div>
-      <div className="mt-4 flex h-28 items-end gap-2">
+      <div className="mt-4 flex h-24 items-end gap-1 sm:h-28 sm:gap-2">
         {block.points.map((point, index) => (
           <motion.div
             key={`${point.label}-${index}`}
@@ -324,7 +324,7 @@ function SeriesChart({ block }: { block: Extract<Block, { kind: "series" }> }) {
           />
         ))}
       </div>
-      <div className="mt-2 flex gap-2 text-[10px] text-muted">
+      <div className="mt-2 flex gap-1 text-[9px] text-muted sm:gap-2 sm:text-[10px]">
         {block.points.map((point, index) => (
           <span key={`${point.label}-label-${index}`} className="min-w-0 flex-1 truncate text-center">
             {point.label}
