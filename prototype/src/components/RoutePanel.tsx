@@ -45,7 +45,15 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
             <div className="space-y-4 border-t border-white/5 px-4 py-4 text-[11.5px]">
               <Section icon={<Table size={12} />} title="카탈로그 후보">
                 {route.consideredDatasets.length === 0 ? (
-                  <Empty>후보 데이터셋이 없었습니다. 이 질문은 보유 범위 밖입니다.</Empty>
+                  // 후보가 비었다고 범위 밖이라고 단정할 수 없다. 모델이 MCP로
+                  // 도구를 직접 고르면 카탈로그 검색을 건너뛰는 일이 흔한데,
+                  // 그때도 도구는 돌고 근거는 쌓인다. 실제로 실행된 호출이
+                  // 있는데 범위 밖이라고 말하면 화면이 거짓을 말하는 것이다.
+                  <Empty>
+                    {route.plan.length > 0
+                      ? "카탈로그를 검색하지 않고 도구를 직접 골랐습니다."
+                      : "후보 데이터셋이 없었습니다. 이 질문은 보유 범위 밖입니다."}
+                  </Empty>
                 ) : (
                   <ul className="space-y-1.5">
                     {route.consideredDatasets.map((dataset) => (
@@ -80,7 +88,9 @@ export function RoutePanel({ route }: { route: RouteTrace }) {
                         <pre className="mt-1 overflow-x-auto rounded-lg bg-black/25 px-2.5 py-2 text-[10.5px] text-[#9aa1aa]">
                           {JSON.stringify(step.arguments)}
                         </pre>
-                        <p className="mt-1 text-muted">{step.reason}</p>
+                        {step.reason ? (
+                          <p className="mt-1 text-muted">{step.reason}</p>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

@@ -54,8 +54,9 @@ export interface StageEvent {
  * 서버가 흘려보내는 이벤트.
  *
  * 사람이 수십 초를 빈 화면으로 기다리게 두지 않기 위한 것이지만, 그렇다고 진행
- * 표시를 지어내지는 않는다. `stage`는 실제 단계 전환에서, `tool`은 플래너가
- * 실제로 고른 호출에서, `block`은 모델이 카드 하나를 닫는 순간에 나간다.
+ * 표시를 지어내지는 않는다. `stage`는 실제 단계 전환에서, `reasoning`은 도구를
+ * 고르는 모델이 실제로 내보낸 추론 요약에서, `tool`은 모델이 실제로 부른
+ * MCP 호출에서, `block`은 카드 하나가 닫히는 순간에 나간다.
  */
 export type ChatEvent =
   | { type: "stage"; stage: StageEvent }
@@ -66,6 +67,7 @@ export type ChatEvent =
       arguments: Record<string, unknown>;
       reason: string;
     }
+  | { type: "reasoning"; delta: string }
   | { type: "summary"; summary: string }
   | { type: "block"; block: Block }
   | { type: "done"; reply: ChatReply }
@@ -82,6 +84,8 @@ export interface ChatTurn {
   progress?: {
     stages: StageEvent[];
     tools: Array<{ tool: string; datasetId: string; reason: string }>;
+    /** 도구 선택 모델이 흘려보낸 추론 요약. 완료되면 화면에서 사라진다. */
+    reasoning: string;
     summary: string | null;
     blocks: Block[];
   };

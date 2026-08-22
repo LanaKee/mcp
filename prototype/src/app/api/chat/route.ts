@@ -1,4 +1,5 @@
-import { askAgent, AgentUnavailableError, type AgentAnswer } from "@/lib/agent";
+import { AgentUnavailableError, type AgentAnswer } from "@/lib/agent";
+import { askViaMcp } from "@/lib/mcp-agent";
 import { composeViewStream } from "@/lib/compose";
 import { loadRepoEnv } from "@/lib/env";
 import { composeQuestion, personaSchema } from "@/lib/persona";
@@ -11,9 +12,10 @@ export const maxDuration = 300;
 /**
  * 화면이 쓰는 단 하나의 엔드포인트. 서버-전송 이벤트로 진행을 흘려보낸다.
  *
- * 순서가 곧 이 프로토타입의 주장이다. 먼저 MCP 에이전트가 카탈로그를 검색하고
- * 도구를 골라 **데이터에서** 근거를 모으고, 그 다음에야 모델이 그 근거를 카드로
- * 옮긴다. 모델은 답을 만들지 않고 이미 확보된 근거의 표현만 담당한다.
+ * 순서가 곧 이 프로토타입의 주장이다. 먼저 도구 모델이 MCP 프로토콜로 서버에
+ * 직접 붙어 **데이터에서** 근거를 모으고, 그 다음에야 다른 모델이 그 근거를
+ * 카드로 옮긴다. 뒤쪽 모델은 답을 만들지 않고 이미 확보된 근거의 표현만
+ * 담당한다.
  *
  * 두 모델을 거치므로 응답까지 수십 초가 걸린다. 그 시간을 빈 화면으로 두는 대신
  * 실제로 일어난 일(고른 도구, 닫힌 카드)을 그때그때 내보낸다. 진행 표시를
@@ -47,38 +49,48 @@ export async function POST(request: Request): Promise<Response> {
           type: "stage",
           stage: {
             id: "plan",
-            label: "카탈로그를 검색하고 도구를 고르는 중",
+            label: "MCP 서버에 붙어 도구를 고르는 중",
             state: "running"
           }
         });
 
-        const answer = await askAgent(question, request.signal);
+        // 도구 호출은 모델이 결과를 보고 다음 호출을 정하며 이어지므로, 계획을
+        // 미리 통째로 받아 두고 보여줄 수가 없다. 일어나는 대로 내보낸다.
+        const answer = await askViaMcp(
+          question,
+          {
+            onReasoning: (delta) => send({ type: "reasoning", delta }),
+            onToolCall: (call) =>
+              send({
+                type: "tool",
+                datasetId: call.datasetId,
+                tool: call.tool,
+                arguments: call.arguments,
+                reason: call.reason
+              }),
+            onToolResult: (result) =>
+              send({
+                type: "stage",
+                stage: {
+                  id: "collect",
+                  label: result.ok
+                    ? `${result.tool} 응답을 받았습니다`
+                    : `${result.tool} 호출이 실패했습니다`,
+                  state: "done",
+                  detail: result.ok ? `출처 ${result.sourceCount}건` : undefined
+                }
+              })
+          },
+          request.signal
+        );
 
         send({
           type: "stage",
           stage: {
             id: "plan",
-            label: "도구 선택 완료",
+            label: "근거 수집 완료",
             state: "done",
-            detail: `${answer.planner} · 후보 ${answer.consideredDatasets.length}개 · 호출 ${answer.plan.length}건`
-          }
-        });
-        for (const step of answer.plan) {
-          send({
-            type: "tool",
-            datasetId: step.datasetId,
-            tool: step.tool,
-            arguments: step.arguments,
-            reason: step.reason
-          });
-        }
-        send({
-          type: "stage",
-          stage: {
-            id: "collect",
-            label: "데이터에서 근거를 모았습니다",
-            state: "done",
-            detail: `근거 ${answer.evidence.length}건 · 출처 ${answer.sources.length}건`
+            detail: `${answer.planner} · 호출 ${answer.plan.length}건 · 근거 ${answer.evidence.length}건 · 출처 ${answer.sources.length}건`
           }
         });
         send({

@@ -4,6 +4,9 @@
  * `services/mcp-server/src/agent.ts`의 `AgentAnswer`를 화면이 쓰는 만큼만
  * 옮겨 적은 것이다. 전체를 복제하면 서버가 필드를 늘릴 때마다 프로토타입이
  * 깨지므로, 필수 필드만 좁게 선언하고 나머지는 그대로 통과시킨다.
+ *
+ * 근거는 이제 `mcp-agent.ts`가 MCP 프로토콜로 직접 모은다. 이 모듈에 남은
+ * HTTP 호출은 추천 질문 목록뿐이다.
  */
 
 export interface AgentEvidence {
@@ -78,39 +81,6 @@ function baseUrl(): string {
 function authHeaders(): Record<string, string> {
   const token = process.env.MCP_AUTH_TOKEN;
   return token ? { authorization: `Bearer ${token}` } : {};
-}
-
-/**
- * 에이전트에 질문을 넘긴다.
- *
- * 서버가 없거나 오류를 돌려주면 화면에서 사실을 지어내지 않도록
- * {@link AgentUnavailableError}로 올린다. 프로토타입이라도 데이터가 없을 때
- * 그럴듯한 답을 만드는 쪽이 이 프로젝트에서는 가장 큰 실패다.
- */
-export async function askAgent(question: string, signal?: AbortSignal): Promise<AgentAnswer> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl()}/api/agent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ question }),
-      signal,
-      cache: "no-store"
-    });
-  } catch (error) {
-    throw new AgentUnavailableError(
-      "데이터 백엔드에 연결하지 못했습니다.",
-      `${baseUrl()}/api/agent 요청 실패: ${(error as Error).message}`
-    );
-  }
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new AgentUnavailableError(
-      "에이전트가 요청을 거절했습니다.",
-      `HTTP ${response.status} ${response.statusText} ${body.slice(0, 400)}`
-    );
-  }
-  return (await response.json()) as AgentAnswer;
 }
 
 export async function fetchQuestions(): Promise<Array<{ id: string; question: string }>> {

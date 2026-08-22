@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentAnswer } from "./agent";
-import { composeView } from "./compose";
+import { composeView, composeViewStream } from "./compose";
 
 const baseAnswer: AgentAnswer = {
   question: "포항시 인구 추세",
@@ -110,5 +110,96 @@ describe("composeView", () => {
     const prompt = body.messages[0]?.content ?? "";
     expect(prompt).toContain("508791");
     expect(prompt).toContain("근거에 없는 수치");
+  });
+});
+
+/** Claude 스트리밍 SSE 응답. 텍스트를 조각내 흘려보낸다. */
+function anthropicStream(chunks: string[]): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        const frame = {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: chunk }
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`));
+      }
+      controller.close();
+    }
+  });
+  return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
+describe("composeViewStream", () => {
+  it("응답 끝이 깨져도 스트리밍 중 닫힌 카드는 버리지 않는다", async () => {
+    // 긴 응답에서 모델이 마지막 괄호를 흘리면 전체 파싱이 무너진다. 그때마다
+    // 결정적 렌더러로 내려가면 이미 검증을 통과해 화면에 그려진 카드를 지우고
+    // 훨씬 빈약한 화면으로 되돌아가게 된다.
+    vi.stubEnv("CLAUDE_API_KEY", "test-key");
+    vi.stubEnv("PROTOTYPE_MODEL", "claude-sonnet-5");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        anthropicStream([
+          '{"summary":"포항시 인구가 줄었습니다","blocks":[',
+          '{"kind":"callout","tone":"info","text":"관측값입니다"},',
+          '{"kind":"headline","title":"인구 감소","subtitle":"2020-2024"}',
+          // 닫는 괄호가 오지 않는다.
+          ','
+        ])
+      )
+    );
+
+    const blocks: string[] = [];
+    const result = await composeViewStream(baseAnswer, {
+      onBlock: (block) => blocks.push(block.kind)
+    });
+
+    expect(blocks).toEqual(["callout", "headline"]);
+    expect(result.composer).toBe("claude-sonnet-5");
+    expect(result.view.blocks.map((block) => block.kind)).toEqual(["callout", "headline"]);
+    expect(result.degraded).toContain("스트리밍 중 완성된 카드 2장");
+  });
+
+  it("토큰 상한에 걸린 것을 파싱 오류로 둘러대지 않는다", async () => {
+    // "Expected ',' or ']'"만 남으면 모델이 이상한 JSON을 냈다고 오해하게 된다.
+    // 실제 원인은 응답이 상한에서 잘린 것이고, 고칠 곳도 전혀 다르다.
+    vi.stubEnv("CLAUDE_API_KEY", "test-key");
+    vi.stubEnv("PROTOTYPE_MODEL", "claude-sonnet-5");
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const push = (event: unknown) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        for (const text of [
+          '{"summary":"포항시 인구가 줄었습니다","blocks":[',
+          '{"kind":"callout","tone":"info","text":"관측값입니다"},'
+        ]) {
+          push({ type: "content_block_delta", delta: { type: "text_delta", text } });
+        }
+        push({ type: "message_delta", delta: { stop_reason: "max_tokens" } });
+        controller.close();
+      }
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(body, { status: 200 }))
+    );
+
+    const result = await composeViewStream(baseAnswer);
+
+    expect(result.composer).toBe("claude-sonnet-5");
+    expect(result.degraded).toContain("출력 토큰 상한");
+  });
+
+  it("닫힌 카드가 하나도 없으면 근거로 화면을 그린다", async () => {
+    vi.stubEnv("CLAUDE_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn(async () => anthropicStream(['{"summary":"요약","blocks":[{"kind"'])));
+
+    const result = await composeViewStream(baseAnswer);
+
+    expect(result.composer).toBe("deterministic");
+    expect(result.view.blocks.some((block) => block.kind === "series")).toBe(true);
   });
 });

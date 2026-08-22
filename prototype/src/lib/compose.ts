@@ -120,7 +120,10 @@ async function requestClaude(text: string, stream: boolean, signal?: AbortSignal
     },
     body: JSON.stringify({
       model: MODEL(),
-      max_tokens: 4096,
+      // 한국어 브리핑 한 화면은 카드 대여섯 장에 표까지 들어가 4096토큰을
+      // 넘긴다. 상한에 걸리면 JSON이 배열 한가운데서 끊겨 화면 전체가
+      // 결정적 렌더러로 내려갔다.
+      max_tokens: 12_000,
       messages: [{ role: "user", content: text }],
       ...(stream ? { stream: true } : {})
     }),
@@ -150,13 +153,14 @@ async function callClaudeStreaming(
   text: string,
   onDelta: (chunk: string) => void,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<{ text: string; truncation: string | null }> {
   const response = await requestClaude(text, true, signal);
   if (!response.body) throw new Error("스트리밍 응답 본문이 없습니다.");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let full = "";
+  let streamError: string | null = null;
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -174,8 +178,19 @@ async function callClaudeStreaming(
         try {
           const event = JSON.parse(payload) as {
             type?: string;
-            delta?: { type?: string; text?: string };
+            delta?: { type?: string; text?: string; stop_reason?: string };
+            error?: { type?: string; message?: string };
           };
+          // 과부하나 사용량 한도는 200 OK 스트림 안에 error 이벤트로 온다.
+          // 이것을 건너뛰면 본문이 비었다는 사실만 남아, 무엇이 잘못됐는지
+          // 알 수 없는 채로 결정적 렌더러까지 내려가게 된다.
+          // 상한에 걸려 끊긴 것과 모델이 스스로 끝낸 것은 전혀 다른 사건이다.
+          if (event.type === "message_delta" && event.delta?.stop_reason === "max_tokens") {
+            streamError = "출력 토큰 상한에 걸려 응답이 끊겼습니다.";
+          }
+          if (event.type === "error") {
+            streamError = event.error?.message ?? event.error?.type ?? "알 수 없는 스트림 오류";
+          }
           if (event.type === "content_block_delta" && typeof event.delta?.text === "string") {
             full += event.delta.text;
             onDelta(event.delta.text);
@@ -187,8 +202,9 @@ async function callClaudeStreaming(
       boundary = buffer.indexOf("\n\n");
     }
   }
+  if (streamError !== null && full.trim().length === 0) throw new Error(streamError);
   if (full.trim().length === 0) throw new Error("모델 응답이 비어 있습니다.");
-  return full;
+  return { text: full, truncation: streamError };
 }
 
 function validate(raw: unknown, answer: AgentAnswer): ComposeResult {
@@ -236,6 +252,11 @@ export async function composeViewStream(
   let emittedBlocks = 0;
   let emittedSummary = false;
   let accumulated = "";
+  let streamedSummary: string | null = null;
+  // 스트리밍 중 스키마를 통과한 카드. 마지막 JSON이 깨져도 이것은 모델이 실제로
+  // 닫아 보낸 카드이므로, 화면에 이미 그려진 것을 지우고 되돌아갈 이유가 없다.
+  const streamed: Block[] = [];
+  let truncation: string | null = null;
 
   try {
     const raw = await callClaudeStreaming(
@@ -246,6 +267,7 @@ export async function composeViewStream(
           const summary = completedSummary(accumulated);
           if (summary) {
             emittedSummary = true;
+            streamedSummary = summary;
             handlers.onSummary?.(summary);
           }
         }
@@ -255,7 +277,10 @@ export async function composeViewStream(
           if (!text) continue;
           try {
             const candidate = blockSchema.safeParse(JSON.parse(text));
-            if (candidate.success) handlers.onBlock?.(candidate.data);
+            if (candidate.success) {
+              streamed.push(candidate.data);
+              handlers.onBlock?.(candidate.data);
+            }
           } catch {
             // 미리보기 실패는 조용히 넘어간다. 최종 검증이 진실이다.
           }
@@ -264,12 +289,39 @@ export async function composeViewStream(
       },
       signal
     );
-    return validate(extractJson(raw), answer);
+    if (raw.truncation !== null) truncation = raw.truncation;
+    return validate(extractJson(raw.text), answer);
   } catch (error) {
+    const salvaged = salvage(streamedSummary, streamed, truncation ?? (error as Error).message);
+    if (salvaged) return salvaged;
     return {
       view: fallbackView(answer),
       composer: "deterministic",
       degraded: `${MODEL()} 호출 실패: ${(error as Error).message}`
     };
   }
+}
+
+/**
+ * 마지막 JSON이 깨졌을 때 스트리밍 중 닫힌 카드로 화면을 세운다.
+ *
+ * 응답이 길어지면 모델이 끝에서 한 글자를 흘려 전체 파싱이 무너지는 일이
+ * 있는데, 그때마다 결정적 렌더러로 내려가면 이미 검증까지 통과해 화면에 그려진
+ * 카드를 지우고 훨씬 빈약한 화면으로 되돌아가게 된다. 여기서 살리는 것은
+ * 스키마를 통과한 카드뿐이고 새로 만드는 내용은 없다. 무엇이 깨졌는지는
+ * degraded에 그대로 남긴다.
+ */
+function salvage(
+  summary: string | null,
+  blocks: Block[],
+  reason: string
+): ComposeResult | null {
+  if (summary === null || blocks.length === 0) return null;
+  const parsed = answerViewSchema.safeParse({ summary, blocks });
+  if (!parsed.success) return null;
+  return {
+    view: parsed.data,
+    composer: MODEL(),
+    degraded: `모델 응답 끝이 깨져 스트리밍 중 완성된 카드 ${blocks.length}장으로 구성했습니다: ${reason}`
+  };
 }

@@ -159,6 +159,7 @@ function Pending({
   const stages = progress?.stages ?? [];
   const tools = progress?.tools ?? [];
   const blocks = progress?.blocks ?? [];
+  const reasoning = progress?.reasoning ?? "";
 
   return (
     <div className="space-y-3">
@@ -184,6 +185,16 @@ function Pending({
           ))}
         </ol>
 
+        {reasoning.length > 0 ? (
+          <div className="mt-3 border-t border-white/5 pt-3">
+            {/* 추론 요약은 수천 자가 되기도 한다. 진행을 보여주려는 것이므로
+                가장 최근 대목만 남기고, 완결된 주장으로 읽히지 않도록 흐린다. */}
+            <p className="max-h-24 overflow-hidden text-[11px] leading-4 whitespace-pre-wrap text-[#6d727a]">
+              {reasoning.slice(-400)}
+            </p>
+          </div>
+        ) : null}
+
         {tools.length > 0 ? (
           <div className="mt-3 space-y-1.5 border-t border-white/5 pt-3">
             {tools.map((tool, index) => (
@@ -194,7 +205,9 @@ function Pending({
                 className="text-[11px] leading-4 text-[#9aa0a8]"
               >
                 <span className="text-mint-400">{tool.tool}</span>
-                <span className="text-[#5f646c]"> · {tool.datasetId}</span>
+                {tool.datasetId ? (
+                  <span className="text-[#5f646c]"> · {tool.datasetId}</span>
+                ) : null}
                 {tool.reason ? <span className="block text-[#6d727a]">{tool.reason}</span> : null}
               </motion.p>
             ))}

@@ -104,6 +104,7 @@ function ChatScreen() {
       const progress = {
         stages: [] as StageEvent[],
         tools: [] as Array<{ tool: string; datasetId: string; reason: string }>,
+        reasoning: "",
         summary: null as string | null,
         blocks: [] as Block[]
       };
@@ -126,6 +127,11 @@ function ChatScreen() {
                 datasetId: event.datasetId,
                 reason: event.reason
               });
+              pushProgress();
+              break;
+            case "reasoning":
+              // 추론 요약은 토큰 단위로 오므로 이어 붙인다. 화면은 꼬리만 보여준다.
+              progress.reasoning += event.delta;
               pushProgress();
               break;
             case "summary":
