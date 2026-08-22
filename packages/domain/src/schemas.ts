@@ -107,6 +107,33 @@ export const pressReleaseSearchInputSchema = z
   })
   .strict();
 
+/**
+ * Per-member legislative activity search for 경상북도의회.
+ *
+ * This answers "what did this member actually put their name to?", which is
+ * only *evidence* toward a question like "did they keep their promise". The
+ * council publishes no pledge register, so the tool must never be asked to
+ * return a fulfilment verdict — hence there is no `pledge` field here.
+ */
+export const memberBillSearchInputSchema = z
+  .object({
+    member: z.string().min(1).max(40).optional(),
+    query: z.string().min(1).max(300).optional(),
+    /** 'lead' is 대표발의, 'co' is 공동발의. Defaults to both. */
+    role: z.enum(["lead", "co", "any"]).default("any"),
+    party: z.string().min(1).max(60).optional(),
+    committee: z.string().min(1).max(100).optional(),
+    billKind: z.string().min(1).max(40).optional(),
+    outcome: z.string().min(1).max(40).optional(),
+    dateFrom: z.string().date().optional(),
+    dateTo: z.string().date().optional(),
+    limit: z.number().int().min(1).max(50).default(10)
+  })
+  .strict()
+  .refine((value) => value.member !== undefined || value.query !== undefined, {
+    message: "member 또는 query 중 하나는 반드시 지정해야 합니다"
+  });
+
 export const verifyClaimInputSchema = z
   .object({
     metric: z.enum(["population", "local_tax"]),
@@ -161,6 +188,7 @@ export type CouncilSearchInput = z.infer<typeof councilSearchInputSchema>;
 export type PressReleaseSearchInput = z.infer<
   typeof pressReleaseSearchInputSchema
 >;
+export type MemberBillSearchInput = z.infer<typeof memberBillSearchInputSchema>;
 export type VerifyClaimInput = z.infer<typeof verifyClaimInputSchema>;
 export type DraftPublicDocumentInput = z.infer<
   typeof draftPublicDocumentInputSchema

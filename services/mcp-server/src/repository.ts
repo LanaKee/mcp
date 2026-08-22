@@ -165,6 +165,64 @@ export interface PressReleaseRepository {
   }): Promise<RepositoryResult<PressReleaseHit>>;
 }
 
+export interface CouncilMemberSummary {
+  councilMemberId: string;
+  name: string;
+  party: string | null;
+  district: string | null;
+  position: string | null;
+  career: string | null;
+  homepageUrl: string;
+  /** Bills the member led (대표발의) across the whole crawled record. */
+  leadBillCount: number;
+  /** Bills the member co-signed (공동발의). */
+  coBillCount: number;
+}
+
+export interface MemberBillHit {
+  id: string;
+  title: string;
+  text: string;
+  score: number;
+  matchedTerms: string[];
+  metadata: {
+    councilName: string;
+    billNumber: string | null;
+    billKind: string | null;
+    committee: string | null;
+    sessionName: string | null;
+    proposedDate: string;
+    decidedDate: string | null;
+    status: string | null;
+    outcome: string | null;
+    /** Sponsorship roles the queried member holds on this bill. */
+    memberRoles: Array<"lead" | "co">;
+    leadSponsors: string[];
+    coSponsorCount: number;
+    sourceId: string;
+    locator: string;
+    detailUrl: string;
+    dataStatus: FactDataStatus;
+    recordType: "council_bill";
+    evidenceRole: "narrative_context_only";
+  };
+}
+
+export interface MemberBillRepository {
+  searchMemberBills(input: {
+    member?: string;
+    query?: string;
+    role: "lead" | "co" | "any";
+    party?: string;
+    committee?: string;
+    billKind?: string;
+    outcome?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+  }): Promise<RepositoryResult<MemberBillHit> & { members: CouncilMemberSummary[] }>;
+}
+
 export interface SourceLocatorContext {
   entityType: string;
   entityKey: string;
@@ -256,6 +314,7 @@ export interface DataRepository
     CouncilRepository,
     DocumentRepository,
     PressReleaseRepository,
+    MemberBillRepository,
     SourceRepository,
     ClaimRepository {
   readonly mode: "memory" | "postgres";
@@ -436,6 +495,25 @@ export class InMemoryDataRepository implements DataRepository {
     limit: number;
   }): Promise<RepositoryResult<PressReleaseHit>> {
     return { records: [], sources: [], dataStatuses: [] };
+  }
+
+  /**
+   * The in-memory store carries no council roster; 경상북도의회 members and bills
+   * only exist in the crawled PostgreSQL dataset.
+   */
+  async searchMemberBills(_input: {
+    member?: string;
+    query?: string;
+    role: "lead" | "co" | "any";
+    party?: string;
+    committee?: string;
+    billKind?: string;
+    outcome?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+  }): Promise<RepositoryResult<MemberBillHit> & { members: CouncilMemberSummary[] }> {
+    return { records: [], sources: [], dataStatuses: [], members: [] };
   }
 
   async searchDocuments(_input: {

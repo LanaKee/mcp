@@ -15,10 +15,12 @@ import {
 import { Pool, type QueryResultRow } from "pg";
 import type {
   AuditEvent,
+  CouncilMemberSummary,
   CouncilSearchHit,
   DataRepository,
   DocumentSearchHit,
   FactDataStatus,
+  MemberBillHit,
   PolicyDocumentCoverage,
   PressReleaseHit,
   RepositoryReadiness,
@@ -594,6 +596,253 @@ export class PostgresDataRepository implements DataRepository {
       records,
       sources: uniqueSources(result.rows),
       dataStatuses: uniqueStatuses(result.rows)
+    };
+  }
+
+
+  /**
+   * Per-member legislative activity for 경상북도의회.
+   *
+   * Two things this deliberately does NOT do:
+   *
+   * - It never collapses 대표발의 and 공동발의. A member who signed twelve
+   *   colleagues' bills has not authored twelve bills, so the role travels with
+   *   every hit and is filterable.
+   * - It never scores "pledge fulfilment". The council publishes no pledge
+   *   register; the caller gets the legislative record and draws its own
+   *   conclusion.
+   *
+   * Members are matched by name because that is what a caller has. The roster
+   * summary is returned alongside the hits so an ambiguous name (two 김상희)
+   * surfaces as two members rather than being silently merged.
+   */
+  async searchMemberBills(input: {
+    member?: string;
+    query?: string;
+    role: "lead" | "co" | "any";
+    party?: string;
+    committee?: string;
+    billKind?: string;
+    outcome?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+  }): Promise<RepositoryResult<MemberBillHit> & { members: CouncilMemberSummary[] }> {
+    const limit = boundedLimit(input.limit, 50);
+    const role = input.role === "any" ? null : input.role;
+
+    const memberRows = await this.executor.query<{
+      council_member_id: string;
+      name: string;
+      party: string | null;
+      district: string | null;
+      position: string | null;
+      career: string | null;
+      homepage_url: string;
+      lead_count: string | number;
+      co_count: string | number;
+    }>(
+      `SELECT
+         m.council_member_id,
+         m.name,
+         m.party,
+         m.district,
+         m.position,
+         m.career,
+         m.homepage_url,
+         count(*) FILTER (WHERE s.role = 'lead') AS lead_count,
+         count(*) FILTER (WHERE s.role = 'co') AS co_count
+       FROM council_member m
+       LEFT JOIN council_bill_sponsor s
+         ON s.council_member_id = m.council_member_id
+       WHERE ($1::text IS NULL OR m.name = $1 OR m.name ILIKE ('%' || $1 || '%'))
+         AND ($2::text IS NULL OR m.party ILIKE ('%' || $2 || '%'))
+       GROUP BY m.council_member_id
+       ORDER BY (m.name = coalesce($1, m.name)) DESC, m.name
+       LIMIT 20`,
+      [input.member ?? null, input.party ?? null]
+    );
+    const members: CouncilMemberSummary[] = memberRows.rows.map((row) => ({
+      councilMemberId: row.council_member_id,
+      name: row.name,
+      party: row.party,
+      district: row.district,
+      position: row.position,
+      career: row.career,
+      homepageUrl: row.homepage_url,
+      leadBillCount: Number(row.lead_count),
+      coBillCount: Number(row.co_count)
+    }));
+
+    // A member filter that matches nobody must return nothing rather than the
+    // whole council's legislative record.
+    if ((input.member || input.party) && members.length === 0) {
+      return { records: [], sources: [], dataStatuses: [], members: [] };
+    }
+    const memberIds = members.map((member) => member.councilMemberId);
+    const restrictToMembers = Boolean(input.member || input.party);
+
+    const result = await this.executor.query<
+      SourceRow & {
+        council_bill_id: string;
+        bill_title: string;
+        council_name: string;
+        bill_number: string | null;
+        bill_kind: string | null;
+        committee: string | null;
+        session_name: string | null;
+        proposed_date: string | null;
+        decided_date: string | null;
+        status: string | null;
+        outcome: string | null;
+        member_roles: string[] | null;
+        lead_sponsors: string[] | null;
+        co_sponsor_count: number | string;
+        detail_url: string;
+        locator_text: string | null;
+        score: number | string;
+      }
+    >(
+      `SELECT
+         b.council_bill_id,
+         b.title AS bill_title,
+         b.council_name,
+         b.bill_number,
+         b.bill_kind,
+         b.committee,
+         b.session_name,
+         b.proposed_date::text,
+         b.decided_date::text,
+         b.status,
+         b.outcome,
+         (
+           SELECT array_agg(DISTINCT s.role ORDER BY s.role)
+           FROM council_bill_sponsor s
+           WHERE s.council_bill_id = b.council_bill_id
+             AND ($8::boolean IS FALSE OR s.council_member_id = ANY($9::text[]))
+             AND ($1::text IS NULL OR s.role = $1)
+         ) AS member_roles,
+         (
+           SELECT array_agg(s.member_name ORDER BY s.member_name)
+           FROM council_bill_sponsor s
+           WHERE s.council_bill_id = b.council_bill_id AND s.role = 'lead'
+         ) AS lead_sponsors,
+         b.co_sponsor_count,
+         b.detail_url,
+         coalesce(sl.locator_text, ds.file_path) AS locator_text,
+         CASE
+           WHEN $2::text IS NULL THEN 1::double precision
+           ELSE (
+             ts_rank(to_tsvector('simple', b.title), to_tsquery('simple', $3))
+               * 4
+             + similarity(b.title, $2)
+           )::double precision
+         END AS score,
+         b.data_status,
+         ds.source_key,
+         ds.title,
+         ds.provider,
+         ds.source_url,
+         ds.collected_at,
+         ds.is_official,
+         ds.file_path,
+         ds.license_note
+       FROM council_bill b
+       JOIN data_source ds ON ds.source_id = b.source_id
+       LEFT JOIN source_locator sl
+         ON sl.source_id = b.source_id
+        AND sl.entity_type = 'council_bill'
+        AND sl.entity_key = b.council_bill_id
+       WHERE (
+           $8::boolean IS FALSE
+           OR EXISTS (
+             SELECT 1 FROM council_bill_sponsor s
+             WHERE s.council_bill_id = b.council_bill_id
+               AND s.council_member_id = ANY($9::text[])
+               AND ($1::text IS NULL OR s.role = $1)
+           )
+         )
+         AND (
+           $8::boolean IS TRUE
+           OR $1::text IS NULL
+           OR EXISTS (
+             SELECT 1 FROM council_bill_sponsor s
+             WHERE s.council_bill_id = b.council_bill_id AND s.role = $1
+           )
+         )
+         AND ($4::text IS NULL OR b.committee ILIKE ('%' || $4 || '%'))
+         AND ($5::text IS NULL OR b.bill_kind = $5)
+         AND ($6::text IS NULL OR b.outcome ILIKE ('%' || $6 || '%'))
+         AND ($10::date IS NULL OR b.proposed_date >= $10)
+         AND ($11::date IS NULL OR b.proposed_date <= $11)
+         AND (
+           $2::text IS NULL
+           OR to_tsvector('simple', b.title) @@ to_tsquery('simple', $3)
+           OR b.title ILIKE ('%' || $2 || '%')
+           OR b.title % $2
+         )
+       ORDER BY score DESC, b.proposed_date DESC NULLS LAST, b.council_bill_id
+       LIMIT $7`,
+      [
+        role,
+        input.query ?? null,
+        input.query ? ftsOrQuery(input.query) : "",
+        input.committee ?? null,
+        input.billKind ?? null,
+        input.outcome ?? null,
+        limit,
+        restrictToMembers,
+        memberIds,
+        input.dateFrom ?? null,
+        input.dateTo ?? null
+      ]
+    );
+
+    const terms = input.query ? tokenizeKorean(input.query) : [];
+    const records: MemberBillHit[] = result.rows.map((row) => ({
+      id: row.council_bill_id,
+      title: row.bill_title,
+      // Bills carry no body text on the council site; the title plus its
+      // procedural outcome is the whole record.
+      text: [
+        row.bill_title,
+        row.session_name,
+        row.committee,
+        row.outcome ? `처리결과: ${row.outcome}` : null
+      ]
+        .filter(Boolean)
+        .join(" / "),
+      score: Number(row.score),
+      matchedTerms: terms.filter((term) =>
+        row.bill_title.normalize("NFC").includes(term)
+      ),
+      metadata: {
+        councilName: row.council_name,
+        billNumber: row.bill_number,
+        billKind: row.bill_kind,
+        committee: row.committee,
+        sessionName: row.session_name,
+        proposedDate: row.proposed_date ?? "",
+        decidedDate: row.decided_date,
+        status: row.status,
+        outcome: row.outcome,
+        memberRoles: (row.member_roles ?? []) as Array<"lead" | "co">,
+        leadSponsors: row.lead_sponsors ?? [],
+        coSponsorCount: Number(row.co_sponsor_count),
+        sourceId: row.source_key,
+        locator: row.locator_text ?? row.file_path ?? "",
+        detailUrl: row.detail_url,
+        dataStatus: row.data_status as FactDataStatus,
+        recordType: "council_bill" as const,
+        evidenceRole: "narrative_context_only" as const
+      }
+    }));
+
+    return {
+      records,
+      sources: uniqueSources(result.rows),
+      dataStatuses: uniqueStatuses(result.rows),
+      members
     };
   }
 

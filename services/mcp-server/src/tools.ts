@@ -9,6 +9,7 @@ import {
   evaluatePolicyEligibility,
   localTaxTrendInputSchema,
   policySearchInputSchema,
+  memberBillSearchInputSchema,
   pressReleaseSearchInputSchema,
   localTaxTrendPoints,
   populationTrendPoints,
@@ -504,6 +505,53 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
           "보도자료는 경상북도가 발표한 서술형 announcement이며 관측된 통계가 아닙니다. 본문에 인용된 수치는 verify_claim_with_data의 근거로 사용할 수 없습니다.",
           "보도자료는 발표 시점의 계획을 담고 있어 이후 변경되었을 수 있습니다. 집행 결과는 별도 통계로 확인해야 합니다.",
           "metadata.mentionedRegions는 본문에 시군 이름이 등장했다는 뜻일 뿐, 해당 시군의 사업임을 보장하지 않습니다.",
+          ...statusLimitations(loaded.dataStatuses)
+        ]
+      };
+    }
+  );
+
+
+  add(
+    "search_member_bills",
+    "경상북도의회 의원별 발의 의안을 검색합니다. 대표발의와 공동발의를 구분해 의정활동 근거를 제공하며, 공약 이행 여부를 판정하지는 않습니다.",
+    memberBillSearchInputSchema,
+    objectSchema(
+      {
+        member: { type: "string", maxLength: 40 },
+        query: { type: "string", maxLength: 300 },
+        role: { type: "string", enum: ["lead", "co", "any"], default: "any" },
+        party: { type: "string", maxLength: 60 },
+        committee: { type: "string", maxLength: 100 },
+        billKind: { type: "string", maxLength: 40 },
+        outcome: { type: "string", maxLength: 40 },
+        dateFrom: { type: "string", format: "date" },
+        dateTo: { type: "string", format: "date" },
+        limit: { type: "integer", minimum: 1, maximum: 50, default: 10 }
+      },
+      []
+    ),
+    async (input) => {
+      const loaded = await repository.searchMemberBills({
+        ...input,
+        role: input.role ?? "any",
+        limit: input.limit ?? 10
+      });
+      return {
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
+        result: {
+          members: loaded.members,
+          matches: loaded.records,
+          evidence_role: "narrative_context_only"
+        },
+        sources: loaded.sources,
+        limitations: [
+          "이 도구는 의안 발의 기록만 제공합니다. 경상북도의회는 선거 공약을 공개하지 않으므로 공약 이행 여부는 이 데이터만으로 판정할 수 없습니다. 공약 원문은 중앙선거관리위원회 등 별도 출처에서 확인해야 합니다.",
+          "metadata.memberRoles의 'lead'는 대표발의, 'co'는 공동발의입니다. 공동발의는 동료 의원 의안에 서명한 것이므로 해당 의원이 주도했다는 뜻이 아닙니다.",
+          "의안 발의는 의정활동의 일부일 뿐이며 예산 심의, 행정사무감사, 5분 자유발언 등은 포함되지 않습니다. 발의 건수가 적다고 활동이 없었다고 볼 수 없습니다.",
+          "'원안가결'은 의회를 통과했다는 뜻이며 조례가 실제로 집행되었는지는 별도 통계로 확인해야 합니다.",
+          "재임 기간이 짧은 초선 의원은 발의 건수가 구조적으로 적으므로 의원 간 단순 비교는 오해를 낳습니다.",
           ...statusLimitations(loaded.dataStatuses)
         ]
       };

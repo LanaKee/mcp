@@ -41,6 +41,7 @@ export const MCP_ENDPOINT = "/mcp";
 const expensiveTools = new Set([
   "search_council_records",
   "search_press_releases",
+  "search_member_bills",
   "get_source_context",
   "draft_public_document"
 ]);

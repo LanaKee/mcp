@@ -103,6 +103,25 @@ describe("MCP tools", () => {
     ).rejects.toThrow();
   });
 
+  it("refuses a member bill search with neither a member nor a query", async () => {
+    // An unfiltered call would dump the council's whole legislative record and
+    // read as if it answered the caller's question.
+    await expect(executeTool(registry, "search_member_bills", {})).rejects.toThrow();
+  });
+
+  it("never claims a member bill search settles pledge fulfilment", async () => {
+    const response = await executeTool(registry, "search_member_bills", {
+      member: "김대진",
+      limit: 5
+    });
+    const result = response.result as { evidence_role: string };
+    expect(result.evidence_role).toBe("narrative_context_only");
+    expect(response.limitations.some((line) => line.includes("공약"))).toBe(true);
+    expect(
+      response.limitations.some((line) => line.includes("공동발의"))
+    ).toBe(true);
+  });
+
   it("rejects demo evidence for a public document", async () => {
     await expect(
       executeTool(registry, "draft_public_document", {
