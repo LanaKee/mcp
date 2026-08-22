@@ -503,3 +503,273 @@ footer {
   font-size: 0.84rem;
   line-height: 1.6;
 }
+
+/* ---------------------------------------------------------------- *
+ * Regional evidence graph
+ *
+ * Laid out as three columns with the issue in the middle so the reader
+ * sees at a glance that statistics and narrative material sit on
+ * opposite sides of it. Keeping them visually separate is the whole
+ * argument: the two kinds of evidence support different claims, and a
+ * single merged list invites treating them as interchangeable.
+ * ---------------------------------------------------------------- */
+
+.evidence-lab {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.lab-form {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee9);
+  border-radius: 0.75rem;
+  background: var(--surface, #fff);
+}
+
+.lab-form label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lab-form input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line, #d8dee9);
+  border-radius: 0.5rem;
+  font: inherit;
+  min-width: 0;
+}
+
+.lab-form button {
+  grid-column: 1 / -1;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #12395c;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lab-form button[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.pack-error {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2b4b4;
+  background: #fdf2f2;
+  color: #8a2020;
+}
+
+.graph {
+  display: grid;
+  grid-template-columns: 1fr minmax(12rem, 0.7fr) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.graph-column {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.graph-column h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.graph-column > small {
+  color: #5b6b7c;
+}
+
+.graph-column--issue {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: #12395c;
+  color: #fff;
+  align-self: center;
+  text-align: center;
+}
+
+.graph-column--issue > small {
+  color: #c7d8e8;
+}
+
+.graph-link {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #dbe7f2;
+}
+
+.graph-node {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.9rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line, #d8dee9);
+  background: var(--surface, #fff);
+}
+
+.graph-node--observed {
+  border-left: 4px solid #1f6f4a;
+}
+
+.graph-node--context {
+  border-left: 4px solid #9a6b12;
+}
+
+.graph-node p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.graph-node__tool {
+  color: #5b6b7c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+}
+
+.graph-empty {
+  margin: 0;
+  padding: 0.9rem;
+  border-radius: 0.6rem;
+  border: 1px dashed #c3ccd6;
+  color: #5b6b7c;
+  font-size: 0.85rem;
+}
+
+.gap-item,
+.action-item {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line, #e6ebf1);
+}
+
+.gap-item small,
+.action-item small {
+  color: #5b6b7c;
+}
+
+.doc-buttons {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.doc-buttons button {
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid #12395c;
+  background: transparent;
+  color: #12395c;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.doc-output {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.doc-output pre {
+  margin: 0;
+  padding: 0.9rem;
+  border-radius: 0.5rem;
+  background: #f4f6f9;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.doc-output a {
+  justify-self: start;
+  font-weight: 600;
+}
+
+.doc-output a:not([href]) {
+  display: none;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.timeline-note {
+  margin-top: 0;
+}
+
+.timeline-item {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--line, #d8dee9);
+  border-left: 4px solid #8fa3b8;
+}
+
+.timeline-item--plan {
+  border-left-color: #6b4fa0;
+}
+.timeline-item--announcement {
+  border-left-color: #9a6b12;
+}
+.timeline-item--deliberation {
+  border-left-color: #12395c;
+}
+.timeline-item--legislation {
+  border-left-color: #1f6f4a;
+}
+
+.timeline-item time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: #5b6b7c;
+}
+
+.timeline-stage {
+  justify-self: start;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.timeline-item small {
+  color: #5b6b7c;
+  font-size: 0.78rem;
+}
+
+.timeline-locator {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+
+@media (max-width: 860px) {
+  .graph {
+    grid-template-columns: 1fr;
+  }
+  .lab-form {
+    grid-template-columns: auto 1fr;
+  }
+}

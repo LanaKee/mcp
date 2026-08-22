@@ -11,6 +11,7 @@ import {
   draftPublicDocument,
   draftPublicDocumentInputSchema,
   evaluatePolicyEligibility,
+  evidenceActionInputSchema,
   localTaxTrendInputSchema,
   policySearchInputSchema,
   memberBillSearchInputSchema,
@@ -34,7 +35,10 @@ import {
   type FactDataStatus
 } from "./repository.js";
 import { describeDataset, searchDatasets } from "./catalog-tools.js";
-import { buildRegionalEvidencePack } from "./evidence-pack.js";
+import {
+  buildRegionalEvidencePack,
+  draftFromEvidencePack
+} from "./evidence-pack.js";
 import { tracePolicyResponse } from "./policy-timeline.js";
 
 export type JsonSchema = Record<string, unknown>;
@@ -1009,6 +1013,53 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         result: timeline,
         sources: timeline.sources,
         limitations: timeline.limitations
+      };
+    }
+  );
+
+  add(
+    "draft_evidence_backed_action",
+    "지역 근거 묶음을 그대로 사용해 정보공개청구서 또는 주민참여예산 제안서 초안을 만듭니다. 묶음에서 검증된 내용만 문서에 들어가며, 근거가 부족하면 문서를 만들지 않고 이유를 알려 줍니다.",
+    evidenceActionInputSchema,
+    objectSchema(
+      {
+        region: { type: "string", minLength: 1, maxLength: 80 },
+        issue: { type: "string", minLength: 1, maxLength: 200 },
+        startYear: year,
+        endYear: year,
+        documentType: {
+          type: "string",
+          enum: ["information_request", "participatory_budget"]
+        },
+        requesterContext: { type: "string", maxLength: 1000 }
+      },
+      ["region", "issue", "startYear", "endYear", "documentType"]
+    ),
+    async (input) => {
+      const pack = await buildRegionalEvidencePack(registry, input);
+      const prepared = draftFromEvidencePack(pack, input.documentType);
+      const drafted = draftPublicDocument({
+        documentType: input.documentType,
+        title: prepared.title,
+        ...(input.requesterContext
+          ? { requesterContext: input.requesterContext }
+          : {}),
+        verifiedAnalysis: prepared.verifiedAnalysis
+      });
+      return {
+        data_status: drafted.dataStatus,
+        data_statuses: [drafted.dataStatus],
+        result: {
+          ...drafted,
+          documentType: input.documentType,
+          gaps: pack.gaps,
+          recommendedActions: pack.recommendedActions
+        },
+        sources: prepared.verifiedAnalysis.sources,
+        limitations: [
+          "초안입니다. 제출 전 소관 기관과 서식·접수처를 확인해야 합니다.",
+          ...prepared.verifiedAnalysis.limitations
+        ]
       };
     }
   );

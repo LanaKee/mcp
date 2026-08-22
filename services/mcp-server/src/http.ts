@@ -50,6 +50,7 @@ const expensiveTools = new Set([
   // request the server accepts.
   "build_regional_evidence_pack",
   "trace_policy_response",
+  "draft_evidence_backed_action",
   "compare_peer_regions",
   "get_source_context",
   "draft_public_document"

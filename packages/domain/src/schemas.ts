@@ -216,6 +216,20 @@ export const policyTimelineInputSchema = z
   })
   .strict();
 
+export const evidenceActionInputSchema = z
+  .object({
+    region: z.string().min(1).max(80),
+    issue: z.string().min(1).max(200),
+    startYear: yearSchema,
+    endYear: yearSchema,
+    documentType: z.enum(["information_request", "participatory_budget"]),
+    requesterContext: z.string().max(1000).optional()
+  })
+  .strict()
+  .refine((value) => value.startYear <= value.endYear, {
+    message: "startYear는 endYear보다 클 수 없습니다."
+  });
+
 export const regionalEvidencePackInputSchema = z
   .object({
     region: z.string().min(1).max(80),
@@ -267,6 +281,7 @@ export type VerifyClaimInput = z.infer<typeof verifyClaimInputSchema>;
 export type DraftPublicDocumentInput = z.infer<
   typeof draftPublicDocumentInputSchema
 >;
+export type EvidenceActionInput = z.infer<typeof evidenceActionInputSchema>;
 export type PolicyTimelineInput = z.infer<typeof policyTimelineInputSchema>;
 export type PeerComparisonInput = z.infer<typeof peerComparisonInputSchema>;
 export type RegionalEvidencePackInput = z.infer<

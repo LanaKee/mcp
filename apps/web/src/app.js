@@ -329,6 +329,331 @@ async function boot() {
   );
 }
 
+/* ------------------------------------------------------------------ *
+ * Regional evidence graph
+ *
+ * The agent panel above answers a question. This panel does the thing the
+ * project actually claims to do: it shows the evidence chain behind an issue,
+ * including the part that is missing, and turns the missing part into a
+ * document a resident can file. The gap column is the one that matters — a
+ * search tool can always show what exists, and the expensive discovery when
+ * using public data is that the number you need was never published.
+ * ------------------------------------------------------------------ */
+
+const packForm = document.querySelector("#pack-form");
+const packResult = document.querySelector("#pack-result");
+const packError = document.querySelector("#pack-error");
+let currentPackInput = null;
+
+async function callTool(name, body) {
+  const response = await fetch(`/api/tools/${name}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error?.message ?? "요청에 실패했습니다.");
+  }
+  return payload;
+}
+
+function graphNode(node, kind) {
+  const article = document.createElement("article");
+  article.className = `graph-node graph-node--${kind}`;
+
+  const badge = document.createElement("small");
+  badge.className = `evidence-status evidence-status-${node.dataStatus}`;
+  text(badge, statusLabel(node.dataStatus));
+
+  const title = document.createElement("strong");
+  text(title, node.title);
+
+  const summary = document.createElement("p");
+  text(summary, node.summary);
+
+  const tool = document.createElement("small");
+  tool.className = "graph-node__tool";
+  text(tool, `${node.tool} · 출처 ${node.sourceIds.length}건`);
+
+  article.append(badge, title, summary, tool);
+  if (node.contract) {
+    article.append(claimList("말할 수 있는 것", node.contract.canClaim, "can"));
+    article.append(claimList("말할 수 없는 것", node.contract.cannotClaim, "cannot"));
+    if (node.contract.insteadUse) {
+      const instead = document.createElement("small");
+      instead.className = "claim-instead";
+      text(instead, `대신 필요한 자료: ${node.contract.insteadUse}`);
+      article.append(instead);
+    }
+  }
+  return article;
+}
+
+function graphColumn(heading, note, nodes, kind, emptyMessage) {
+  const column = document.createElement("div");
+  column.className = "graph-column";
+  const title = document.createElement("h4");
+  text(title, heading);
+  const subtitle = document.createElement("small");
+  text(subtitle, note);
+  column.append(title, subtitle);
+  if (nodes.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "graph-empty";
+    text(empty, emptyMessage);
+    column.append(empty);
+  } else {
+    column.append(...nodes.map((node) => graphNode(node, kind)));
+  }
+  return column;
+}
+
+function renderGraph(pack) {
+  const graph = document.querySelector("#evidence-graph");
+  const issue = document.createElement("div");
+  issue.className = "graph-column graph-column--issue";
+  const issueTitle = document.createElement("h4");
+  text(issueTitle, `${pack.region} · ${pack.issue}`);
+  const issueNote = document.createElement("small");
+  text(
+    issueNote,
+    `${pack.period.startYear}~${pack.period.endYear}년 · 조인 ${pack.links.length}건`
+  );
+  issue.append(issueTitle, issueNote);
+  for (const link of pack.links) {
+    const item = document.createElement("p");
+    item.className = "graph-link";
+    text(item, `${link.from} ⟷ ${link.to} · ${link.joinKeys.join(", ")}`);
+    issue.append(item);
+  }
+
+  graph.replaceChildren(
+    graphColumn(
+      "관측 통계",
+      "수치 주장을 뒷받침할 수 있는 자료",
+      pack.observed,
+      "observed",
+      "이 현안을 측정한 관측 통계가 적재되어 있지 않습니다."
+    ),
+    issue,
+    graphColumn(
+      "서술 맥락",
+      "무엇이 언제 계획·발표·논의되었는지만 알려 주는 자료",
+      pack.context,
+      "context",
+      "관련 계획·발표·논의 기록을 찾지 못했습니다."
+    )
+  );
+}
+
+function renderGaps(pack) {
+  renderItems(
+    document.querySelector("#pack-gaps"),
+    pack.gaps,
+    (node, gap) => {
+      const question = document.createElement("strong");
+      text(question, gap.question);
+      const reason = document.createElement("p");
+      text(reason, gap.reason);
+      const closed = document.createElement("small");
+      text(closed, `필요한 자료: ${gap.wouldBeClosedBy}`);
+      const holder = document.createElement("small");
+      text(holder, `보유 기관: ${gap.holder}`);
+      node.append(question, reason, closed, holder);
+    },
+    "gap-item"
+  );
+  if (pack.gaps.length === 0) {
+    const none = document.createElement("p");
+    text(none, "적재된 자료로 답할 수 없는 질문이 확인되지 않았습니다.");
+    document.querySelector("#pack-gaps").replaceChildren(none);
+  }
+}
+
+function renderActions(pack) {
+  renderItems(
+    document.querySelector("#pack-actions"),
+    pack.recommendedActions ?? [],
+    (node, action) => {
+      const title = document.createElement("strong");
+      text(title, action.action);
+      const rationale = document.createElement("p");
+      text(rationale, action.rationale);
+      const to = document.createElement("small");
+      text(to, `제출처: ${action.addressedTo}`);
+      node.append(title, rationale, to);
+    },
+    "action-item"
+  );
+}
+
+function renderTimeline(timeline) {
+  const list = document.querySelector("#pack-timeline");
+  if (!timeline || timeline.entries.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "timeline-item";
+    text(
+      empty,
+      "이 표현으로 검색되는 계획·발표·논의·발의 기록을 찾지 못했습니다. 기록이 없다는 증명은 아닙니다."
+    );
+    list.replaceChildren(empty);
+    return;
+  }
+  const STAGE_LABELS = {
+    plan: "계획",
+    announcement: "발표",
+    deliberation: "논의",
+    legislation: "발의"
+  };
+  list.replaceChildren(
+    ...timeline.entries.map((entry) => {
+      const item = document.createElement("li");
+      item.className = `timeline-item timeline-item--${entry.stage}`;
+      const date = document.createElement("time");
+      text(date, entry.date);
+      const stage = document.createElement("span");
+      stage.className = "timeline-stage";
+      text(stage, STAGE_LABELS[entry.stage] ?? entry.stage);
+      const title = document.createElement("strong");
+      text(title, entry.title);
+      const establishes = document.createElement("small");
+      text(establishes, `이 기록이 입증하는 것: ${entry.establishes}`);
+      const locator = document.createElement("small");
+      locator.className = "timeline-locator";
+      text(locator, entry.locator || "원문 위치 미제공");
+      item.append(date, stage, title, establishes, locator);
+      if (entry.url) {
+        const link = document.createElement("a");
+        link.href = entry.url;
+        link.target = "_blank";
+        link.rel = "noreferrer noopener";
+        text(link, "원문 열기");
+        item.append(link);
+      }
+      return item;
+    })
+  );
+}
+
+function renderPackLimitations(pack, timeline) {
+  const merged = [...new Set([...(pack.limitations ?? []), ...(timeline?.limitations ?? [])])];
+  document.querySelector("#pack-limitations").replaceChildren(
+    ...merged.map((item) => {
+      const node = document.createElement("li");
+      text(node, item);
+      return node;
+    })
+  );
+}
+
+async function buildPack(event) {
+  event.preventDefault();
+  const input = {
+    region: document.querySelector("#pack-region").value.trim(),
+    issue: document.querySelector("#pack-issue").value.trim(),
+    startYear: Number(document.querySelector("#pack-start").value),
+    endYear: Number(document.querySelector("#pack-end").value)
+  };
+  if (!input.region || !input.issue) return;
+  const submit = document.querySelector("#pack-submit");
+  submit.setAttribute("aria-busy", "true");
+  document.body.classList.add("loading");
+  packError.hidden = true;
+  document.querySelector("#doc-output").hidden = true;
+  try {
+    // The timeline is fetched alongside rather than folded into the pack: they
+    // answer different questions, and a caller who only wants one should not
+    // pay for both.
+    const [packResponse, timelineResponse] = await Promise.all([
+      callTool("build_regional_evidence_pack", input),
+      callTool("trace_policy_response", {
+        region: input.region,
+        issue: input.issue,
+        limitPerStage: 5
+      }).catch(() => null)
+    ]);
+    const pack = packResponse.result;
+    currentPackInput = input;
+    renderGraph(pack);
+    renderGaps(pack);
+    renderActions(pack);
+    renderTimeline(timelineResponse?.result);
+    renderPackLimitations(pack, timelineResponse?.result);
+    packResult.hidden = false;
+  } catch (error) {
+    packResult.hidden = true;
+    packError.hidden = false;
+    text(packError, error instanceof Error ? error.message : String(error));
+  } finally {
+    submit.removeAttribute("aria-busy");
+    document.body.classList.remove("loading");
+  }
+}
+
+async function draftDocument(documentType) {
+  if (!currentPackInput) return;
+  const output = document.querySelector("#doc-output");
+  const body = document.querySelector("#doc-text");
+  document.body.classList.add("loading");
+  try {
+    const response = await callTool("draft_evidence_backed_action", {
+      ...currentPackInput,
+      documentType
+    });
+    const draft = `${response.result.draft}
+`;
+    text(body, draft);
+    const link = document.querySelector("#doc-download");
+    // Revoking the previous URL keeps repeated drafting from leaking blobs for
+    // the lifetime of the page.
+    if (link.dataset.objectUrl) URL.revokeObjectURL(link.dataset.objectUrl);
+    const objectUrl = URL.createObjectURL(
+      new Blob([draft], { type: "text/plain;charset=utf-8" })
+    );
+    link.dataset.objectUrl = objectUrl;
+    link.href = objectUrl;
+    link.download = `${currentPackInput.region}_${currentPackInput.issue}_${
+      documentType === "information_request" ? "정보공개청구서" : "주민참여예산제안서"
+    }.txt`;
+    output.hidden = false;
+  } catch (error) {
+    // A refusal here is the feature, not a failure: the tool declines to draft
+    // a document the evidence cannot carry, and the reason is what the user
+    // needs to read.
+    text(body, error instanceof Error ? error.message : String(error));
+    const link = document.querySelector("#doc-download");
+    link.removeAttribute("href");
+    output.hidden = false;
+  } finally {
+    document.body.classList.remove("loading");
+  }
+}
+
+async function loadRegionOptions() {
+  try {
+    const response = await callTool("describe_dataset", {
+      datasetId: "population_observation",
+      includeCoverage: true
+    });
+    const regions = response.result.coverage?.regions ?? [];
+    document.querySelector("#region-options").replaceChildren(
+      ...regions.map((region) => {
+        const option = document.createElement("option");
+        option.value = typeof region === "string" ? region : region.region;
+        return option;
+      })
+    );
+  } catch {
+    // A missing region list only costs autocomplete; the field stays typable.
+  }
+}
+
+packForm.addEventListener("submit", buildPack);
+for (const button of document.querySelectorAll(".doc-buttons button")) {
+  button.addEventListener("click", () => draftDocument(button.dataset.doc));
+}
+
 askForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const question = askInput.value.trim();
@@ -339,3 +664,5 @@ askForm.addEventListener("submit", (event) => {
 boot().catch((error) => {
   text(questionList, `질문을 불러오지 못했습니다: ${error.message}`);
 });
+
+loadRegionOptions();

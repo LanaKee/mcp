@@ -420,3 +420,120 @@ export async function buildRegionalEvidencePack(
     dataStatuses: [...dataStatuses]
   };
 }
+
+/**
+ * Turns a pack into a civic document without letting anything unverified in.
+ *
+ * The alternative was to let the web client assemble the draft from a pack it
+ * had already fetched. That would work, but it would also mean the strongest
+ * guarantee this project makes — that a submitted document contains only what
+ * the data supports — would be enforced by client-side code a caller can edit.
+ * Building the draft next to the pack keeps the guarantee where the evidence is.
+ *
+ * An information request is drafted from the pack's gaps, because a disclosure
+ * request is precisely a list of records that do not exist in public form. A
+ * budget proposal is drafted from the observed statistics, and refuses when
+ * there are none: a proposal whose premise is a press release is the unevidenced
+ * demand this tool exists to prevent.
+ */
+export function draftFromEvidencePack(
+  pack: RegionalEvidencePack,
+  documentType: "information_request" | "participatory_budget"
+): {
+  title: string;
+  verifiedAnalysis: {
+    conclusion: string;
+    evidence: Array<{ statement: string; sourceIds: string[] }>;
+    sources: SourceRef[];
+    limitations: string[];
+    verified: true;
+  };
+} {
+  const official = pack.sources.filter(
+    (source) => source.isOfficial && source.dataStatus !== "demo_sample"
+  );
+  const officialIds = new Set(official.map((source) => source.sourceId));
+  const cite = (sourceIds: string[]) =>
+    sourceIds.filter((sourceId) => officialIds.has(sourceId));
+
+  if (official.length === 0) {
+    throw new Error(
+      "공식 출처가 없어 제출용 문서를 작성할 수 없습니다. 데모 표본이나 비공식 자료만으로는 행정에 제출할 근거가 되지 않습니다."
+    );
+  }
+
+  if (documentType === "information_request") {
+    if (pack.gaps.length === 0) {
+      throw new Error(
+        "청구할 근거 공백이 없습니다. 적재된 자료로 답할 수 없는 질문이 확인되어야 정보공개청구서를 작성할 수 있습니다."
+      );
+    }
+    const evidence = [
+      ...pack.observed.map((node) => ({
+        statement: `${node.title}: ${node.summary}`,
+        sourceIds: cite(node.sourceIds)
+      })),
+      ...pack.gaps.map((gap) => ({
+        statement: `공개 요청 자료: ${gap.wouldBeClosedBy} (사유: ${gap.reason})`,
+        // A gap has no source of its own — it is the absence of one. It is
+        // cited to the records that established the absence.
+        sourceIds: cite(pack.observed.flatMap((node) => node.sourceIds))
+      }))
+    ].filter((item) => item.sourceIds.length > 0);
+    if (evidence.length === 0) {
+      throw new Error(
+        "공식 출처로 뒷받침되는 항목이 없어 정보공개청구서를 작성할 수 없습니다."
+      );
+    }
+    return {
+      title: `${pack.region} ${pack.issue} 관련 자료 공개 청구`,
+      verifiedAnalysis: {
+        conclusion: `${pack.region}의 ${pack.issue}에 대해 공개된 자료로는 다음을 확인할 수 없어 원자료 공개를 청구합니다: ${pack.gaps
+          .map((gap) => gap.question)
+          .join(" / ")}`,
+        evidence,
+        sources: official,
+        limitations: pack.limitations.slice(0, 20),
+        verified: true
+      }
+    };
+  }
+
+  if (pack.observed.length === 0) {
+    throw new Error(
+      "관측 통계 근거가 없어 주민참여예산 제안서를 작성할 수 없습니다. 계획과 발표만으로 예산을 요구하는 것은 근거 없는 요구가 됩니다."
+    );
+  }
+  const evidence = pack.observed
+    .map((node) => ({
+      statement: `${node.title}: ${node.summary}`,
+      sourceIds: cite(node.sourceIds)
+    }))
+    .filter((item) => item.sourceIds.length > 0);
+  if (evidence.length === 0) {
+    throw new Error(
+      "공식 출처로 뒷받침되는 관측이 없어 주민참여예산 제안서를 작성할 수 없습니다."
+    );
+  }
+  return {
+    title: `${pack.region} ${pack.issue} 대응 주민참여예산 제안`,
+    verifiedAnalysis: {
+      conclusion: `${pack.region}의 ${pack.issue}와 관련해 공식 통계로 확인된 현황은 다음과 같습니다: ${pack.observed
+        .map((node) => node.summary)
+        .join(" / ")}`,
+      evidence,
+      sources: official,
+      limitations: [
+        ...(pack.gaps.length > 0
+          ? [
+              `제출 시점에 확인되지 않은 사항: ${pack.gaps
+                .map((gap) => gap.question)
+                .join(" / ")}. 집행 내역을 정보공개청구로 확인한 뒤 제안 근거를 보완해야 합니다.`
+            ]
+          : []),
+        ...pack.limitations
+      ].slice(0, 20),
+      verified: true
+    }
+  };
+}

@@ -4,6 +4,7 @@ import { InMemoryDataRepository } from "./repository.js";
 import { createToolRegistry, executeTool, type ToolRegistry } from "./tools.js";
 import {
   buildRegionalEvidencePack,
+  draftFromEvidencePack,
   type RegionalEvidencePack
 } from "./evidence-pack.js";
 
@@ -109,5 +110,94 @@ describe("regional evidence pack", () => {
         limitation.includes("세상에 없다는 뜻이 아닙니다")
       )
     ).toBe(true);
+  });
+});
+
+describe("drafting a civic document from a pack", () => {
+  const officialSource = {
+    sourceId: "s-1",
+    title: "인구 통계",
+    provider: "경상북도",
+    sourceUrl: null,
+    collectedAt: "2025-01-01",
+    dataStatus: "official_observed" as const,
+    isOfficial: true,
+    locator: "row 1"
+  };
+
+  const pack = (overrides: Partial<RegionalEvidencePack> = {}) =>
+    ({
+      region: "포항시",
+      issue: "인구 감소",
+      period: { startYear: 2018, endYear: 2024 },
+      observed: [
+        {
+          datasetId: "population_observation",
+          title: "시군별 인구 관측",
+          tool: "get_population_trend",
+          role: "observed_fact",
+          dataStatus: "official_observed",
+          summary: "인구 관측 7개 연도",
+          itemCount: 7,
+          sourceIds: ["s-1"],
+          contract: { role: "observed_fact", canClaim: ["a"], cannotClaim: ["b"] },
+          detail: {}
+        }
+      ],
+      context: [],
+      links: [],
+      gaps: [
+        {
+          question: "집행되었는가?",
+          reason: "집행 실적 데이터가 없습니다.",
+          wouldBeClosedBy: "사업별 예산 집행 내역",
+          holder: "포항시"
+        }
+      ],
+      recommendedActions: [],
+      sources: [officialSource],
+      limitations: ["한계 1"],
+      dataStatuses: ["official_observed"],
+      ...overrides
+    }) as unknown as RegionalEvidencePack;
+
+  it("builds a disclosure request out of the gaps, not the findings", () => {
+    const prepared = draftFromEvidencePack(pack(), "information_request");
+    expect(prepared.verifiedAnalysis.conclusion).toContain("집행되었는가?");
+    expect(
+      prepared.verifiedAnalysis.evidence.some((item) =>
+        item.statement.includes("사업별 예산 집행 내역")
+      )
+    ).toBe(true);
+  });
+
+  it("refuses a budget proposal that rests on announcements alone", () => {
+    expect(() =>
+      draftFromEvidencePack(pack({ observed: [] }), "participatory_budget")
+    ).toThrow(/근거 없는 요구/);
+  });
+
+  it("warns a budget proposal about what is still unverified", () => {
+    const prepared = draftFromEvidencePack(pack(), "participatory_budget");
+    expect(prepared.verifiedAnalysis.limitations[0]).toContain(
+      "정보공개청구로 확인한 뒤"
+    );
+  });
+
+  it("refuses to draft anything from demo or unofficial sources", () => {
+    expect(() =>
+      draftFromEvidencePack(
+        pack({
+          sources: [{ ...officialSource, dataStatus: "demo_sample" }]
+        } as unknown as Partial<RegionalEvidencePack>),
+        "information_request"
+      )
+    ).toThrow(/공식 출처가 없어/);
+  });
+
+  it("refuses a disclosure request when nothing is missing", () => {
+    expect(() =>
+      draftFromEvidencePack(pack({ gaps: [] }), "information_request")
+    ).toThrow(/청구할 근거 공백이 없습니다/);
   });
 });
