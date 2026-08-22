@@ -25,7 +25,7 @@ function decision(
 }
 
 describe("ingestion reliability verdict", () => {
-  it("counts all eight scenarios only when every safety property holds", () => {
+  it("counts all ten scenarios only when every safety property holds", () => {
     const verdict = evaluateStressDecisions({
       first: [
         decision("01-경상북도_포항시_연도별인구_20241231.csv", "accepted"),
@@ -33,7 +33,9 @@ describe("ingestion reliability verdict", () => {
         decision("03-fake-html.csv", "quarantined", "html_error_page"),
         decision("04-empty.csv", "quarantined", "empty_file"),
         decision("05-경상북도_김천시_연도별인구_20241231.csv", "accepted"),
-        decision("06-경상북도_없는시_연도별인구_20241231.csv", "accepted")
+        decision("06-경상북도_없는시_연도별인구_20241231.csv", "accepted"),
+        decision("07-header-only.csv", "quarantined", "no_data_rows"),
+        decision("08-malformed.json", "quarantined", "unparsable_content")
       ],
       revision: [
         decision("01-경상북도_포항시_연도별인구_20241231.csv", "revision")
@@ -46,14 +48,14 @@ describe("ingestion reliability verdict", () => {
       factCountAfterReprocess: 3,
       originalStillExists: true,
       revisionExists: true,
-      expectedArtifacts: 8,
-      observedArtifacts: 8,
+      expectedArtifacts: 10,
+      observedArtifacts: 10,
       pipelineFailed: false
     });
 
     expect(verdict).toMatchObject({
-      scenarios: 8,
-      handledCorrectly: 8,
+      scenarios: 10,
+      handledCorrectly: 10,
       duplicateFactsAfterReprocess: 0,
       silentOverwrites: 0,
       dataLoss: 0,

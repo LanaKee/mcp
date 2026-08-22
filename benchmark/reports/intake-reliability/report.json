@@ -1,6 +1,6 @@
 {
-  "measuredAt": "2026-08-22T23:46:01.355Z",
-  "elapsedMs": 6553,
+  "measuredAt": "2026-08-22T23:55:01.246Z",
+  "elapsedMs": 6816,
   "isolation": {
     "emptyDatabases": 3,
     "productionDatabaseModified": false,
@@ -9,12 +9,12 @@
   },
   "stress": {
     "verdict": {
-      "scenarios": 8,
-      "handledCorrectly": 8,
+      "scenarios": 10,
+      "handledCorrectly": 10,
       "acceptedCorrectly": "2/2",
       "duplicateDetected": "1/1",
       "revisionPreserved": "1/1",
-      "invalidQuarantined": "2/2",
+      "invalidQuarantined": "4/4",
       "unknownRegionFactRows": 0,
       "duplicateFactsAfterReprocess": 0,
       "silentOverwrites": 0,
@@ -26,7 +26,7 @@
         "accepted": 3,
         "revision": 0,
         "duplicate": 1,
-        "quarantined": 2
+        "quarantined": 4
       },
       "decisions": [
         {
@@ -70,6 +70,20 @@
           "encoding": "utf8",
           "contentKind": "population_annual",
           "rejectionCode": null
+        },
+        {
+          "fileName": "07-header-only.csv",
+          "action": "quarantined",
+          "encoding": null,
+          "contentKind": "unknown",
+          "rejectionCode": "no_data_rows"
+        },
+        {
+          "fileName": "08-malformed.json",
+          "action": "quarantined",
+          "encoding": null,
+          "contentKind": "unknown",
+          "rejectionCode": "unparsable_content"
         }
       ]
     },
@@ -80,7 +94,7 @@
         "duplicate": 0,
         "quarantined": 0
       },
-      "storedPath": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/stress/datasets/population/01-경상북도_포항시_연도별인구_20241231__r2.csv",
+      "storedPath": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-X539bD/stress/datasets/population/01-경상북도_포항시_연도별인구_20241231__r2.csv",
       "originalPreserved": true,
       "revisionPreserved": true
     },
@@ -96,14 +110,14 @@
         "dataSources": 4,
         "facts": 3,
         "locators": 3,
-        "rawLedgerRows": 7
+        "rawLedgerRows": 9
       },
       "after": {
         "storedFiles": 4,
         "dataSources": 4,
         "facts": 3,
         "locators": 3,
-        "rawLedgerRows": 8
+        "rawLedgerRows": 10
       }
     }
   },
@@ -168,22 +182,22 @@
     "fact": {
       "id": "8",
       "sourceRow": 9,
-      "normalizationRunId": "e201fe8e-e80b-4949-a122-d1bad990696e",
+      "normalizationRunId": "e3ce788a-e672-4f49-b5e6-c053778e2152",
       "normalizationPipeline": "gyeongbuk-normalized-loader"
     },
     "source": {
-      "id": "d06325ea-b9db-4af5-aff5-3b790aa2fcd4",
-      "filePath": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv",
+      "id": "7be5bee5-9016-4a8e-8b24-43e7494a05a7",
+      "filePath": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-X539bD/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv",
       "sha256": "4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca",
       "sourceUrl": null
     },
     "locator": {
-      "id": "704eb728-4384-4da3-a7da-3a2242a76b83",
-      "text": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv#row=9"
+      "id": "df6c9bb4-bd04-40eb-9409-af94589272e0",
+      "text": "../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-X539bD/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv#row=9"
     },
     "rawIntake": {
       "id": "1",
-      "runId": "c5a49cec-f9f2-4b44-b78a-9962b1360646",
+      "runId": "4674c1dc-097d-4655-a3fc-ad7d1495872a",
       "pipeline": "dataset-intake",
       "action": "accepted"
     },

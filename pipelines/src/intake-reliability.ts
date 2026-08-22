@@ -30,6 +30,8 @@ const HTML_NAME = "03-fake-html.csv";
 const EMPTY_NAME = "04-empty.csv";
 const CP949_NAME = "05-경상북도_김천시_연도별인구_20241231.csv";
 const UNKNOWN_NAME = "06-경상북도_없는시_연도별인구_20241231.csv";
+const HEADER_ONLY_NAME = "07-header-only.csv";
+const MALFORMED_JSON_NAME = "08-malformed.json";
 const KIMCHEON_TAX_SOURCE =
   "datasets/new/경상북도 김천시_지방세징수현황_20260529.csv";
 
@@ -224,7 +226,10 @@ export function evaluateStressDecisions(input: {
     input.revisionExists;
   const invalid =
     decisionByName(input.first, HTML_NAME)?.rejectionCode === "html_error_page" &&
-    decisionByName(input.first, EMPTY_NAME)?.rejectionCode === "empty_file";
+    decisionByName(input.first, EMPTY_NAME)?.rejectionCode === "empty_file" &&
+    decisionByName(input.first, HEADER_ONLY_NAME)?.rejectionCode === "no_data_rows" &&
+    decisionByName(input.first, MALFORMED_JSON_NAME)?.rejectionCode ===
+      "unparsable_content";
   const unknownSafe = input.unknownRegionFactRows === 0;
   const reprocessed =
     decisionByName(input.reprocess, NORMAL_NAME)?.action === "duplicate" &&
@@ -232,18 +237,18 @@ export function evaluateStressDecisions(input: {
   const checks = [accepted, duplicate, revision, invalid, unknownSafe, reprocessed];
 
   return {
-    scenarios: 8,
+    scenarios: 10,
     handledCorrectly:
       (accepted ? 2 : 0) +
       (duplicate ? 1 : 0) +
       (revision ? 1 : 0) +
-      (invalid ? 2 : 0) +
+      (invalid ? 4 : 0) +
       (unknownSafe ? 1 : 0) +
       (reprocessed ? 1 : 0),
     acceptedCorrectly: accepted ? "2/2" : "failed",
     duplicateDetected: duplicate ? "1/1" : "failed",
     revisionPreserved: revision ? "1/1" : "failed",
-    invalidQuarantined: invalid ? "2/2" : "failed",
+    invalidQuarantined: invalid ? "4/4" : "failed",
     unknownRegionFactRows: input.unknownRegionFactRows,
     duplicateFactsAfterReprocess:
       input.factCountAfterReprocess - input.factCountBeforeReprocess,
@@ -280,7 +285,12 @@ async function stressTest(
       resolve(paths.inbox, CP949_NAME),
       iconv.encode(GIMCHEON_POPULATION, "cp949")
     ),
-    writeFile(resolve(paths.inbox, UNKNOWN_NAME), UNKNOWN_POPULATION)
+    writeFile(resolve(paths.inbox, UNKNOWN_NAME), UNKNOWN_POPULATION),
+    writeFile(
+      resolve(paths.inbox, HEADER_ONLY_NAME),
+      "년월,한국인남,한국인여,외국인남,외국인여"
+    ),
+    writeFile(resolve(paths.inbox, MALFORMED_JSON_NAME), "{ invalid json")
   ]);
 
   let pipelineFailed = false;
@@ -321,7 +331,7 @@ async function stressTest(
     factCountAfterReprocess: afterReprocess.facts,
     originalStillExists: await exists(original),
     revisionExists: await exists(revisionPath),
-    expectedArtifacts: 8,
+    expectedArtifacts: 10,
     observedArtifacts,
     pipelineFailed
   });
@@ -570,7 +580,7 @@ function markdown(report: {
     `| 정상/CP949 ingest | ${stress.acceptedCorrectly} |`,
     `| 내용 기반 duplicate 탐지 | ${stress.duplicateDetected} |`,
     `| revision 보존 | ${stress.revisionPreserved} |`,
-    `| HTML/빈 파일 quarantine | ${stress.invalidQuarantined} |`,
+    `| HTML/빈 파일/무행 CSV/손상 JSON quarantine | ${stress.invalidQuarantined} |`,
     `| 미등록 지역 fact 전환 | ${stress.unknownRegionFactRows}건 |`,
     `| 동일 입력 재처리 후 duplicate fact | ${stress.duplicateFactsAfterReprocess}건 |`,
     `| silent overwrite | ${stress.silentOverwrites}건 |`,

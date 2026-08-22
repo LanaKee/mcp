@@ -1,19 +1,19 @@
 # Ingestion Reliability Stress Test
 
-- 측정 시각: 2026-08-22T23:46:01.355Z
-- 전체 측정 시간: 6.55초
+- 측정 시각: 2026-08-22T23:55:01.246Z
+- 전체 측정 시간: 6.82초
 - 환경: 매 실험마다 빈 임시 PostgreSQL과 격리된 raw store 사용 후 삭제
 
 ## Stress Test
 
 | 항목 | 결과 |
 | --- | ---: |
-| 시나리오 | 8 |
-| 올바르게 처리 | 8/8 |
+| 시나리오 | 10 |
+| 올바르게 처리 | 10/10 |
 | 정상/CP949 ingest | 2/2 |
 | 내용 기반 duplicate 탐지 | 1/1 |
 | revision 보존 | 1/1 |
-| HTML/빈 파일 quarantine | 2/2 |
+| HTML/빈 파일/무행 CSV/손상 JSON quarantine | 4/4 |
 | 미등록 지역 fact 전환 | 0건 |
 | 동일 입력 재처리 후 duplicate fact | 0건 |
 | silent overwrite | 0건 |
@@ -42,10 +42,10 @@
 
 - 관측값: 107,720,311,000원
 - fact: `8`
-- source: `d06325ea-b9db-4af5-aff5-3b790aa2fcd4`
-- locator: `704eb728-4384-4da3-a7da-3a2242a76b83` → `../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv#row=9`
+- source: `7be5bee5-9016-4a8e-8b24-43e7494a05a7`
+- locator: `df6c9bb4-bd04-40eb-9409-af94589272e0` → `../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-X539bD/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv#row=9`
 - raw intake: `1`
-- intake run: `c5a49cec-f9f2-4b44-b78a-9962b1360646`
-- raw file: `../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-oXMD1v/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv`
+- intake run: `4674c1dc-097d-4655-a3fc-ad7d1495872a`
+- raw file: `../../../../var/folders/py/qr_fv2t93sd177bjx7l_jx6r0000gp/T/gb-intake-reliability-X539bD/lineage/datasets/local-tax/경상북도 김천시_지방세징수현황_20260529.csv`
 - SHA-256: `4e133ad8e70adc2afbe760f1ffe86add8ffdb17dd99daa8c385a5c18da80b8ca`
 - 전체 chain 완성: **Yes**

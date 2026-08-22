@@ -18,7 +18,7 @@ deterministic data infrastructure**다.
 - raw store, inbox, workspace, generated artifact도 모두 임시 경로로 격리
 - 측정 뒤 database와 파일 삭제
 - 운영 DB와 기본 `datasets/` 수정 없음
-- 전체 실험 시간 6.55초
+- 전체 실험 시간 6.82초
 
 ## Ingestion Reliability Stress Test
 
@@ -32,25 +32,27 @@ deterministic data infrastructure**다.
 | CP949 CSV | ingest + 인코딩 감지 | 성공 |
 | 미등록 지역명 | raw 보존, fact 전환 방지 | fact 0건 |
 | 동일 파일 재처리 | DB fact 중복 방지 | 증가 0건 |
+| 헤더만 있는 CSV | quarantine | 성공 |
+| 파싱 불가능한 JSON | quarantine | 성공 |
 
 발표 숫자:
 
 | 지표 | 결과 |
 | --- | ---: |
-| 올바르게 처리 | **8/8** |
+| 올바르게 처리 | **10/10** |
 | 유효 입력 처리 | **2/2** |
 | duplicate 탐지 | **1/1** |
 | revision 보존 | **1/1** |
-| invalid quarantine | **2/2** |
+| invalid quarantine | **4/4** |
 | unsafe normalization | **0건** |
 | duplicate facts | **0건** |
 | silent overwrite | **0건** |
 | data loss | **0건** |
 | whole-pipeline failure | **No** |
 
-첫 혼합 배치에서는 accepted 3, duplicate 1, quarantined 2였다. accepted 3건 중 정상
+첫 혼합 배치에서는 accepted 3, duplicate 1, quarantined 4였다. accepted 3건 중 정상
 UTF-8과 CP949는 fact로 전환됐고, 미등록 지역은 원본/catalog만 보존되어 valid 2/2와
-unsafe normalization 0을 동시에 만족했다. 깨진 파일 2건이 섞여도 유효 입력 처리는
+unsafe normalization 0을 동시에 만족했다. 깨진 파일 4건이 섞여도 유효 입력 처리는
 중단되지 않았다.
 
 ## 5회 재실행 멱등성
@@ -110,7 +112,7 @@ TRUSTED DATA → MCP
 우측 숫자:
 
 ```text
-8 scenarios                 8/8 correctly handled
+10 scenarios                10/10 correctly handled
 Invalid accepted            0
 Duplicate facts             0
 Silent overwrite            0
@@ -123,7 +125,7 @@ Silent overwrite            0
 | --- | --- | --- |
 | LLM 자체로 충분한가? | Vanilla vs Data Layer, 22문항 | 정확도 36.4→81.8%, 환각 63.6→11.8% |
 | 그냥 문서 RAG면 충분한가? | Raw Retrieval vs Structured Layer, v1 10문항 | 정확도 60→80%, 답변 범위 40→80%, 출처 0→50~59.1% |
-| 데이터가 바뀌어도 관리 가능한가? | Ingestion Reliability, 8시나리오 + 5회 반복 | 8/8, duplicate fact 0, lineage complete |
+| 데이터가 바뀌어도 관리 가능한가? | Ingestion Reliability, 10시나리오 + 5회 반복 | 10/10, duplicate fact 0, lineage complete |
 
 하단 메시지:
 
