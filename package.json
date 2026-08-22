@@ -29,7 +29,8 @@
     "lifecycle:maintain": "pnpm --filter @gb/pipelines lifecycle:maintain",
     "dev": "pnpm --filter @gb/mcp-server dev:http",
     "start": "pnpm --filter @gb/mcp-server start:http",
-    "gb:press:crawl": "pnpm --filter @gb/pipelines gb:press:crawl"
+    "gb:press:crawl": "pnpm --filter @gb/pipelines gb:press:crawl",
+    "gb:council:crawl": "pnpm --filter @gb/pipelines gb:council:crawl"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
