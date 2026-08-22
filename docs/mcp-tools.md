@@ -57,7 +57,8 @@
 
 - 입력: `sourceIds` 배열
 - 출력: 찾은 출처와 누락 ID, source version alias, 최대 source당 50개 locator.
-  PostgreSQL PDF source는 page/chunk locator와 최대 1,000자 excerpt를 반환한다.
+  PostgreSQL PDF source는 현재 extractor/chunker의 page/chunk locator와 최대 1,000자
+  excerpt를 반환하며 `is_current = false`인 과거 locator는 제외한다.
 
 ## `draft_public_document`
 

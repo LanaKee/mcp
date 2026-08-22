@@ -2,110 +2,95 @@
 
 ## 검토 증거
 
-- 실제 401개 PDF, 11,712페이지를 전부 처리했다.
-- 17,487 chunk, 빈 chunk 0개, 평균 834자, 최대 1,200자였다.
-- content hash 중복은 82행으로, 출석자/서식 반복 등 원문 중복이 주원인이다.
-- PostgreSQL 크기는 검토 시점에 chunk 약 98MB, embedding 약 36MB였다.
-- 동일 1개 PDF 재실행에서 118개 embedding을 전부 skip했다.
-- 초기 hybrid SQL은 전체 array scan으로 약 15초가 걸렸다. indexed candidate CTE와
-  bounded cosine rerank로 같은 corpus에서 약 0.16~0.20초로 수정했다.
-- PostgreSQL MCP smoke에서 `/ready` 13.6ms, 공식 인구 42.4ms, demo 지방세 28.1ms,
-  공식 PDF chunk 검색 171.2ms, page context 45.7ms였다.
-- 감사 검증 19건 이상은 모두 성공했고 raw 검색어가 `request_metadata`에 남은 건수는 0이었다.
-- token-authenticated PostgreSQL 최종 smoke에서 public health 15.2ms, minimal readiness
-  73.0ms, 공식 인구 37.2ms, PDF hybrid 165.4ms였다. 무인증 API는 401이었다.
-- population/PDF audit 2건에 strict correlation ID가 저장됐고 raw 검색어 저장은 0건이었다.
+- 실제 401개 PDF, 11,712페이지를 전부 재추출·평가·PostgreSQL 적재했다.
+- extraction failure/OCR-required는 0페이지였고 substantive 11,607, near-empty 105였다.
+- local 4개 PDF의 5개 golden page가 source/page/raw hash와 짧은 구조 marker를 모두 통과했다.
+- table-likely 12페이지, speaker-rich 7,975페이지, suspicious-spacing 214페이지,
+  control-glyph 98페이지였다.
+- 고신뢰 반복 header 543줄을 제거했다. 실제 반복 footer 표본은 0개였다.
+- current page 11,712개는 locator 11,712개와 일치했고 current 문서·page 중복 및
+  embedding 누락은 0이었다.
+- 최종 current chunk/embedding은 23,795개다. 평균 576자, 중앙값 497자, p95 1,180자,
+  40자 미만 2,157개였다.
+- 동일 입력 재실행은 insert 0, embedding 생성 0, unchanged embedding 23,795개 skip이었다.
+- PostgreSQL hybrid 검색은 `지방소멸` 209.1ms, `청년 정착` 261.0ms,
+  `행정사무감사` 290.4ms였고 모두 page/title provenance를 반환했다.
+- gated PostgreSQL integration 3건이 page 품질/source locator까지 통과했다.
 
-## 영역별 평가
+## 이번 P1에서 수정한 고신뢰 문제
 
-### 정확성·provenance
+### 반복 margin false positive
 
-강점:
+단순 빈도 기반 제거는 반복 본문을 지울 위험이 있었다. 상·하단 3줄, 3페이지 이상,
+문서 page의 50% 이상, page/header-like 패턴이라는 조건을 모두 만족할 때만 제거한다.
+`다음 N쪽입니다.`와 문장형 반복 본문 보존을 unit test로 고정했다. 제거 원문은 저장하지
+않고 raw page hash와 제거 line hash를 남긴다.
 
-- source SHA/path, document/chunk content hash, page locator가 연결된다.
-- deterministic ID와 upsert로 같은 입력이 중복되지 않는다.
-- 현재 추출에서 사라진 chunk는 삭제하지 않고 `is_current=false`로 검색에서 제외한다.
-- 텍스트 없음/암호/오류를 성공처럼 취급하지 않는다.
+### 발언자 경계와 chunk 폭증
 
-남은 위험:
+발언자마다 하나의 chunk를 만든 중간 설계는 126,469 chunk, 중앙값 47자,
+40자 미만 55,488개로 저장·검색 품질을 악화시켰다. 발언 turn 자체는 원자적으로 유지하되
+한 page 안의 완결된 turn을 1,200자 한도로 packing하고 절단은 turn 사이에서만 수행하도록
+수정했다. 최종 chunk는 23,795개, 중앙값 497자로 줄었다.
 
-- PDF glyph 순서, 표, 다단 편집은 PDF.js reading order와 다를 수 있다.
-- 날짜/기관은 파일명 추론이므로 원문 표지와 불일치할 수 있다.
-- 현재 corpus는 OCR 필요 문서가 0개여서 OCR 상태 분기는 unit test와 오류 분류 위주다.
+### layout/table 손실
 
-### 데이터 품질
+PDF text item의 큰 X 간격을 tab으로 보존하고 tab/숫자 cell/leader 기반 table-like 연속
+행을 줄바꿈 상태로 묶는다. 이는 구조 보존 개선이지 셀 병합·열 의미 복원은 아니다.
 
-- 문단 경계는 구두점/길이 heuristic이라 발언자 전환을 완벽하게 이해하지 못한다.
-- overlap과 원문 반복 서식 때문에 일부 유사 chunk가 존재한다.
-- 짧은 출석자 목록도 사실 provenance가 있어 보존하지만 검색 가중치 조정이 필요할 수 있다.
+### version 충돌과 메모리
+
+앞 page chunk 수가 바뀔 때 `UNIQUE(document_id, chunk_index)`가 뒤 page의 versioned ID와
+충돌할 수 있어 migration 006에서 제거했다. embedding은 생성 batch마다 transaction 안에서
+upsert해 23,795개 vector 전체를 Node heap에 쌓지 않는다. source context는 stale page/chunk
+locator를 제외한다.
+
+## 영역별 남은 위험
+
+### 정확성·데이터 품질
+
+- golden은 4개 문서 5페이지의 구조 회귀이며 전체 문장 정확도나 법적 완전성을 입증하지 않는다.
+- 실제 반복 footer가 없어 footer 제거는 합성 test만 있다.
+- PDF glyph 순서, 다단 편집, 병합 셀은 PDF.js reading order와 다를 수 있다.
+- near-empty 105페이지는 자동 오류가 아니다. 표지/서식일 수 있어 검토 queue가 필요하다.
+- 날짜/기관은 일부 파일명 추론이므로 표지와 불일치할 수 있다.
 
 ### 개인정보·비용
 
-- 기본 provider는 로컬 결정적 계산이며 네트워크/유료 API를 사용하지 않는다.
-- OpenAI는 provider 선택과 `--allow-external`, API key가 모두 있어야 전송한다.
-- 회의록에는 개인 이름/발언이 있으므로 외부 provider 사용 전 법적 근거, 보존 정책,
-  공급자 계약 검토가 필요하다.
+- 기본 `hashed-korean-token`은 로컬 결정적 계산이며 네트워크/유료 API를 쓰지 않는다.
+- OpenAI는 provider, `--allow-external`, API key가 모두 있어야 전송한다.
+- 회의록 이름/발언을 외부 provider로 보내기 전 법적 근거, 보존, 공급자 계약 검토가 필요하다.
 
 ### 검색 품질
 
-- `hashed-korean-token`은 단어/2·3글자 feature hashing으로 **semantic embedding이 아니다**.
-- FTS/trigram 후보를 보완하는 lexical reranker에는 유용하지만 동의어·추론 recall을
-  보장하지 않는다.
-- array cosine은 ANN이 아니며 lexical candidate 밖의 semantic-only 문서는 찾지 못한다.
+- 기본 vector는 **semantic embedding이 아닌 lexical feature hash**다.
+- 동의어·추론 recall을 보장하지 않으며 semantic-only 후보를 찾지 못한다.
+- table heuristic은 12페이지만 표시해 실제 표 recall을 알 수 없다.
+- structured council 점수와 PDF hybrid 점수 분포의 calibration 평가는 아직 없다.
 
 ### 확장성·운영
 
-- 현재 17k chunk에서는 약 0.2초 검색이지만 수백만 chunk에는 적합하지 않다.
-- 전체 extraction은 재실행하지만 unchanged embedding 생성은 생략한다.
-- 500행 upsert와 transaction은 현 corpus에서 성공했지만 더 큰 corpus는 파일별 checkpoint와
-  streaming load가 필요하다.
-- 실패 report는 200건까지 저장하므로 대규모 장애는 별도 artifact/로그가 필요하다.
+- current chunk는 적정 크기로 줄었지만 version 변경 시 stale 행은 의도적으로 남는다.
+  현재 DB에는 이전 released chunk 17,487개가 stale로 보존된다.
+- 중간 대량 version 삭제 후 `VACUUM (ANALYZE)`는 PostgreSQL shared-memory
+  `53100/no space left on device`로 실패했고 `ANALYZE`만 성공했다. 운영 DB는 여유 shared
+  memory와 승인된 vacuum window가 필요하다.
+- 실패 report는 200건까지만 ingestion row에 저장한다.
+- page별 checkpoint 없이 전체 extraction을 다시 수행한다.
 
-### MCP 실행 repository 검토
+### MCP/HTTP
 
-해결된 P0:
+- PostgreSQL mode는 DB 실패 시 메모리로 조용히 fallback하지 않고 readiness를 분리한다.
+- token auth, bounded rate limit/body/JSON, correlation audit, query/operation timeout은 적용됐다.
+- token은 shared secret 하나이고 rate limit은 process-local이다.
+- audit 만료 시각은 있지만 purge scheduler는 없다.
 
-- HTTP/stdio가 같은 feature-flagged repository와 tool registry를 사용한다.
-- `DATA_REPOSITORY=postgres`는 연결/필수 schema 실패 시 시작에 실패하며 메모리
-  fallback을 하지 않는다.
-- 공식/데모 상태 필터가 SQL까지 전달되고 공식 레코드가 동키에서 우선된다.
-- 의회 검색은 구조화 레코드와 PDF chunk를 함께 조회하며 source/page locator를 돌려준다.
-- `/health`와 `/ready`를 분리하고 종료 신호에서 PostgreSQL pool을 닫는다.
-- audit는 raw query/secret 대신 salted hash와 필드 shape를 저장한다.
+## 다음 우선순위
 
-남은 위험:
-
-- process salt를 환경에 고정하지 않으면 재시작 사이 request hash 상관분석은 불가능하다.
-- 감사 `expires_at`은 기록되지만 자동 삭제 scheduler는 포함하지 않는다.
-- 구조화 의회 제목 점수와 PDF hybrid 점수는 서로 다른 분포여서 장기적으로 학습/평가
-  기반 score calibration이 필요하다.
-- local tax/policy 공식 source가 아직 없어 해당 기본 결과에는 demo가 포함될 수 있다.
-
-### HTTP 접근 제어 검토
-
-해결된 P0:
-
-- `/api/**` bearer/API token auth, 강한 token startup validation, constant-time digest 비교
-- 공개 health와 내부 detail을 제거한 readiness 분리
-- 기본 loopback bind와 Docker의 명시적 token/`0.0.0.0`
-- socket IP별 bounded token bucket과 expensive route 별도 budget
-- proxy header 기본 불신, loopback/명시 IP proxy만 허용
-- body/content/depth/node, route/method/tool allowlist, CSP와 same-origin 정책
-- non-sensitive 오류, strict request ID, audit correlation
-- Node operation/request timeout과 PostgreSQL statement/query timeout
-
-남은 운영 위험:
-
-- token은 shared secret 하나이므로 사용자별 revoke/role/tenant 분리가 없다.
-- rate limiter는 process-local이라 multi-replica 전체 한도를 보장하지 않는다.
-- TLS, token rotation, WAF, 중앙 rate limit은 reverse proxy/배포 플랫폼이 담당해야 한다.
-- 공개 readiness는 per-IP 제한되지만 대규모 분산 공격 방어는 edge 계층이 필요하다.
-
-## 우선순위 개선
-
-1. **P1 추출 품질:** 표/발언자/머리말 제거 평가셋과 page-level golden extraction test 구축.
-2. **P1 OCR:** 승인된 로컬 OCR queue와 원문/추출본 품질 점수 추가.
-3. **P1 semantic:** 검증된 multilingual model을 로컬 배포하거나 승인된 외부 provider 사용.
-4. **P1 운영 확장:** tenant token/role, 중앙 rate limit, rotation/purge automation.
-5. **P2 규모:** provider+dimension별 pgvector partition과 HNSW/IVFFlat, streaming extraction.
-6. **P2 lifecycle:** source version별 retention과 stale locator 조회 정책 명문화.
+1. **P1 source lifecycle/retention:** extractor/chunker version별 승인, stale 보존기간,
+   안전한 purge와 VACUUM/용량 경보를 구현한다. 현재 실측 shared-memory 실패 때문에
+   OCR/semantic 확대 전에 운영 저장공간을 먼저 통제해야 한다.
+2. **P1 OCR:** 승인된 로컬 OCR queue와 OCR golden/품질 점수.
+3. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
+4. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
+5. **P2 규모:** provider/dimension별 pgvector partition과 ANN index.

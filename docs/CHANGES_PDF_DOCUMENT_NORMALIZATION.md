@@ -15,12 +15,14 @@
 - PostgreSQL hybrid query/repository는 parameter binding, FTS/trigram candidate, cosine
   rerank를 사용한다.
 
-## 실제 실행
+## 실제 실행(품질 개선 후)
 
 - 파일: 401
 - 페이지: 11,712
-- chunk: 17,487
+- 현재 chunk: 23,795
 - extraction/OCR failure: 0
-- 로컬 embedding: 17,487
+- 현재 로컬 embedding: 23,795
 
 기본 embedding은 의미 모델이 아니라 retrieval-only lexical hash다.
+page 품질, 반복 margin, 발언자/table chunk 변경은
+`CHANGES_PDF_EXTRACTION_QUALITY.md`를 참고한다.

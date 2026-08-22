@@ -18,6 +18,7 @@
 - NFD 파일명에 의존하지 않고 헤더/내용으로 판별하는 CP949·UTF-8 CSV 및 XLSX ETL
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
 - PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
+- page-level 품질 지표, 반복 머리말 제거, 발언자/표 경계 chunk와 golden 회귀 평가
 - PostgreSQL 정규화 스키마, 마이그레이션, Docker Compose
 - 한글 FTS/trigram과 저장 임베딩을 결합하는 PostgreSQL hybrid repository
 - feature flag 기반 PostgreSQL MCP repository, readiness, redacted 도구 감사 로그
@@ -196,6 +197,10 @@ pnpm pdf:normalize
 # 개발·테스트용 파일 제한
 pnpm pdf:normalize -- --limit 5
 
+# golden page와 corpus 품질 분포 평가; report는 data/generated/에 기록
+pnpm pdf:evaluate
+pnpm pdf:evaluate -- --limit 5
+
 # PDF 단계를 생략하거나 db:normalize 안에서 제한
 pnpm db:normalize -- --skip-pdf
 pnpm db:normalize -- --pdf-limit 5
@@ -207,9 +212,10 @@ ETL은 다음을 수행합니다.
 2. CSV를 UTF-8 우선, 실패 시 CP949로 해석
 3. 포항 연도별 인구의 `년월` 날짜를 그대로 보존하고 다양한 의회 의안 CSV를 판별
 4. 인구 XLSX 제목에서 `2026년 7월`을 찾아 `2026-07-31` 기준 경북/시군 값을 정규화
-5. PDF 원천은 `catalog_only` source로 보존하면서 페이지 본문을 별도 document/chunk로 추출
-6. 텍스트가 없는 문서/페이지는 `ocr_required`, 오류는 `extraction_failed`로 명시
-7. 파싱 오류를 `errors.json`과 종료 코드로 노출
+5. PDF 원천은 `catalog_only` source로 보존하면서 raw/cleaned page hash와 품질 지표를 기록
+6. 문서 전체에서 고신뢰 반복 머리말/꼬리말만 제거하고 발언자 전환과 표 행을 원자적으로 chunk
+7. 텍스트가 없는 문서/페이지는 `ocr_required`, 오류는 `extraction_failed`로 명시
+8. 파싱 오류를 `errors.json`과 종료 코드로 노출
 
 `data/generated/`는 재생성 가능하므로 Git에서 제외됩니다.
 
@@ -224,10 +230,11 @@ ETL은 다음을 수행합니다.
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
 - 실패 시 fact 트랜잭션 rollback 및 가능한 경우 `ingestion_run.status = failed` 기록
 - 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
-- PDF chunk는 source SHA/페이지/chunk 순번으로 결정적 ID를 만들고 이전 행은 삭제하지
+- PDF page/chunk는 source version·extractor/chunker version·페이지·순번으로 결정적 ID를 만들고 이전 행은 삭제하지
   않되 현재 추출에 없는 chunk를 `is_current = false`로 제외
+- embedding은 생성 batch마다 PostgreSQL에 적재해 전체 vector corpus를 메모리에 쌓지 않음
 
-현재 제공 원천과 샘플을 최초 적재한 기대 건수:
+현재 제공 원천과 샘플의 현재 행 기대 건수(`document_chunk`/embedding은 `is_current` join 기준):
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
@@ -237,14 +244,17 @@ ETL은 다음을 수행합니다.
 | `policy_program` | 0 | 3 | - |
 | `council_record` | 46,596 | 5 | - |
 | `document` | 401 | 0 | - |
-| `document_chunk` | 17,487 | 0 | - |
-| `document_chunk_embedding` | 17,487 | 0 | - |
+| `document_page` | 11,712 | 0 | - |
+| `document_chunk` | 23,795 | 0 | - |
+| `document_chunk_embedding` | 23,795 | 0 | - |
 
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
 SELECT data_status, count(*) FROM population_observation GROUP BY data_status;
 SELECT data_status, count(*) FROM council_record GROUP BY data_status;
 SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
+SELECT text_class, count(*) FROM document_page WHERE is_current GROUP BY text_class;
+SELECT is_current, count(*) FROM document_chunk GROUP BY is_current;
 ```
 
 ### PDF 임베딩과 검색
@@ -270,8 +280,14 @@ PostgreSQL FTS로 최대 200개 lexical 후보를 만든 뒤 cosine rerank한다
 `PostgresHybridSearchRepository`는 PostgreSQL MCP repository의 의회 검색에 연결되어
 구조화 의안과 PDF chunk를 함께 반환한다.
 
-전체 로컬 실행 결과는 PDF 401개, 11,712페이지, 17,487 chunk였고 추출/OCR 필요 문서는
-0개였다. 다른 원천에서는 실패 상태가 document와 page locator에 저장된다.
+전체 로컬 실행 결과는 PDF 401개, 11,712페이지, 현재 chunk/embedding 23,795개였고
+추출/OCR 필요 문서는 0개였다. 105페이지는 near-empty, 12페이지는 table-likely였고
+반복 머리말 543줄을 제거했다. 동일 입력 재실행은 embedding 23,795개를 모두 skip했다.
+다른 원천에서는 실패 상태가 `document_page`와 page locator에 저장된다.
+
+`pnpm pdf:evaluate`는 짧은 marker만 저장한 local golden 5페이지와 전체 corpus 분포를
+평가해 `data/generated/pdf.quality.report.json`을 만든다. golden 실패, 실패 page 1% 초과,
+OCR-required page 2% 초과만 severe regression으로 비정상 종료한다.
 
 ## 품질 명령
 
@@ -280,6 +296,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm pdf:evaluate
 ```
 
 ## 저장소 구조
@@ -300,6 +317,7 @@ docs/                     설계·도구·데이터 사전·변경 기록
 ## 현재 한계
 
 - OCR 엔진은 포함하지 않는다. 텍스트 layer가 없는 PDF는 `ocr_required`로 남긴다.
+- golden은 4개 local PDF의 5페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
 - 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.

@@ -55,14 +55,45 @@ SHA-256을 포함하므로 같은 경로의 파일이 변경되어도 이전 버
 
 의회, 회기, 회의일, 안건번호, 제목, 발의자, 처리결과와 출처를 저장한다.
 
-### `document` / `document_chunk`
+### `document`
 
-정책·회의록·첨부문서 등의 메타데이터와 검색 단위 텍스트를 분리한다.
+정책·회의록·첨부문서의 source, 기관, 날짜, extraction 상태, page 수와 전체 cleaned
+content hash를 저장한다.
 
-- `document_key`, `chunk_key`, UUID는 source version·페이지·순번에서 결정적으로 생성한다.
+- `document_key`와 UUID는 source version에서 결정적으로 생성한다.
 - `extraction_status`: `extracted`, `partial`, `ocr_required`, `extraction_failed`,
   `password_required`
-- `page_count`, `page_start`, `page_end`, `content_sha256`은 추출/검색 provenance를 보존한다.
+
+### `document_page`
+
+페이지 본문 자체를 중복 저장하지 않고 extraction/provenance와 품질 지표를 저장한다.
+현재 extractor version별 `page_key`/UUID가 결정적이며 같은 문서·페이지에는
+`is_current = true`가 하나만 허용된다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `raw_content_sha256` | PDF.js item reconstruction 직후 원문 text hash |
+| `content_sha256` | 공백·장식·고신뢰 반복 margin 정리 후 text hash |
+| `extractor_version` | layout/정리 규칙 버전 |
+| `non_whitespace_character_count` | cleaned text의 공백 제외 Unicode 문자 수 |
+| `hangul_ratio` | cleaned 공백 제외 문자 중 한글 음절/자모 비율 |
+| `replacement_control_glyph_ratio` | raw 공백 제외 문자 중 replacement/control/private-use 비율 |
+| `suspicious_spacing_ratio` | 단일 한글 토큰이 과도하게 분리된 문자 비율 |
+| `repeated_header_line_count` / `repeated_footer_line_count` | 해당 페이지에서 제거한 반복 margin 줄 수 |
+| `likely_table_line_count` / `likely_table_density` | tab/숫자 cell/leader 기준 표 유사 줄 수와 비율 |
+| `speaker_marker_count` | `○`로 시작하는 한국어 의회 발언자 전환 수 |
+| `text_class` | `empty`, `near_empty`(<80자), `substantive` |
+| `error_text` | page extraction 실패의 bounded 오류 |
+| `metadata` | 제거한 margin 원문이 아닌 line hash, 품질 flag, source path |
+
+### `document_chunk`
+
+검색 단위 cleaned text와 page provenance를 저장한다.
+
+- `chunk_key`/UUID는 source version·chunker version·페이지·페이지 내 순번에서 결정적으로 생성한다.
+- 발언자 turn은 원자적으로 유지하고 chunk 절단은 발언자 전환에서만 수행한다.
+- tab/leader 기반 table-like 연속 행은 줄바꿈을 유지한 하나의 segment로 취급한다.
+- `page_start`, `page_end`, raw/cleaned page hash metadata가 provenance를 보존한다.
 - `is_current = false`인 chunk는 삭제하지 않은 과거 추출 결과이며 검색에서 제외한다.
 - 기존 `document_chunk.embedding_*`/`embedding_data` 컬럼은 호환용이며 새 적재기는 쓰지 않는다.
 
@@ -84,8 +115,9 @@ chunk, provider, model, version별 임베딩을 저장한다. `embedding`은 `re
 ### `source_locator`
 
 엔터티 키를 원본 페이지, 행, 절, 문자 범위 또는 사람이 읽을 수 있는 locator와
-연결한다. 현재 적재기는 공식/데모 인구와 의회 레코드의 행 위치, PDF document/chunk
-페이지, 텍스트가 없는 PDF 페이지 상태를 기록한다.
+연결한다. 현재 적재기는 공식/데모 인구와 의회 레코드의 행 위치, PDF
+document/page/current chunk locator를 기록한다. repository는 stale page/chunk locator를
+source context에서 제외한다.
 
 ### `mcp_tool_audit`
 
