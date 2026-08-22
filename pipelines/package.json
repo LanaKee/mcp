@@ -23,7 +23,8 @@
     "lifecycle:retire": "tsx src/lifecycle-cli.ts retire",
     "lifecycle:purge": "tsx src/lifecycle-cli.ts purge",
     "lifecycle:audit-purge": "tsx src/lifecycle-cli.ts audit-purge",
-    "lifecycle:maintain": "tsx src/lifecycle-cli.ts maintain"
+    "lifecycle:maintain": "tsx src/lifecycle-cli.ts maintain",
+    "gb:press:crawl": "tsx src/gb-press-release-cli.ts"
   },
   "dependencies": {
     "@gb/retrieval": "workspace:*",
