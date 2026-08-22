@@ -16,3 +16,6 @@ coverage/
 /data/generated/
 /.cache/
 
+# 원천 반입 작업 공간(원본 파일과 격리 파일이 들어온다)
+/data/intake/
+

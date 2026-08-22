@@ -1,21 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
-import {
-  applySchemaToDatabase,
-  DatabaseOperationError,
-  loadDatabase
-} from "./db.js";
-import {
-  generatedDirectory,
-  repositoryRoot,
-  runEtl,
-  type EtlResult
-} from "./etl.js";
-import { createEmbeddingProvider } from "./embeddings.js";
-import { createLoadPlan } from "./load-plan.js";
-import { loadPdfDatabase } from "./pdf-db.js";
-import { normalizePdfCatalog } from "./pdf.js";
+import { applySchemaToDatabase, DatabaseOperationError } from "./db.js";
+import { repositoryRoot } from "./etl.js";
+import { normalizeAndLoad } from "./process.js";
 
 type Command = "schema" | "load" | "normalize";
 
@@ -64,28 +51,6 @@ function databaseUrl(): string {
   return value;
 }
 
-async function readGeneratedEtl(): Promise<EtlResult> {
-  const [catalog, population, council, localTax, errors] = await Promise.all(
-    [
-      "catalog.json",
-      "population.normalized.json",
-      "council.normalized.json",
-      "local-tax.normalized.json",
-      "errors.json"
-    ].map(
-      async (file) =>
-        JSON.parse(await readFile(resolve(generatedDirectory, file), "utf8")) as unknown
-    )
-  );
-  return {
-    catalog: catalog as EtlResult["catalog"],
-    population: population as EtlResult["population"],
-    council: council as EtlResult["council"],
-    localTax: localTax as EtlResult["localTax"],
-    errors: errors as EtlResult["errors"]
-  };
-}
-
 async function main(): Promise<void> {
   const [rawCommand, ...rawFlags] = process.argv.slice(2);
   const flags = rawFlags.filter((flag) => flag !== "--");
@@ -119,73 +84,33 @@ async function main(): Promise<void> {
   }
 
   const skipSchema = flags.includes("--skip-schema");
-  const pdfLimit = positiveInteger(optionValue(flags, "--pdf-limit"), "--pdf-limit");
-  const embeddingBatchSize = positiveInteger(
-    optionValue(flags, "--embedding-batch-size"),
-    "--embedding-batch-size"
-  );
-  const etl =
-    command === "normalize"
-      ? (await runEtl(true)).result
-      : await readGeneratedEtl();
-  const severeTaxIssues = etl.localTax.qualityIssues.filter(
-    (issue) => issue.severity === "error"
-  );
-  if (severeTaxIssues.length > 0) {
-    throw new Error(
-      `Local-tax normalization has ${severeTaxIssues.length} severe quality issue(s); database load was refused. Review data/generated/local-tax.quality.report.json.`
-    );
-  }
-  const plan = await createLoadPlan(etl);
-  const load = await loadDatabase(url, plan, { applySchema: !skipSchema });
-  let pdf:
-    | {
-        extraction: Awaited<ReturnType<typeof normalizePdfCatalog>>["summary"];
-        failures: number;
-        load: Awaited<ReturnType<typeof loadPdfDatabase>>;
+  const result = await normalizeAndLoad({
+    databaseUrl: url,
+    source: command === "normalize" ? "regenerate" : "generated",
+    applySchema: !skipSchema,
+    skipPdf: flags.includes("--skip-pdf"),
+    pdfLimit: positiveInteger(optionValue(flags, "--pdf-limit"), "--pdf-limit"),
+    embeddingProvider: optionValue(flags, "--embedding-provider"),
+    allowExternal: flags.includes("--allow-external"),
+    embeddingBatchSize: positiveInteger(
+      optionValue(flags, "--embedding-batch-size"),
+      "--embedding-batch-size"
+    ),
+    onExtractionProgress: ({ current, total, status, pages, chunks }) => {
+      if (current === total || current % 25 === 0) {
+        console.error(
+          JSON.stringify({ stage: "extract", current, total, status, pages, chunks })
+        );
       }
-    | null = null;
-  if (command === "normalize" && !flags.includes("--skip-pdf")) {
-    const provider = createEmbeddingProvider({
-      provider: optionValue(flags, "--embedding-provider") ?? "hashed",
-      allowExternal: flags.includes("--allow-external")
-    });
-    const normalizedPdf = await normalizePdfCatalog(etl.catalog, {
-      limit: pdfLimit,
-      onProgress: ({ current, total, status, pages, chunks }) => {
-        if (current === total || current % 25 === 0) {
-          console.error(
-            JSON.stringify({ stage: "extract", current, total, status, pages, chunks })
-          );
-        }
-      }
-    });
-    const pdfLoad = await loadPdfDatabase(url, normalizedPdf, provider, {
-      applySchema: false,
-      embeddingBatchSize
-    });
-    pdf = {
-      extraction: normalizedPdf.summary,
-      failures: normalizedPdf.failures.length,
-      load: pdfLoad
-    };
-  }
+    }
+  });
   console.log(
     JSON.stringify(
       {
         command,
         officialOnly: true,
         schemaApplied: !skipSchema,
-        normalized: {
-          files: etl.catalog.length,
-          population: etl.population.length,
-          council: etl.council.length,
-          localTax: etl.localTax.headlineRevenue.length,
-          localTaxQualityIssues: etl.localTax.qualityIssues.length,
-          errors: etl.errors.length
-        },
-        load,
-        pdf
+        ...result
       },
       null,
       2

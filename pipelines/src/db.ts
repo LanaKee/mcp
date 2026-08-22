@@ -214,90 +214,44 @@ export async function upsertRows(
   return { inserted, updated, returned };
 }
 
+/**
+ * Ordered list of migrations applied after (fresh install) or before (existing
+ * install) the base schema. Add new files here so both paths stay in sync.
+ */
+export const MIGRATION_FILES = [
+  "002_normalized_loading.sql",
+  "003_pdf_documents_embeddings.sql",
+  "004_mcp_repository_audit.sql",
+  "005_http_hardening_audit.sql",
+  "006_pdf_page_quality.sql",
+  "007_source_lifecycle_retention.sql",
+  "008_official_local_tax_facts.sql",
+  "009_local_tax_yearbook_coverage.sql",
+  "010_policy_document_text_quality.sql",
+  "011_population_measurement_semantics.sql",
+  "012_remove_demo_data.sql",
+  "013_raw_intake_ledger.sql"
+] as const;
+
 export async function applyDatabaseSchema(client: Client): Promise<void> {
   const schema = await readFile(resolve(repositoryRoot, "db/schema.sql"), "utf8");
-  const normalizedLoadingMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/002_normalized_loading.sql"),
-    "utf8"
-  );
-  const pdfDocumentsMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/003_pdf_documents_embeddings.sql"),
-    "utf8"
-  );
-  const repositoryAuditMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/004_mcp_repository_audit.sql"),
-    "utf8"
-  );
-  const httpHardeningMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/005_http_hardening_audit.sql"),
-    "utf8"
-  );
-  const pdfPageQualityMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/006_pdf_page_quality.sql"),
-    "utf8"
-  );
-  const sourceLifecycleMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/007_source_lifecycle_retention.sql"),
-    "utf8"
-  );
-  const officialLocalTaxMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/008_official_local_tax_facts.sql"),
-    "utf8"
-  );
-  const localTaxYearbookMigration = await readFile(
-    resolve(
-      repositoryRoot,
-      "db/migrations/009_local_tax_yearbook_coverage.sql"
-    ),
-    "utf8"
-  );
-  const policyDocumentQualityMigration = await readFile(
-    resolve(
-      repositoryRoot,
-      "db/migrations/010_policy_document_text_quality.sql"
-    ),
-    "utf8"
-  );
-  const populationMeasurementMigration = await readFile(
-    resolve(
-      repositoryRoot,
-      "db/migrations/011_population_measurement_semantics.sql"
-    ),
-    "utf8"
-  );
-  const removeDemoDataMigration = await readFile(
-    resolve(repositoryRoot, "db/migrations/012_remove_demo_data.sql"),
-    "utf8"
+  const migrations = await Promise.all(
+    MIGRATION_FILES.map((file) =>
+      readFile(resolve(repositoryRoot, "db/migrations", file), "utf8")
+    )
   );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
+  const applyMigrations = async (): Promise<void> => {
+    for (const migration of migrations) await client.query(migration);
+  };
   if (existing.rows[0]?.document_table) {
-    await client.query(normalizedLoadingMigration);
-    await client.query(pdfDocumentsMigration);
-    await client.query(repositoryAuditMigration);
-    await client.query(httpHardeningMigration);
-    await client.query(pdfPageQualityMigration);
-    await client.query(sourceLifecycleMigration);
-    await client.query(officialLocalTaxMigration);
-    await client.query(localTaxYearbookMigration);
-    await client.query(policyDocumentQualityMigration);
-    await client.query(populationMeasurementMigration);
-    await client.query(removeDemoDataMigration);
+    await applyMigrations();
     await client.query(schema);
   } else {
     await client.query(schema);
-    await client.query(normalizedLoadingMigration);
-    await client.query(pdfDocumentsMigration);
-    await client.query(repositoryAuditMigration);
-    await client.query(httpHardeningMigration);
-    await client.query(pdfPageQualityMigration);
-    await client.query(sourceLifecycleMigration);
-    await client.query(officialLocalTaxMigration);
-    await client.query(localTaxYearbookMigration);
-    await client.query(policyDocumentQualityMigration);
-    await client.query(populationMeasurementMigration);
-    await client.query(removeDemoDataMigration);
+    await applyMigrations();
   }
 }
 

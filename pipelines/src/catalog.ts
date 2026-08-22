@@ -5,6 +5,13 @@ import { detectCsvKind, parseKoreanCsv, type CsvKind } from "./csv.js";
 import { localTaxYearbookFiscalYear } from "./local-tax-yearbook.js";
 import { populationWorkbookReferenceDate } from "./xlsx.js";
 
+export type DatasetContentKind =
+  | CsvKind
+  | "population_workbook"
+  | "local_tax_yearbook"
+  | "pdf_document"
+  | "other";
+
 export interface CatalogEntry {
   path: string;
   fileNameNfc: string;
@@ -14,12 +21,7 @@ export interface CatalogEntry {
   collectedAt: string;
   referenceDate: string | null;
   mediaType: string;
-  contentKind:
-    | CsvKind
-    | "population_workbook"
-    | "local_tax_yearbook"
-    | "pdf_document"
-    | "other";
+  contentKind: DatasetContentKind;
   encoding: string | null;
   dataStatus: "official_observed" | "catalog_only";
   parseStatus: "parsed" | "catalogued" | "error";
@@ -46,7 +48,9 @@ function referenceDate(fileName: string): string | null {
   return monthFirst ? `${monthFirst[3]}-${monthFirst[1]}-${monthFirst[2]}` : null;
 }
 
-const mediaTypes: Record<string, string> = {
+export { referenceDate as fileNameReferenceDate };
+
+export const MEDIA_TYPES: Record<string, string> = {
   ".csv": "text/csv",
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".hwpx": "application/hwp+zip",
@@ -55,6 +59,73 @@ const mediaTypes: Record<string, string> = {
   ".xml": "application/xml"
 };
 
+export interface DatasetFileDescription {
+  extension: string;
+  mediaType: string;
+  contentKind: DatasetContentKind;
+  encoding: string | null;
+  referenceDate: string | null;
+  dataStatus: CatalogEntry["dataStatus"];
+  parseStatus: CatalogEntry["parseStatus"];
+  error: string | null;
+}
+
+/**
+ * Classifies one raw dataset file from its bytes and name. The catalog builder and
+ * the intake pipeline share this so a file is routed the same way before and after
+ * it enters the immutable store.
+ */
+export function describeDatasetFile(
+  buffer: Buffer,
+  fileName: string
+): DatasetFileDescription {
+  const nameNfc = fileName.normalize("NFC");
+  const extension = extname(nameNfc).toLowerCase();
+  let contentKind: DatasetContentKind =
+    extension === ".pdf"
+      ? "pdf_document"
+      : extension === ".xlsx"
+        ? "population_workbook"
+        : "other";
+  let encoding: string | null = null;
+  let parseStatus: CatalogEntry["parseStatus"] =
+    extension === ".pdf" ? "catalogued" : "parsed";
+  let error: string | null = null;
+  let yearbookYear: number | null = null;
+  if (extension === ".csv") {
+    try {
+      const parsed = parseKoreanCsv(buffer);
+      contentKind = detectCsvKind(parsed.headers);
+      encoding = parsed.encoding;
+    } catch (caught) {
+      parseStatus = "error";
+      error = caught instanceof Error ? caught.message : String(caught);
+    }
+  } else if (extension === ".hwpx") {
+    yearbookYear = localTaxYearbookFiscalYear(buffer);
+    if (yearbookYear !== null) {
+      contentKind = "local_tax_yearbook";
+    } else {
+      parseStatus = "catalogued";
+    }
+  }
+  return {
+    extension,
+    mediaType: MEDIA_TYPES[extension] ?? "application/octet-stream",
+    contentKind,
+    encoding,
+    referenceDate:
+      extension === ".xlsx"
+        ? populationWorkbookReferenceDate(buffer)
+        : yearbookYear
+          ? `${yearbookYear}-12-31`
+          : referenceDate(nameNfc),
+    dataStatus: extension === ".pdf" ? "catalog_only" : "official_observed",
+    parseStatus,
+    error
+  };
+}
+
 export async function buildCatalog(
   datasetDirectory: string,
   repositoryRoot: string
@@ -62,57 +133,23 @@ export async function buildCatalog(
   const paths = await walk(datasetDirectory);
   return Promise.all(
     paths.map(async (path): Promise<CatalogEntry> => {
-      const extension = extname(path).toLowerCase();
       const fileStat = await stat(path);
       const buffer = await readFile(path);
-      let contentKind: CatalogEntry["contentKind"] =
-        extension === ".pdf"
-          ? "pdf_document"
-          : extension === ".xlsx"
-            ? "population_workbook"
-            : "other";
-      let encoding: string | null = null;
-      let parseStatus: CatalogEntry["parseStatus"] =
-        extension === ".pdf" ? "catalogued" : "parsed";
-      let error: string | null = null;
-      let yearbookYear: number | null = null;
-      if (extension === ".csv") {
-        try {
-          const parsed = parseKoreanCsv(buffer);
-          contentKind = detectCsvKind(parsed.headers);
-          encoding = parsed.encoding;
-        } catch (caught) {
-          parseStatus = "error";
-          error = caught instanceof Error ? caught.message : String(caught);
-        }
-      } else if (extension === ".hwpx") {
-        yearbookYear = localTaxYearbookFiscalYear(buffer);
-        if (yearbookYear !== null) {
-          contentKind = "local_tax_yearbook";
-        } else {
-          parseStatus = "catalogued";
-        }
-      }
-      const fileReferenceDate =
-        extension === ".xlsx"
-          ? populationWorkbookReferenceDate(buffer)
-          : yearbookYear
-            ? `${yearbookYear}-12-31`
-            : referenceDate(path.normalize("NFC"));
+      const described = describeDatasetFile(buffer, path);
       return {
         path: relative(repositoryRoot, path).normalize("NFC"),
         fileNameNfc: path.split("/").at(-1)?.normalize("NFC") ?? path.normalize("NFC"),
-        extension,
+        extension: described.extension,
         byteSize: fileStat.size,
         sha256: createHash("sha256").update(buffer).digest("hex"),
         collectedAt: fileStat.mtime.toISOString(),
-        referenceDate: fileReferenceDate,
-        mediaType: mediaTypes[extension] ?? "application/octet-stream",
-        contentKind,
-        encoding,
-        dataStatus: extension === ".pdf" ? "catalog_only" : "official_observed",
-        parseStatus,
-        error
+        referenceDate: described.referenceDate,
+        mediaType: described.mediaType,
+        contentKind: described.contentKind,
+        encoding: described.encoding,
+        dataStatus: described.dataStatus,
+        parseStatus: described.parseStatus,
+        error: described.error
       };
     })
   );
