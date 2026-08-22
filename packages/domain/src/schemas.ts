@@ -96,6 +96,19 @@ export const councilSearchInputSchema = z
  * separate from the statistical tools: nothing here may be quoted as a numeric
  * measurement.
  */
+export const documentSearchInputSchema = z
+  .object({
+    query: z.string().min(1).max(300),
+    region: z.string().min(1).max(80).optional(),
+    organization: z.string().min(1).max(120).optional(),
+    documentTypes: z.array(z.string().min(1).max(60)).min(1).max(10).optional(),
+    dateFrom: z.string().date().optional(),
+    dateTo: z.string().date().optional(),
+    limit: z.number().int().min(1).max(20).default(5),
+    dataStatuses: factDataStatusesSchema
+  })
+  .strict();
+
 export const pressReleaseSearchInputSchema = z
   .object({
     query: z.string().min(1).max(300),
@@ -177,6 +190,19 @@ export const draftPublicDocumentInputSchema = z
     verifiedAnalysis: verifiedAnalysisSchema
   })
   .strict();
+
+export const regionalEvidencePackInputSchema = z
+  .object({
+    region: z.string().min(1).max(80),
+    issue: z.string().min(1).max(200),
+    startYear: yearSchema,
+    endYear: yearSchema,
+    dataStatuses: factDataStatusesSchema
+  })
+  .strict()
+  .refine((value) => value.startYear <= value.endYear, {
+    message: "startYear는 endYear보다 클 수 없습니다."
+  });
 
 export const datasetSearchInputSchema = z
   .object({

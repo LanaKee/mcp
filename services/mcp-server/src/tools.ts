@@ -4,6 +4,7 @@ import {
   comparePopulationAndTax,
   comparisonInputSchema,
   councilSearchInputSchema,
+  documentSearchInputSchema,
   datasetDescribeInputSchema,
   datasetSearchInputSchema,
   draftPublicDocument,
@@ -16,6 +17,7 @@ import {
   localTaxTrendPoints,
   populationTrendPoints,
   populationTrendInputSchema,
+  regionalEvidencePackInputSchema,
   sourceContextInputSchema,
   verifyClaimInputSchema,
   type DataStatus,
@@ -29,6 +31,7 @@ import {
   type FactDataStatus
 } from "./repository.js";
 import { describeDataset, searchDatasets } from "./catalog-tools.js";
+import { buildRegionalEvidencePack } from "./evidence-pack.js";
 
 export type JsonSchema = Record<string, unknown>;
 export type ResponseDataStatus = DataStatus | "mixed" | "empty";
@@ -477,6 +480,50 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
   );
 
   add(
+    "search_documents",
+    "공식 정책 문서(도정 업무계획 등) 본문을 페이지 단위로 검색합니다. 문서에 무엇이 적혀 있는지에 대한 근거이며, 본문 수치를 관측 통계로 사용할 수 없습니다.",
+    documentSearchInputSchema,
+    objectSchema(
+      {
+        query: { type: "string", minLength: 1, maxLength: 300 },
+        region,
+        organization: { type: "string", maxLength: 120 },
+        documentTypes: {
+          type: "array",
+          items: { type: "string", maxLength: 60 },
+          minItems: 1,
+          maxItems: 10
+        },
+        dateFrom: { type: "string", format: "date" },
+        dateTo: { type: "string", format: "date" },
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 5 },
+        dataStatuses: factStatusProperty
+      },
+      ["query"]
+    ),
+    async (input) => {
+      const loaded = await repository.searchDocuments({
+        ...input,
+        limit: input.limit ?? 5,
+        dataStatuses: statuses(input)
+      });
+      return {
+        data_status: responseStatus(loaded.dataStatuses),
+        data_statuses: loaded.dataStatuses,
+        result: { matches: loaded.records, evidence_role: "narrative_context_only" },
+        sources: loaded.sources,
+        limitations: [
+          "업무계획 계열 문서는 정책 방향을 담은 계획 문서이며 개별 사업의 공고나 집행 실적이 아닙니다.",
+          "본문에 실린 수치는 계획치·목표치이므로 관측 통계로 인용할 수 없습니다.",
+          "검색은 lexical 매칭이므로 동의어나 표현이 다른 내용은 찾지 못할 수 있습니다. 결과가 없다고 문서에 없다는 뜻은 아닙니다.",
+          "PDF text layer의 읽기 순서와 표 구조는 원문 페이지에서 재확인해야 합니다.",
+          ...statusLimitations(loaded.dataStatuses)
+        ]
+      };
+    }
+  );
+
+  add(
     "search_press_releases",
     "경상북도 보도자료 본문을 검색해 정책 배경·사업명·추진 계획의 서술적 맥락을 제공합니다. 수치 근거로는 사용할 수 없습니다.",
     pressReleaseSearchInputSchema,
@@ -792,7 +839,40 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
     }
   );
 
-  return { tools: definitions, repository };
+  // Registered after the registry object exists because it calls the other
+  // tools through it. A composite tool that reimplemented their queries would
+  // drift from them, and would bypass the limitations they attach.
+  const registry: ToolRegistry = { tools: definitions, repository };
+  add(
+    "build_regional_evidence_pack",
+    "한 지역의 한 현안에 대해 관측 통계, 서술 맥락(계획·논의·발표), 둘 사이의 조인 가능성, 그리고 적재된 데이터로는 답할 수 없는 근거 공백과 그 공백을 메울 행정 행동을 하나의 검증 묶음으로 돌려줍니다.",
+    regionalEvidencePackInputSchema,
+    objectSchema(
+      {
+        region: { type: "string", minLength: 1, maxLength: 80 },
+        issue: { type: "string", minLength: 1, maxLength: 200 },
+        startYear: year,
+        endYear: year,
+        dataStatuses: factStatusProperty
+      },
+      ["region", "issue", "startYear", "endYear"]
+    ),
+    async (input) => {
+      const pack = await buildRegionalEvidencePack(registry, input);
+      return {
+        data_status: responseStatus(pack.dataStatuses as DataStatus[]),
+        data_statuses: pack.dataStatuses as DataStatus[],
+        result: pack,
+        sources: pack.sources,
+        limitations: [
+          "근거 공백 목록은 '적재된 데이터로 답할 수 없다'는 뜻이며, 해당 자료가 세상에 없다는 뜻이 아닙니다.",
+          ...pack.limitations
+        ]
+      };
+    }
+  );
+
+  return registry;
 }
 
 let generatedAuditSalt: string | undefined;

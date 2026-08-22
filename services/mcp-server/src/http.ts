@@ -45,6 +45,10 @@ const expensiveTools = new Set([
   "search_council_records",
   "search_press_releases",
   "search_member_bills",
+  "search_documents",
+  // The pack fans out to six datasets in one call, so it is the most expensive
+  // request the server accepts.
+  "build_regional_evidence_pack",
   "get_source_context",
   "draft_public_document"
 ]);

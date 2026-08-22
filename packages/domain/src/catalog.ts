@@ -591,6 +591,11 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
     ],
     tools: [
       {
+        tool: "search_documents",
+        answers: "주제어로 찾은 공식 문서의 페이지 단위 본문",
+        requiredArguments: ["query"]
+      },
+      {
         tool: "get_source_context",
         answers: "특정 source_id의 원문 위치와 인용 맥락",
         requiredArguments: ["sourceIds"]
