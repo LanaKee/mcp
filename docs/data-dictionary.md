@@ -107,6 +107,9 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
 ### `council_record`
 
 의회, 회기, 회의일, 안건번호, 제목, 발의자, 처리결과와 출처를 저장한다.
+포항 공개 의안의 `metadata`에는 `sourceRecordId`, `detailUrl`, `sourceRow`,
+`dataQualityIssues`를 저장한다. 날짜 보정 이슈는 원문값·정규화값·필드와
+`issueCode`를 포함한다.
 
 ### `document`
 

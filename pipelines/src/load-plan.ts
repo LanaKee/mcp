@@ -252,14 +252,21 @@ export function deterministicCouncilId(input: {
   sourceSha256: string;
   sourceRow: number;
   recordNumber: string;
+  stableSourceRecordId?: string;
 }): string {
   const digest = sha256(
-    [
-      input.sourceSha256,
-      input.sourcePath.normalize("NFC"),
-      input.sourceRow,
-      input.recordNumber
-    ].join("\u0000")
+    input.stableSourceRecordId
+      ? [
+          input.sourcePath.normalize("NFC"),
+          "stable-source-record",
+          input.stableSourceRecordId
+        ].join("\u0000")
+      : [
+          input.sourceSha256,
+          input.sourcePath.normalize("NFC"),
+          input.sourceRow,
+          input.recordNumber
+        ].join("\u0000")
   );
   return `council-${digest.slice(0, 40)}`;
 }
@@ -278,6 +285,20 @@ function sourceProvider(path: string): string {
     return region.regionType === "province" ? "경상북도의회" : `${region.regionName}의회`;
   }
   return region.regionType === "province" ? "경상북도" : region.regionName;
+}
+
+function officialSourceUrl(path: string, contentKind: string): string | null {
+  const normalizedPath = path.normalize("NFC");
+  if (
+    contentKind === "council_agenda" &&
+    normalizedPath.includes("datasets/pohang-council/")
+  ) {
+    return "https://council.pohang.go.kr/content/activity/billSearch.html";
+  }
+  if (contentKind === "local_tax_yearbook") {
+    return "https://www.data.go.kr/data/15086648/fileData.do";
+  }
+  return null;
 }
 
 function regionById(regionId: string): GyeongbukRegion | null {
@@ -394,7 +415,10 @@ function addOfficialCouncil(
     });
     return;
   }
-  const councilRecordId = deterministicCouncilId(row);
+  const councilRecordId = deterministicCouncilId({
+    ...row,
+    stableSourceRecordId: row.sourceRecordId || undefined
+  });
   plan.council.push({
     councilRecordId,
     regionId: region.regionId,
@@ -407,7 +431,12 @@ function addOfficialCouncil(
     resolution: row.result,
     sourceKey,
     dataStatus: "official_observed",
-    metadata: { sourceRow: row.sourceRow }
+    metadata: {
+      sourceRow: row.sourceRow,
+      sourceRecordId: row.sourceRecordId || null,
+      detailUrl: row.detailUrl || null,
+      dataQualityIssues: row.dataQualityIssues
+    }
   });
   plan.locators.push({
     sourceKey,
@@ -839,10 +868,7 @@ export async function createLoadPlan(
       sourceKey: officialSourceKey(entry.path, entry.sha256),
       title: entry.fileNameNfc,
       provider: sourceProvider(entry.path),
-      sourceUrl:
-        entry.contentKind === "local_tax_yearbook"
-          ? "https://www.data.go.kr/data/15086648/fileData.do"
-          : null,
+      sourceUrl: officialSourceUrl(entry.path, entry.contentKind),
       licenseNote:
         entry.contentKind === "local_tax_yearbook"
           ? "공공데이터포털 이용허락범위 제한 없음"

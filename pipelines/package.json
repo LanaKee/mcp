@@ -14,6 +14,7 @@
     "db:normalize": "tsx src/db-cli.ts normalize",
     "pdf:normalize": "tsx src/pdf-cli.ts",
     "pdf:evaluate": "tsx src/pdf-evaluate.ts",
+    "pohang:crawl": "tsx src/pohang-council-cli.ts",
     "lifecycle:status": "tsx src/lifecycle-cli.ts status",
     "lifecycle:approve": "tsx src/lifecycle-cli.ts approve",
     "lifecycle:retire": "tsx src/lifecycle-cli.ts retire",

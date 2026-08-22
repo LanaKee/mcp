@@ -57,7 +57,10 @@ flowchart LR
 - `db/schema.sql`: 정량 fact, 정책·의회, 문서 chunk, source locator
 - `data_source.data_status`는 `official_observed`, `demo_sample`, `catalog_only` 중 하나다.
 - `pnpm db:normalize`은 ETL, 스키마/마이그레이션, 공식 데이터와 데모 전체 적재를 수행한다.
-- source key와 의회 record ID는 원천 SHA/경로/행을 기반으로 결정적이며 행을 삭제하지 않는다.
+- source key는 원천 경로와 SHA를 기반으로 결정적이다. 일반 의회 CSV record ID는
+  원천 SHA/경로/행을 사용하고, 포항 공개 의안은 직렬화 변경에도 안정적인 원문
+  레코드 ID를 사용한다. 기존 ID 교체는 동일 원문 레코드가 새 계획에도 있을 때만
+  트랜잭션 안에서 수행한다.
 - 지방세는 징수, 납부매체, 과세, 1인당 부담, 납세자, 비과세·감면, 미환급,
   번호판 영치를 호환되지 않는 별도 grain으로 저장한다.
 - `local_tax_revenue`는 도구용 headline fact이며 원본 의미를

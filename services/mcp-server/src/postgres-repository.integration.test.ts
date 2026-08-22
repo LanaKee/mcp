@@ -48,6 +48,34 @@ describeDatabase("PostgresDataRepository integration", () => {
     expect(policies.records[0]!.metadata.locator).toContain("#page=");
   });
 
+  it("keeps one official Pohang council row per source record with date issues", async () => {
+    const pool = new Pool({ connectionString, max: 1 });
+    try {
+      const result = await pool.query<{
+        records: number;
+        corrected_dates: number;
+      }>(
+        `SELECT
+           count(*)::integer AS records,
+           count(*) FILTER (
+             WHERE council.metadata->'dataQualityIssues'
+               @> '[{"issueCode":"source_year_transposition"}]'::jsonb
+           )::integer AS corrected_dates
+         FROM council_record AS council
+         JOIN data_source AS source ON source.source_id = council.source_id
+         WHERE source.source_url =
+           'https://council.pohang.go.kr/content/activity/billSearch.html'
+           AND council.data_status = 'official_observed'`
+      );
+      expect(result.rows[0]).toEqual({
+        records: 3_112,
+        corrected_dates: 11
+      });
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("catalogs unusable policy files without chunks or OCR infrastructure", async () => {
     const pool = new Pool({ connectionString, max: 1 });
     try {

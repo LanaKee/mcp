@@ -69,6 +69,9 @@ function fixture(): EtlResult {
         sessionName: "제1회",
         meetingDate: "2026-07-01",
         result: "가결",
+        sourceRecordId: "",
+        detailUrl: "",
+        dataQualityIssues: [],
         sourceRow: 4,
         sourcePath,
         sourceSha256,
@@ -107,6 +110,61 @@ describe("database load plan", () => {
         recordNumber: "42"
       })
     ).not.toBe(first.council[0]?.councilRecordId);
+    expect(
+      deterministicCouncilId({
+        sourcePath,
+        sourceSha256,
+        sourceRow: 4,
+        recordNumber: "42",
+        stableSourceRecordId: "3336"
+      })
+    ).toBe(
+      deterministicCouncilId({
+        sourcePath,
+        sourceSha256: "b".repeat(64),
+        sourceRow: 9,
+        recordNumber: "",
+        stableSourceRecordId: "3336"
+      })
+    );
+  });
+
+  it("preserves the official Pohang council page as dataset provenance", async () => {
+    const etl = fixture();
+    const pohangPath = "datasets/pohang-council/경상북도_포항시_의회_의안정보.csv";
+    etl.catalog[0] = {
+      ...etl.catalog[0]!,
+      path: pohangPath,
+      fileNameNfc: "경상북도_포항시_의회_의안정보.csv"
+    };
+    etl.council[0] = {
+      ...etl.council[0]!,
+      regionName: "포항시",
+      councilName: "포항시의회",
+      sourcePath: pohangPath,
+      sourceRecordId: "3336",
+      detailUrl:
+        "https://council.pohang.go.kr/content/activity/bill.html?number=3336",
+      dataQualityIssues: [
+        {
+          field: "transferDate",
+          issueCode: "source_year_transposition"
+        }
+      ]
+    };
+    const plan = await createLoadPlan(etl, { includeDemo: false });
+    expect(plan.sources[0]).toMatchObject({
+      provider: "포항시의회",
+      sourceUrl: "https://council.pohang.go.kr/content/activity/billSearch.html"
+    });
+    expect(plan.council[0]?.metadata).toMatchObject({
+      sourceRecordId: "3336",
+      dataQualityIssues: [
+        {
+          issueCode: "source_year_transposition"
+        }
+      ]
+    });
   });
 
   it("rejects unresolved factual rows instead of inventing region IDs", async () => {

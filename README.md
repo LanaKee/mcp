@@ -195,6 +195,9 @@ pnpm etl:dry-run
 # data/generated/에 결정적 JSON 산출물 기록(같은 입력이면 unchanged)
 pnpm etl
 
+# 공개 포항시의회 의안 갱신(약관 검토 필수; robots 확인 불가 시 별도 승인)
+pnpm pohang:crawl -- --acknowledge-terms --acknowledge-robots-unavailable
+
 # ETL 재생성 + 스키마 적용 + 구조화 데이터와 PDF 전체 적재
 pnpm db:normalize
 
@@ -248,7 +251,8 @@ ETL은 다음을 수행합니다.
 - 경로+SHA-256 기반 출처 버전 보존. 현재 로컬 실행은 HWPX 연감과 별도 추가 PDF를
   포함한 448개 원천을 카탈로그에 적재
 - 500행 단위 parameterized upsert와 단일 fact 트랜잭션
-- 원천 SHA/경로/행 번호 기반 의회 레코드 ID와 인구·의회 `source_locator`
+- 일반 CSV는 원천 SHA/경로/행 번호, 포항 공개 의안은 원문 레코드 ID 기반의
+  결정적 의회 레코드 ID와 인구·의회 `source_locator`
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
 - 실패 시 fact 트랜잭션 rollback 및 가능한 경우 `ingestion_run.status = failed` 기록
 - 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
@@ -280,7 +284,7 @@ ETL은 다음을 수행합니다.
 | `local_tax_unrefunded_status` | 64 | 0 | - |
 | `local_tax_enforcement_statistic` | 90 | 0 | - |
 | `policy_program` | 0 | 3 | - |
-| `council_record` | 46,596 | 5 | - |
+| `council_record` | 49,708 | 5 | - |
 | `document` | 405 | 0 | 3 |
 
 `datasets/extra/`의 2021·2023·2025·2026 도정 업무계획은 공식 page passage로

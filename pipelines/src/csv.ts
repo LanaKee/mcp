@@ -88,6 +88,21 @@ function firstValue(row: Record<string, string>, aliases: string[]): string {
   return "";
 }
 
+function objectArrayValue(value: string): Record<string, unknown>[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is Record<string, unknown> =>
+            typeof item === "object" && item !== null && !Array.isArray(item)
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 const numberValue = (value: string) => Number(value.replace(/[,\s]/g, "")) || 0;
 
 export interface NormalizedPopulationRow {
@@ -149,6 +164,9 @@ export interface NormalizedCouncilRow {
   sessionName: string | null;
   meetingDate: string | null;
   result: string | null;
+  sourceRecordId: string;
+  detailUrl: string;
+  dataQualityIssues: Record<string, unknown>[];
   sourceRow: number;
 }
 
@@ -195,6 +213,11 @@ export function normalizeCouncilRows(
             "의안처리결과",
             "결과"
           ]) || null,
+        sourceRecordId: firstValue(row, ["원문레코드ID"]),
+        detailUrl: firstValue(row, ["원문URL"]),
+        dataQualityIssues: objectArrayValue(
+          firstValue(row, ["데이터품질이슈"])
+        ),
         sourceRow: index + 2
       };
     })

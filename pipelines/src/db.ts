@@ -5,6 +5,8 @@ import { repositoryRoot } from "./etl.js";
 import type { LoadPlan } from "./load-plan.js";
 
 const batchSize = 500;
+const POHANG_COUNCIL_SOURCE_URL =
+  "https://council.pohang.go.kr/content/activity/billSearch.html";
 
 export interface DatabaseIssue {
   kind: string;
@@ -53,6 +55,52 @@ export interface DatabaseLoadResult {
     locators: number;
   };
   integrity: IntegrityCount[];
+}
+
+async function reconcileStablePohangCouncilIds(
+  client: Client,
+  plan: LoadPlan
+): Promise<void> {
+  const pohangSourceKeys = new Set(
+    plan.sources
+      .filter((source) => source.sourceUrl === POHANG_COUNCIL_SOURCE_URL)
+      .map((source) => source.sourceKey)
+  );
+  const incoming = plan.council.flatMap((row) => {
+    const sourceRecordId = row.metadata.sourceRecordId;
+    const sourceRow = row.metadata.sourceRow;
+    return pohangSourceKeys.has(row.sourceKey) &&
+      typeof sourceRecordId === "string" &&
+      sourceRecordId &&
+      typeof sourceRow === "number"
+      ? [{
+          council_record_id: row.councilRecordId,
+          source_record_id: sourceRecordId,
+          source_row: sourceRow
+        }]
+      : [];
+  });
+  if (incoming.length === 0) return;
+  await client.query(
+    `DELETE FROM council_record AS existing
+     USING data_source AS source,
+       jsonb_to_recordset($1::jsonb) AS incoming(
+         council_record_id text,
+         source_record_id text,
+         source_row integer
+       )
+     WHERE existing.source_id = source.source_id
+       AND source.source_url = $2
+       AND existing.council_record_id <> incoming.council_record_id
+       AND (
+         existing.metadata->>'sourceRecordId' = incoming.source_record_id
+         OR (
+           existing.metadata->>'sourceRecordId' IS NULL
+           AND existing.metadata->>'sourceRow' = incoming.source_row::text
+         )
+       )`,
+    [JSON.stringify(incoming), POHANG_COUNCIL_SOURCE_URL]
+  );
 }
 
 export interface UpsertResult {
@@ -328,6 +376,7 @@ export async function loadDatabase(
     transactionStarted = true;
     const totals = { inserted: 0, updated: 0 };
 
+    await reconcileStablePohangCouncilIds(client, plan);
     addCounts(
       totals,
       await upsertRows(client, {
