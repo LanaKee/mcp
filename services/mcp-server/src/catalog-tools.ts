@@ -2,7 +2,9 @@ import {
   DATASET_CATALOG,
   datasetSearchText,
   getDatasetDefinition,
+  hasTopicalTerm,
   isDatasetRelevant,
+  isNarrativeCorpus,
   relationshipsFor,
   type DatasetDefinition
 } from "@gb/domain";
@@ -84,9 +86,40 @@ export async function searchDatasets(
   // Gate on the curated vocabulary first, then rank. Ranking alone is not a
   // relevance decision: lexicalSearch scores character bigrams, so an unrelated
   // query still produces a nonzero score against some dataset.
-  const relevant = candidates.filter((dataset) =>
+  let relevant = candidates.filter((dataset) =>
     isDatasetRelevant(dataset, input.query)
   );
+
+  // The curated vocabulary describes what a *measured table* is about, which is
+  // fixed. A full-text corpus has no fixed subject — it is about whatever the
+  // province published — so its keywords only name the format ("보도자료",
+  // "의안"). A topical question like "스마트팜 창업 지원사업" therefore never
+  // gates through to the corpora even when hundreds of matching articles exist.
+  //
+  // The trigger is deliberately narrow: the gate must have already recognised
+  // the subject, and every table it matched must be empty. A query the catalog
+  // does not recognise at all still returns nothing, because the corpora would
+  // then be an arbitrary top-N for a question about nothing — the precise
+  // failure this tool exists to prevent. What is rescued here is only the case
+  // where the subject is right and the table happens to be bare.
+  let widened: readonly DatasetDefinition[] = [];
+  if (relevant.length > 0 && hasTopicalTerm(input.query)) {
+    const corpora = candidates.filter(
+      (dataset) => isNarrativeCorpus(dataset) && !relevant.includes(dataset)
+    );
+    if (corpora.length > 0) {
+      const coverage = await repository.getDatasetCoverage(
+        relevant.map((dataset) => dataset.datasetId),
+        input.region ? { region: input.region } : {}
+      );
+      if (!coverage.some((entry) => entry.available)) {
+        widened = corpora;
+        notes.push(
+          "질의어와 겹친 데이터셋이 모두 비어 있어 서술 자료(보도자료·의안·회의록)까지 후보에 넣었습니다."
+        );
+      }
+    }
+  }
 
   const ranked = lexicalSearch(
     input.query,
@@ -99,25 +132,41 @@ export async function searchDatasets(
     { limit: input.limit }
   );
 
+  // Widened corpora are appended rather than ranked. Ranking scores the
+  // catalog's *description*, and every corpus describes its format rather than
+  // its contents, so the scores would order them by incidental word overlap —
+  // which is how "에서" alone decided the shortlist. Only searching them tells
+  // us which one actually holds the answer, so they all go to the planner.
+  const rankedIds = new Set(ranked.map((hit) => hit.id));
+  const appended = widened
+    .filter((dataset) => !rankedIds.has(dataset.datasetId))
+    .map((dataset) => ({
+      id: dataset.datasetId,
+      score: 0,
+      matchedTerms: [] as string[],
+      metadata: { datasetId: dataset.datasetId }
+    }));
+
   // A query with no catalog term overlap should return nothing rather than an
   // arbitrary top-N: silently answering from an unrelated dataset is the exact
   // failure this tool exists to prevent.
-  if (ranked.length === 0) {
+  if (ranked.length === 0 && appended.length === 0) {
     notes.push(
       "질의어가 어떤 데이터셋 설명과도 겹치지 않아 후보를 제시하지 않았습니다. 다른 표현으로 다시 시도하세요."
     );
     return { hits: [], notes };
   }
 
+  const shortlist = [...ranked, ...appended];
   const coverages = await repository.getDatasetCoverage(
-    ranked.map((hit) => hit.id),
+    shortlist.map((hit) => hit.id),
     input.region ? { region: input.region } : {}
   );
   const coverageById = new Map(
     coverages.map((coverage) => [coverage.datasetId, coverage])
   );
 
-  const hits = ranked.map((hit) => {
+  const hits = shortlist.map((hit) => {
     const dataset = getDatasetDefinition(hit.id)!;
     return {
       datasetId: dataset.datasetId,

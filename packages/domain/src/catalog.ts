@@ -779,6 +779,35 @@ export function isDatasetRelevant(
   );
 }
 
+/**
+ * Whether a dataset is a full-text corpus rather than a measured table.
+ *
+ * These carry no numbers that may be cited, only what the province wrote down.
+ * That distinction matters for routing: a measured table is *about* a fixed
+ * subject, so a curated vocabulary gate works. A corpus is about whatever the
+ * province happened to publish, so the only way to know whether it holds the
+ * answer is to search it.
+ */
+export function isNarrativeCorpus(dataset: DatasetDefinition): boolean {
+  return dataset.evidenceRole === "narrative_context_only";
+}
+
+/**
+ * Whether a query carries any subject at all.
+ *
+ * Used to decide if searching a corpus is worth a tool call. A query of nothing
+ * but place names and particles has no subject to look for, and running a
+ * full-text search on it returns arbitrary recent rows.
+ */
+export function hasTopicalTerm(query: string): boolean {
+  return query
+    .normalize("NFC")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 2)
+    .some((word) => !isGeographicTerm(word));
+}
+
 /** Relationships touching a dataset, normalized so `from` is always the queried dataset. */
 export function relationshipsFor(datasetId: string): DatasetRelationship[] {
   return DATASET_RELATIONSHIPS.flatMap((relationship) => {

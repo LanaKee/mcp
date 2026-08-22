@@ -61,6 +61,12 @@ ${JSON.stringify(catalog, null, 2)}
 6. 질문에 답하는 데 필요한 최소한의 도구만 호출합니다.
 7. 값이나 출처를 직접 지어내지 마십시오. 당신의 역할은 계획뿐이며, 실제 값과
    인용은 도구 실행 결과에서 나옵니다.
+8. unanswerable은 **어떤 후보도 아무것도 기여할 수 없을 때만** 씁니다. 가장 적합한
+   데이터셋이 비어 있어도 다른 후보가 배경·발표 시점·근거 문서를 줄 수 있다면
+   그 단계를 계획하고 unanswerable은 null로 둡니다. 부분적인 답은 실패가 아니며,
+   무엇이 빠졌는지는 이후 단계에서 따로 밝힙니다.
+9. steps가 비어 있지 않다면 unanswerable은 반드시 null입니다. 계획할 일이 있는데
+   답할 수 없다고 선언하면 이미 확보 가능한 근거를 버리게 됩니다.
 
 다음 JSON만 출력하십시오. 다른 텍스트를 붙이지 마십시오.
 {
@@ -209,6 +215,14 @@ export class LlmPlanner implements Planner {
         steps: [],
         unanswerable: plan.unanswerable ?? fallbackPlan.unanswerable
       };
+    }
+    // A plan that carries both work and a refusal contradicts itself. Honouring
+    // the refusal would throw away evidence the model just decided was worth
+    // collecting — that is how "정책 데이터가 비었다"는 이유로 스마트팜 보도자료
+    // 수백 건이 통째로 버려졌다. Keep the steps and demote the refusal to a
+    // caveat, so the answer is partial and says why rather than absent.
+    if (usable.length > 0 && plan.unanswerable) {
+      return { steps: usable, unanswerable: null, caveat: plan.unanswerable };
     }
     return { ...plan, steps: usable };
   }

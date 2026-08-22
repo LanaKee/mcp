@@ -135,6 +135,40 @@ describe("LLM planner integration with the agent", () => {
     expect(answer.evidence[0]!.sourceIds.length).toBeGreaterThan(0);
   });
 
+  it("runs a plan that carries both steps and a refusal, keeping the refusal as a limit", async () => {
+    // The model that produced this shape had planned real work and then talked
+    // itself out of the whole question because the ideal dataset was empty.
+    // Honouring the refusal discarded evidence it had just decided to collect.
+    const answer = await runAgent(
+      registry,
+      "포항시 인구 2020년부터 2024년까지",
+      new LlmPlanner({
+        modelName: "stub",
+        client: stubChat(
+          JSON.stringify({
+            steps: [
+              {
+                datasetId: "population_observation",
+                tool: "get_population_trend",
+                arguments: {
+                  region: "포항시",
+                  startYear: 2020,
+                  endYear: 2024,
+                  dataStatuses: ["demo_sample"]
+                },
+                reason: "인구 시계열 질문"
+              }
+            ],
+            unanswerable: "정책 데이터셋이 비어 있어 자격은 판정할 수 없습니다."
+          })
+        )
+      })
+    );
+    expect(answer.answered).toBe(true);
+    expect(answer.evidence).toHaveLength(1);
+    expect(answer.limitations.join(" ")).toContain("자격은 판정할 수 없습니다");
+  });
+
   it("refuses a model plan naming a tool outside the candidate set", async () => {
     const answer = await runAgent(
       registry,

@@ -22,6 +22,14 @@ export interface AgentPlan {
   steps: AgentPlanStep[];
   /** Set when the planner concluded the question cannot be answered from the catalog. */
   unanswerable: string | null;
+  /**
+   * What the plan cannot establish even though it has steps to run.
+   *
+   * Set when the planner wanted to refuse but had usable work anyway: the work
+   * still runs, and this becomes a stated limit on the answer instead of
+   * silently disappearing.
+   */
+  caveat?: string;
 }
 
 export interface PlannerInput {
@@ -231,6 +239,7 @@ export async function runAgent(
   const evidence: AgentEvidence[] = [];
   const sources: SourceRef[] = [];
   const limitations = new Set<string>([...found.notes, ...coverageGaps]);
+  if (plan.caveat) limitations.add(plan.caveat);
   const executedDatasets: string[] = [];
 
   for (const step of accepted) {

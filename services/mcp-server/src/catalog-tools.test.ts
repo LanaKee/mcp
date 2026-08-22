@@ -75,6 +75,35 @@ describe("dataset catalog tools", () => {
     expect(result.notes.join(" ")).toContain("겹치지 않아");
   });
 
+  it("falls back to the corpora when the matched table is empty", async () => {
+    // A subject the catalogue recognises but whose table holds nothing used to
+    // end the search there, so a question about 스마트팜 창업 지원사업 returned
+    // no candidates while hundreds of matching press releases sat unread.
+    const empty = new InMemoryDataRepository({ ...store, policies: [] });
+    const emptyRegistry = createToolRegistry(empty);
+    const response = await executeTool(emptyRegistry, "search_datasets", {
+      query: "스마트팜 창업 지원사업"
+    });
+    const result = response.result as {
+      datasets: Array<{ datasetId: string }>;
+      notes: string[];
+    };
+    const ids = result.datasets.map((dataset) => dataset.datasetId);
+    expect(ids).toContain("press_release");
+    expect(result.notes.join(" ")).toContain("서술 자료");
+  });
+
+  it("does not reach for the corpora when the matched table has rows", async () => {
+    // Widening is a rescue, not a default. A table with rows answers for itself.
+    const response = await search({ query: "인구 감소 추이" });
+    const result = response.result as {
+      datasets: Array<{ datasetId: string }>;
+      notes: string[];
+    };
+    expect(result.datasets[0]!.datasetId).toBe("population_observation");
+    expect(result.notes.join(" ")).not.toContain("서술 자료");
+  });
+
   it("excludes narrative sources when observed facts are requested", async () => {
     const response = await search({
       query: "지방소멸 논의",
