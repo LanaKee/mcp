@@ -1,0 +1,263 @@
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { loadDemoData } from "./data-store.js";
+import { InMemoryDataRepository } from "./repository.js";
+import { createToolRegistry, type ToolRegistry } from "./tools.js";
+import { runAgent } from "./agent.js";
+import { HeuristicPlanner } from "./planner.js";
+import { searchDatasets } from "./catalog-tools.js";
+import {
+  buildPlannerPrompt,
+  chatClientFromEnv,
+  LlmPlanner,
+  parsePlanResponse,
+  type ChatCompletion
+} from "./llm-planner.js";
+
+const stubChat = (reply: string | Error): ChatCompletion => ({
+  complete: async () => {
+    if (reply instanceof Error) throw reply;
+    return reply;
+  }
+});
+
+describe("plan response parsing", () => {
+  it("parses a bare JSON plan", () => {
+    const plan = parsePlanResponse(
+      '{"steps":[{"datasetId":"population_observation","tool":"get_population_trend","arguments":{"region":"포항시"},"reason":"인구 질문"}],"unanswerable":null}'
+    );
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0]!.arguments).toEqual({ region: "포항시" });
+    expect(plan.unanswerable).toBeNull();
+  });
+
+  it("parses JSON wrapped in a code fence", () => {
+    const plan = parsePlanResponse(
+      '```json\n{"steps":[],"unanswerable":"연도가 없습니다"}\n```'
+    );
+    expect(plan.unanswerable).toBe("연도가 없습니다");
+  });
+
+  it("parses JSON surrounded by prose", () => {
+    // Models add commentary despite instructions; the parser scans for the
+    // outermost balanced object instead of trusting the whole body.
+    const plan = parsePlanResponse(
+      '계획은 다음과 같습니다.\n{"steps":[],"unanswerable":"지역 없음"}\n이상입니다.'
+    );
+    expect(plan.unanswerable).toBe("지역 없음");
+  });
+
+  it("is not confused by braces inside strings", () => {
+    const plan = parsePlanResponse(
+      '{"steps":[],"unanswerable":"중괄호 } 가 들어간 사유"}'
+    );
+    expect(plan.unanswerable).toBe("중괄호 } 가 들어간 사유");
+  });
+
+  it("drops malformed steps instead of passing them through", () => {
+    const plan = parsePlanResponse(
+      '{"steps":[{"tool":"get_population_trend"},{"datasetId":"population_observation","tool":"get_population_trend","arguments":{},"reason":"ok"}],"unanswerable":null}'
+    );
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0]!.datasetId).toBe("population_observation");
+  });
+
+  it("rejects a response with neither steps nor a stated reason", () => {
+    // An empty plan without a reason is not a decision the agent can report.
+    expect(() => parsePlanResponse('{"steps":[],"unanswerable":null}')).toThrow(
+      /계획도 거부 사유도/u
+    );
+    expect(() => parsePlanResponse("완전히 관계없는 텍스트")).toThrow(
+      /JSON 객체를 찾지 못했습니다/u
+    );
+  });
+});
+
+describe("planner prompt", () => {
+  let registry: ToolRegistry;
+
+  beforeAll(async () => {
+    registry = createToolRegistry(
+      new InMemoryDataRepository(await loadDemoData())
+    );
+  });
+
+  it("shows the model only the catalog candidates and their real coverage", async () => {
+    const candidates = (
+      await searchDatasets(registry.repository, { query: "인구", limit: 3 })
+    ).hits;
+    const prompt = buildPlannerPrompt({ question: "포항시 인구는?", candidates });
+    expect(prompt).toContain("population_observation");
+    expect(prompt).toContain("get_population_trend");
+    // The model must never be handed the full server tool list.
+    expect(prompt).not.toContain("draft_public_document");
+    expect(prompt).toContain("coverage");
+    expect(prompt).toContain("지어내지 마십시오");
+  });
+});
+
+describe("LLM planner integration with the agent", () => {
+  let registry: ToolRegistry;
+
+  beforeAll(async () => {
+    registry = createToolRegistry(
+      new InMemoryDataRepository(await loadDemoData())
+    );
+  });
+
+  it("executes a valid model plan and cites the resulting sources", async () => {
+    const answer = await runAgent(
+      registry,
+      "포항시 인구 2020년부터 2024년까지",
+      new LlmPlanner({
+        modelName: "stub",
+        client: stubChat(
+          JSON.stringify({
+            steps: [
+              {
+                datasetId: "population_observation",
+                tool: "get_population_trend",
+                arguments: {
+                  region: "포항시",
+                  startYear: 2020,
+                  endYear: 2024,
+                  dataStatuses: ["demo_sample"]
+                },
+                reason: "인구 시계열 질문"
+              }
+            ],
+            unanswerable: null
+          })
+        )
+      })
+    );
+    expect(answer.answered).toBe(true);
+    expect(answer.planner).toBe("llm:stub");
+    expect(answer.evidence[0]!.sourceIds.length).toBeGreaterThan(0);
+  });
+
+  it("refuses a model plan naming a tool outside the candidate set", async () => {
+    const answer = await runAgent(
+      registry,
+      "포항시 인구 2020년부터 2024년까지",
+      new LlmPlanner({
+        modelName: "stub",
+        client: stubChat(
+          JSON.stringify({
+            steps: [
+              {
+                datasetId: "population_observation",
+                tool: "drop_all_tables",
+                arguments: { region: "포항시" },
+                reason: "환각"
+              }
+            ],
+            unanswerable: null
+          })
+        )
+      })
+    );
+    expect(answer.answered).toBe(false);
+    expect(answer.evidence).toHaveLength(0);
+    expect(answer.rejectedSteps[0]!.reason).toContain("도구가 아닙니다");
+  });
+
+  it("falls back to the deterministic planner when the model is unreachable", async () => {
+    // A model outage must degrade the route, not the answer's sourcing.
+    const answer = await runAgent(
+      registry,
+      "포항시 인구 2020년부터 2024년까지",
+      new LlmPlanner({
+        modelName: "stub",
+        client: stubChat(new Error("network down")),
+        fallback: new HeuristicPlanner()
+      })
+    );
+    expect(answer.answered).toBe(true);
+    expect(answer.evidence[0]!.tool).toBe("get_population_trend");
+  });
+
+  it("propagates the model's refusal when it says the question is unanswerable", async () => {
+    const answer = await runAgent(
+      registry,
+      "포항시 인구 2020년부터 2024년까지",
+      new LlmPlanner({
+        modelName: "stub",
+        client: stubChat('{"steps":[],"unanswerable":"연도 범위가 커버리지 밖입니다"}')
+      })
+    );
+    expect(answer.answered).toBe(false);
+    expect(answer.conclusion).toContain("커버리지 밖");
+  });
+});
+
+describe("chat client selection", () => {
+  it("returns null when no provider key is configured", () => {
+    expect(chatClientFromEnv({} as NodeJS.ProcessEnv)).toBeNull();
+  });
+
+  it("selects a provider from whichever key is present", () => {
+    expect(
+      chatClientFromEnv({ GEMINI_API_KEY: "k" } as NodeJS.ProcessEnv)?.modelName
+    ).toContain("gemini");
+    expect(
+      chatClientFromEnv({ GROK_API_KEY: "k" } as NodeJS.ProcessEnv)?.modelName
+    ).toContain("grok");
+  });
+
+  it("honours an explicit model override", () => {
+    expect(
+      chatClientFromEnv({
+        OPENAI_API_KEY: "k",
+        OPENAI_PLANNER_MODEL: "gpt-4.1"
+      } as NodeJS.ProcessEnv)?.modelName
+    ).toBe("gpt-4.1");
+  });
+});
+
+describe("LLM request shape", () => {
+  it("sends a deterministic, bounded request and reads the reply", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: "{\"steps\":[],\"unanswerable\":\"x\"}" } }] }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { OpenAiCompatibleChat } = await import("./llm-planner.js");
+      const chat = new OpenAiCompatibleChat({
+        baseUrl: "https://example.test/v1",
+        apiKey: "secret",
+        model: "test-model"
+      });
+      const reply = await chat.complete("prompt");
+      expect(reply).toContain("unanswerable");
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://example.test/v1/chat/completions");
+      const body = JSON.parse(init.body as string) as { temperature: number };
+      // Planning must be reproducible for the benchmark to mean anything.
+      expect(body.temperature).toBe(0);
+      expect(init.signal).toBeDefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("surfaces a provider error instead of returning an empty plan", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 429, statusText: "Too Many Requests" }))
+    );
+    try {
+      const { OpenAiCompatibleChat } = await import("./llm-planner.js");
+      const chat = new OpenAiCompatibleChat({
+        baseUrl: "https://example.test/v1",
+        apiKey: "secret",
+        model: "test-model"
+      });
+      await expect(chat.complete("prompt")).rejects.toThrow(/429/u);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

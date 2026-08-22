@@ -8,6 +8,9 @@ import {
   loadRepositoryEnvironment
 } from "./runtime.js";
 import { createToolRegistry } from "./tools.js";
+import { HeuristicPlanner } from "./planner.js";
+import { chatClientFromEnv, LlmPlanner } from "./llm-planner.js";
+import type { Planner } from "./agent.js";
 
 const mode = process.argv.includes("--stdio") ? "stdio" : "http";
 loadRepositoryEnvironment();
@@ -42,10 +45,23 @@ if (mode === "stdio") {
   const rateLimiterHandle = httpSecurity
     ? await createRateLimiter(httpSecurity)
     : undefined;
+  // Model-driven planning is an upgrade, never a requirement: with no API key
+  // the deterministic planner keeps the agent fully functional, and when a key
+  // is present the model still falls back to it on any failure.
+  const chat = chatClientFromEnv();
+  const heuristicPlanner = new HeuristicPlanner();
+  const planner: Planner = chat
+    ? new LlmPlanner({
+        client: chat.client,
+        modelName: chat.modelName,
+        fallback: heuristicPlanner
+      })
+    : heuristicPlanner;
   const server = createHttpApp(registry, {
     security: httpSecurity,
     rateLimiter: rateLimiterHandle?.limiter,
-    mcpSessions
+    mcpSessions,
+    planner
   });
   let shuttingDown = false;
   const shutdown = async () => {
@@ -68,5 +84,6 @@ if (mode === "stdio") {
     console.log(
       `MCP Streamable HTTP endpoint: http://${httpHost}:${port}/mcp`
     );
+    console.log(`Agent planner: ${planner.name}`);
   });
 }

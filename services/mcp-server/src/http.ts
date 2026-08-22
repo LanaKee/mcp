@@ -8,6 +8,8 @@ import {
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { representativeQuestions, runRepresentativeDemo } from "./demo.js";
+import { runAgent, type Planner } from "./agent.js";
+import { HeuristicPlanner } from "./planner.js";
 import {
   BoundedTokenBucketRateLimiter,
   JsonShapeError,
@@ -55,6 +57,12 @@ export interface HttpAppOptions {
    * graceful shutdown; omitting it builds one from the environment.
    */
   mcpSessions?: McpSessionManager;
+  /**
+   * Plans which datasets and tools answer a question. Defaults to the
+   * deterministic planner so the server never depends on a third-party model
+   * being reachable.
+   */
+  planner?: Planner;
 }
 
 class HttpError extends Error {
@@ -252,7 +260,14 @@ function operationGroup(
 ): RateLimitGroup {
   if (pathname === "/ready") return "ready";
   if (pathname === MCP_ENDPOINT) return "cheap";
-  if (pathname === "/api/demo" || pathname === "/api/admin/storage") {
+  // The agent runs a catalog lookup, several tool calls and possibly an
+  // outbound model request per invocation, so it belongs with the expensive
+  // budget rather than the per-tool one.
+  if (
+    pathname === "/api/demo" ||
+    pathname === "/api/agent" ||
+    pathname === "/api/admin/storage"
+  ) {
     return "expensive";
   }
   const name = toolName(pathname, registry);
@@ -445,6 +460,7 @@ export function createHttpApp(
     options.rateLimiter ?? new BoundedTokenBucketRateLimiter(config);
   const mcpSessions =
     options.mcpSessions ?? new McpSessionManager(loadMcpHttpConfig());
+  const planner = options.planner ?? new HeuristicPlanner();
   const server = createServer(async (request, response) => {
     const requestId = correlationId(request.headers["x-request-id"]);
     try {
@@ -572,6 +588,32 @@ export function createHttpApp(
           const result = await withinTimeout(
             (signal) =>
               runRepresentativeDemo(questionId, registry, {
+                correlationId: requestId,
+                signal
+              }),
+            operationTimeout(group, config)
+          );
+          return json(response, 200, result, requestId);
+        }
+
+        if (url.pathname === "/api/agent") {
+          if (request.method !== "POST") throw methodNotAllowed("POST");
+          const input = await jsonBody(request, config);
+          if (
+            typeof input.question !== "string" ||
+            input.question.trim().length === 0 ||
+            input.question.length > 500
+          ) {
+            throw new HttpError(
+              400,
+              "invalid_request",
+              "Request validation failed."
+            );
+          }
+          const question = input.question;
+          const result = await withinTimeout(
+            (signal) =>
+              runAgent(registry, question, planner, {
                 correlationId: requestId,
                 signal
               }),
