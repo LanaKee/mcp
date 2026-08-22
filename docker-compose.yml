@@ -26,6 +26,12 @@ services:
       HTTP_AUTH_MODE: token
       HTTP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN:?Set a strong HTTP_AUTH_TOKEN}
       HTTP_TRUST_PROXY: off
+      MCP_MAX_SESSIONS: 256
+      MCP_SESSION_IDLE_MS: 600000
+      # Set these to the public hostname/origin once a proxy terminates TLS,
+      # otherwise DNS rebinding protection stays off.
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       PG_STATEMENT_TIMEOUT_MS: 8000
       PG_QUERY_TIMEOUT_MS: 10000
       STORAGE_WARN_STALE_RATIO_PERCENT: 25

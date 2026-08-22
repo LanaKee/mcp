@@ -19,6 +19,11 @@ import {
   type HttpSecurityConfig,
   type RateLimitGroup
 } from "./http-security.js";
+import {
+  handleMcpRequest,
+  loadMcpHttpConfig,
+  McpSessionManager
+} from "./mcp-http.js";
 import { executeTool, type ToolRegistry } from "./tools.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
@@ -32,6 +37,7 @@ const staticFiles: Record<string, string> = {
   "/app.js": "app.js",
   "/styles.css": "styles.css"
 };
+export const MCP_ENDPOINT = "/mcp";
 const expensiveTools = new Set([
   "search_council_records",
   "get_source_context",
@@ -41,6 +47,11 @@ const expensiveTools = new Set([
 export interface HttpAppOptions {
   security?: HttpSecurityConfig;
   rateLimiter?: BoundedTokenBucketRateLimiter;
+  /**
+   * Hosted MCP sessions. Callers own this so they can drain it during a
+   * graceful shutdown; omitting it builds one from the environment.
+   */
+  mcpSessions?: McpSessionManager;
 }
 
 class HttpError extends Error {
@@ -128,10 +139,15 @@ function contentLength(request: IncomingMessage): number | undefined {
   return parsed;
 }
 
-async function jsonBody(
+/**
+ * Reads and shape-validates a JSON request body, returning `undefined` when
+ * the body is empty. The top-level type is left to the caller: the REST API
+ * requires an object, while JSON-RPC also permits a batch array.
+ */
+async function readJsonPayload(
   request: IncomingMessage,
   config: HttpSecurityConfig
-): Promise<Record<string, unknown>> {
+): Promise<unknown> {
   const mediaType = request.headers["content-type"]
     ?.split(";", 1)[0]
     ?.trim()
@@ -168,17 +184,12 @@ async function jsonBody(
       connection: "close"
     });
   }
+  if (chunks.length === 0) return undefined;
   let parsed: unknown;
   try {
-    parsed =
-      chunks.length === 0
-        ? {}
-        : JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
     throw new HttpError(400, "invalid_json", "Request body must be valid JSON.");
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new HttpError(400, "invalid_json_shape", "JSON body must be an object.");
   }
   try {
     validateJsonShape(parsed, config);
@@ -191,6 +202,18 @@ async function jsonBody(
       );
     }
     throw error;
+  }
+  return parsed;
+}
+
+async function jsonBody(
+  request: IncomingMessage,
+  config: HttpSecurityConfig
+): Promise<Record<string, unknown>> {
+  const payload = await readJsonPayload(request, config);
+  const parsed = payload === undefined ? {} : payload;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new HttpError(400, "invalid_json_shape", "JSON body must be an object.");
   }
   return parsed as Record<string, unknown>;
 }
@@ -225,6 +248,7 @@ function operationGroup(
   registry: ToolRegistry
 ): RateLimitGroup {
   if (pathname === "/ready") return "ready";
+  if (pathname === MCP_ENDPOINT) return "cheap";
   if (pathname === "/api/demo" || pathname === "/api/admin/storage") {
     return "expensive";
   }
@@ -299,6 +323,29 @@ function rateLimit(
     requestId
   );
   return false;
+}
+
+/**
+ * An MCP session multiplexes handshake traffic, notifications and tool calls
+ * over one path, so the path alone cannot say how costly a request is. Only a
+ * `tools/call` naming an expensive tool draws from the expensive bucket; the
+ * rest are ordinary protocol chatter that must not exhaust it.
+ */
+function mcpRateLimitGroup(
+  body: unknown,
+  registry: ToolRegistry
+): RateLimitGroup | undefined {
+  const messages = Array.isArray(body) ? body : [body];
+  for (const message of messages) {
+    if (!message || typeof message !== "object") continue;
+    const record = message as { method?: unknown; params?: unknown };
+    if (record.method !== "tools/call") continue;
+    const name = (record.params as { name?: unknown } | undefined)?.name;
+    if (typeof name !== "string") continue;
+    if (expensiveTools.has(name)) return "expensive";
+    if (name in registry.tools) return "cheap";
+  }
+  return undefined;
 }
 
 function methodNotAllowed(allow: string): HttpError {
@@ -393,6 +440,8 @@ export function createHttpApp(
   const config = options.security ?? loadHttpSecurityConfig();
   const limiter =
     options.rateLimiter ?? new BoundedTokenBucketRateLimiter(config);
+  const mcpSessions =
+    options.mcpSessions ?? new McpSessionManager(loadMcpHttpConfig());
   const server = createServer(async (request, response) => {
     const requestId = correlationId(request.headers["x-request-id"]);
     try {
@@ -422,6 +471,43 @@ export function createHttpApp(
           { status: readiness.ready ? "ready" : "not_ready" },
           requestId
         );
+      }
+
+      if (url.pathname === MCP_ENDPOINT) {
+        if (!rateLimit(request, response, requestId, group, config, limiter)) return;
+        if (!isAuthorized(request.headers, config)) {
+          throw new HttpError(401, "unauthorized", "Authentication required.", {
+            "www-authenticate": '******"gyeongbuk-public-ai"'
+          });
+        }
+        if (
+          request.method !== "POST" &&
+          request.method !== "GET" &&
+          request.method !== "DELETE"
+        ) {
+          throw methodNotAllowed("POST, GET, DELETE");
+        }
+        // Only POST carries a JSON-RPC payload; GET opens the SSE stream and
+        // DELETE terminates the session, and both must not consume a body.
+        const body =
+          request.method === "POST"
+            ? await readJsonPayload(request, config)
+            : undefined;
+        const callGroup = mcpRateLimitGroup(body, registry);
+        if (
+          callGroup === "expensive" &&
+          !rateLimit(request, response, requestId, callGroup, config, limiter)
+        ) {
+          return;
+        }
+        await handleMcpRequest(
+          request,
+          response,
+          registry,
+          mcpSessions,
+          body
+        );
+        return;
       }
 
       if (url.pathname.startsWith("/api/")) {

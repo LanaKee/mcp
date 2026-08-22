@@ -100,6 +100,50 @@ pnpm --filter @gb/mcp-server dev:stdio
 서버는 stdout을 JSON-RPC 전용으로 사용합니다.
 HTTP 인증·rate limit 설정은 local stdio transport에 적용되지 않는다.
 
+## MCP 원격 호스팅 (Streamable HTTP)
+
+HTTP 모드로 실행하면 `/mcp` 경로에서 MCP 표준 Streamable HTTP transport를
+제공한다. stdio와 완전히 같은 tool 목록을 노출한다.
+
+```bash
+HTTP_HOST=0.0.0.0 \
+PORT=8787 \
+HTTP_AUTH_MODE=token \
+HTTP_AUTH_TOKEN=<32바이트 이상 토큰> \
+DATABASE_URL=postgresql://... \
+DATA_REPOSITORY=postgres \
+node services/mcp-server/dist/index.js --http
+```
+
+원격 MCP 클라이언트 등록:
+
+```json
+{
+  "mcpServers": {
+    "gyeongbuk-public-ai": {
+      "type": "http",
+      "url": "https://<host>/mcp",
+      "headers": { "Authorization": "Bearer <HTTP_AUTH_TOKEN>" }
+    }
+  }
+}
+```
+
+| 변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `MCP_MAX_SESSIONS` | `256` | 동시 세션 상한. 초과 시 `503` |
+| `MCP_SESSION_IDLE_MS` | `600000` | idle 세션 회수 기준 |
+| `MCP_ALLOWED_HOSTS` | (비어 있음) | DNS rebinding 방어 Host allow-list |
+| `MCP_ALLOWED_ORIGINS` | (비어 있음) | 동 Origin allow-list |
+
+- 공개 호스팅에서는 `HTTP_AUTH_MODE=token`을 반드시 설정한다.
+  인증 실패 시 세션이 생성되지 않고 `401`로 끊는다.
+- `MCP_ALLOWED_HOSTS`/`MCP_ALLOWED_ORIGINS`가 모두 비어 있으면 DNS rebinding
+  방어가 꺼진다. 신뢰할 수 있는 proxy 뒤가 아니라면 설정한다.
+- `/mcp`의 프로토콜 트래픽은 cheap 예산을, `tools/call` 중 비용이 큰 tool은
+  추가로 expensive 예산을 소비한다. 자세한 내용은
+  [docs/CHANGES_HOSTED_MCP_SERVER.md](docs/CHANGES_HOSTED_MCP_SERVER.md).
+
 ## HTTP API
 
 | 방식 | 경로 | 설명 |

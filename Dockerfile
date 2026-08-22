@@ -19,6 +19,7 @@ COPY --from=build /app/services/mcp-server ./services/mcp-server
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/data/sample ./data/sample
+USER node
 EXPOSE 8787
 CMD ["node", "services/mcp-server/dist/index.js", "--http"]
 
