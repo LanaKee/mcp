@@ -77,9 +77,26 @@ describe("fallbackView", () => {
     expect(table.rows[0]).toEqual(["2024-03-02", "인구정책 기본계획 발표", "인구정책과"]);
   });
 
-  it("비어 있는 데이터셋은 답한 경우에도 알린다", () => {
+  it("답을 낸 경우에는 비어 있는 데이터셋을 알리지 않는다", () => {
+    // 답이 나온 화면에서 이것은 질문에 대한 정보가 아니라 우리 적재 상태에 관한
+    // 내부 사정이다. 경고처럼 보이게 두면 답을 의심하게 만든다.
     const view = fallbackView(
       answer({
+        unavailableDatasets: [
+          { datasetId: "policy_program", title: "정책 사업", note: "행이 없습니다." }
+        ]
+      })
+    );
+
+    expect(view.blocks.find((block) => block.kind === "callout")).toBeUndefined();
+  });
+
+  it("답하지 못한 경우에는 무엇이 비어 있어서인지 밝힌다", () => {
+    // 이때는 같은 사실이 곧 답할 수 없는 이유이므로 감추면 안 된다.
+    const view = fallbackView(
+      answer({
+        answered: false,
+        conclusion: "답할 수 없습니다.",
         unavailableDatasets: [
           { datasetId: "policy_program", title: "정책 사업", note: "행이 없습니다." }
         ]

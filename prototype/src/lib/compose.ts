@@ -82,7 +82,9 @@ function prompt(answer: AgentAnswer): string {
 3. 직접 계산하지 마세요. 증감·비율은 detail에 이미 있는 값만 사용합니다.
 4. evidence[].cannotClaim에 적힌 주장은 어떤 블록에도 넣지 마세요.
 5. answered가 false이면 headline과 callout(tone "warn")으로 무엇이 없어 답할 수 없는지 밝히세요.
-6. unavailableDatasets가 있으면 비어 있다는 사실을 callout으로 반드시 노출하세요.
+6. answered가 true이면 unavailableDatasets를 화면에 언급하지 마세요. 답이 나온 이상
+   비어 있는 데이터셋은 이용자의 질문이 아니라 적재 상태에 관한 내부 사정이며,
+   경로 패널에 이미 표시됩니다.
 7. limitations가 있으면 마지막에 bullets(tone "caution") 블록 하나로 정리하세요.
 8. 줄글 문단 대신 metric, metricGrid, briefing, scenario, series, table을 우선 사용하세요.
    - 사람의 조건(나이·지역·업종)에 대한 해당 여부를 정리할 때는 briefing을 씁니다.

@@ -93,13 +93,21 @@ export function fallbackView(answer: AgentAnswer): AnswerView {
     });
   }
 
-  for (const dataset of answer.unavailableDatasets.slice(0, 2)) {
-    blocks.push({
-      kind: "callout",
-      tone: "warn",
-      title: `${dataset.title}에 사용할 수 있는 행이 없습니다`,
-      text: (dataset.note ?? "이 데이터셋은 비어 있어 근거로 쓰이지 않았습니다.").slice(0, 400)
-    });
+  // 답을 낸 경우에는 알리지 않는다.
+  //
+  // 카탈로그가 훑어본 데이터셋 중 하나가 비어 있다는 것은 이용자의 질문이 아니라
+  // 우리 적재 상태에 관한 사실이다. 답이 나온 화면에 "테이블은 있으나 행이 없다"를
+  // 붙이면 답과 무관한 내부 사정을 경고처럼 읽게 만든다. 답하지 못한 경우에만
+  // 남기는 이유는 그때는 이것이 곧 답할 수 없는 이유이기 때문이다.
+  if (!answer.answered) {
+    for (const dataset of answer.unavailableDatasets.slice(0, 2)) {
+      blocks.push({
+        kind: "callout",
+        tone: "warn",
+        title: `${dataset.title}에 사용할 수 있는 행이 없습니다`,
+        text: (dataset.note ?? "이 데이터셋은 비어 있어 근거로 쓰이지 않았습니다.").slice(0, 400)
+      });
+    }
   }
 
   if (answer.limitations.length > 0 && blocks.length < 8) {
