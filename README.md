@@ -155,7 +155,7 @@ node services/mcp-server/dist/index.js --http
 | `GET` | `/ready` | 최소 ready/not-ready 상태만 공개 |
 | `GET` | `/api/questions` | 대표 질문 목록 |
 | `GET` | `/api/admin/storage` | token 전용 DB 용량·lifecycle·안전한 설정 요약 |
-| `POST` | `/api/demo` | 대표 질문 ID 실행 |
+| `POST` | `/api/agent` | 자연어 질문을 받아 데이터셋 탐색·도구 선택·근거 수집까지 수행 |
 | `POST` | `/api/tools/:toolName` | MCP와 동일한 도구 함수 실행 |
 
 ```bash
@@ -164,10 +164,10 @@ curl http://localhost:8787/health
 export HTTP_AUTH_TOKEN="$(openssl rand -hex 32)"
 HTTP_AUTH_MODE=token pnpm start
 
-curl -X POST http://localhost:8787/api/demo \
+curl -X POST http://localhost:8787/api/agent \
   -H "authorization: Bearer $HTTP_AUTH_TOKEN" \
   -H 'content-type: application/json' \
-  -d '{"questionId":"population-tax"}'
+  -d '{"question":"포항시는 2018년부터 2024년까지 인구는 줄었는데 지방세 세수는 늘었나?"}'
 
 curl -X POST http://localhost:8787/api/tools/search_policies \
   -H "authorization: Bearer $HTTP_AUTH_TOKEN" \

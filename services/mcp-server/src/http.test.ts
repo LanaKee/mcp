@@ -44,17 +44,50 @@ describe("HTTP API", () => {
     });
   });
 
-  it("runs a representative question without demo fallback data", async () => {
-    const response = await fetch(`${baseUrl}/api/demo`, {
+  it("lists representative questions as questions only", async () => {
+    const response = await fetch(`${baseUrl}/api/questions`);
+    const value = (await response.json()) as {
+      questions: Array<Record<string, unknown>>;
+    };
+    expect(response.status).toBe(200);
+    expect(value.questions.length).toBeGreaterThan(0);
+    // The demo must not ship pre-bound tools or answers: the agent has to
+    // resolve every question at request time, like a typed one.
+    for (const question of value.questions) {
+      expect(Object.keys(question).sort()).toEqual(["id", "question"]);
+    }
+  });
+
+  it("answers an agent question with a route that can be audited", async () => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ questionId: "population-tax" })
+      body: JSON.stringify({ question: "포항시 인구 추세를 알려줘" })
     });
     const value = (await response.json()) as Record<string, unknown>;
     expect(response.status).toBe(200);
+    expect(value).toHaveProperty("planner");
+    expect(value).toHaveProperty("consideredDatasets");
+    expect(value).toHaveProperty("plan");
     expect(value).toHaveProperty("conclusion");
-    expect(value.data_status).toBe("empty");
-    expect(value.conclusion).toContain("결론을 생성하지 않았습니다");
-    expect(JSON.stringify(value)).not.toContain("지방세 +");
+    expect(value).toHaveProperty("sources");
+  });
+
+  it("rejects an agent request with no question", async () => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: "   " })
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects an agent question that exceeds the length limit", async () => {
+    const response = await fetch(`${baseUrl}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: "가".repeat(501) })
+    });
+    expect(response.status).toBe(400);
   });
 });

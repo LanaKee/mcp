@@ -7,7 +7,7 @@ import {
 } from "node:http";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { representativeQuestions, runRepresentativeDemo } from "./demo.js";
+import { representativeQuestions } from "./questions.js";
 import { runAgent, type Planner } from "./agent.js";
 import { HeuristicPlanner } from "./planner.js";
 import {
@@ -264,7 +264,6 @@ function operationGroup(
   // outbound model request per invocation, so it belongs with the expensive
   // budget rather than the per-tool one.
   if (
-    pathname === "/api/demo" ||
     pathname === "/api/agent" ||
     pathname === "/api/admin/storage"
   ) {
@@ -572,28 +571,6 @@ export function createHttpApp(
             },
             requestId
           );
-        }
-
-        if (url.pathname === "/api/demo") {
-          if (request.method !== "POST") throw methodNotAllowed("POST");
-          const input = await jsonBody(request, config);
-          if (typeof input.questionId !== "string") {
-            throw new HttpError(
-              400,
-              "invalid_request",
-              "Request validation failed."
-            );
-          }
-          const questionId = input.questionId;
-          const result = await withinTimeout(
-            (signal) =>
-              runRepresentativeDemo(questionId, registry, {
-                correlationId: requestId,
-                signal
-              }),
-            operationTimeout(group, config)
-          );
-          return json(response, 200, result, requestId);
         }
 
         if (url.pathname === "/api/agent") {
