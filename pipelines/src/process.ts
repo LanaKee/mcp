@@ -17,6 +17,8 @@ export interface NormalizeAndLoadOptions {
   embeddingProvider?: string;
   allowExternal?: boolean;
   embeddingBatchSize?: number;
+  datasetDirectory?: string;
+  generatedDirectory?: string;
   onExtractionProgress?: (progress: {
     current: number;
     total: number;
@@ -102,7 +104,14 @@ export async function normalizeAndLoad(
   options: NormalizeAndLoadOptions
 ): Promise<NormalizeAndLoadResult> {
   const regenerate = (options.source ?? "regenerate") === "regenerate";
-  const etl = regenerate ? (await runEtl(true)).result : await readGeneratedEtl();
+  const etl = regenerate
+    ? (
+        await runEtl(true, {
+          datasetDirectory: options.datasetDirectory,
+          generatedDirectory: options.generatedDirectory
+        })
+      ).result
+    : await readGeneratedEtl();
   const severeTaxIssues = etl.localTax.qualityIssues.filter(
     (issue) => issue.severity === "error"
   );

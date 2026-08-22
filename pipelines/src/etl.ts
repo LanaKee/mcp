@@ -42,6 +42,11 @@ export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "
 export const generatedDirectory = resolve(repositoryRoot, "data/generated");
 export const datasetDirectory = resolve(repositoryRoot, "datasets");
 
+export interface EtlPaths {
+  datasetDirectory?: string;
+  generatedDirectory?: string;
+}
+
 export interface EtlError {
   path: string;
   error: string;
@@ -132,8 +137,9 @@ async function writeIfChanged(
   return "updated";
 }
 
-export async function collectEtlData(): Promise<EtlResult> {
-  const catalog = await buildCatalog(datasetDirectory, repositoryRoot);
+export async function collectEtlData(options: EtlPaths = {}): Promise<EtlResult> {
+  const inputDirectory = options.datasetDirectory ?? datasetDirectory;
+  const catalog = await buildCatalog(inputDirectory, repositoryRoot);
   const population: OfficialPopulationRow[] = [];
   const council: OfficialCouncilRow[] = [];
   const pressRelease: OfficialPressReleaseRow[] = [];
@@ -303,11 +309,12 @@ export async function collectEtlData(): Promise<EtlResult> {
   };
 }
 
-export async function runEtl(write: boolean): Promise<{
+export async function runEtl(write: boolean, options: EtlPaths = {}): Promise<{
   result: EtlResult;
   summary: EtlSummary;
 }> {
-  const result = await collectEtlData();
+  const result = await collectEtlData(options);
+  const outputDirectory = options.generatedDirectory ?? generatedDirectory;
   const summary: EtlSummary = {
     mode: write ? "write" : "dry-run",
     files: result.catalog.length,
@@ -354,39 +361,39 @@ export async function runEtl(write: boolean): Promise<{
   if (write) {
     summary.writes = {
       catalog: await writeIfChanged(
-        resolve(generatedDirectory, "catalog.json"),
+        resolve(outputDirectory, "catalog.json"),
         result.catalog
       ),
       population: await writeIfChanged(
-        resolve(generatedDirectory, "population.normalized.json"),
+        resolve(outputDirectory, "population.normalized.json"),
         result.population
       ),
       council: await writeIfChanged(
-        resolve(generatedDirectory, "council.normalized.json"),
+        resolve(outputDirectory, "council.normalized.json"),
         result.council
       ),
       pressRelease: await writeIfChanged(
-        resolve(generatedDirectory, "press-release.normalized.json"),
+        resolve(outputDirectory, "press-release.normalized.json"),
         result.pressRelease
       ),
       councilMember: await writeIfChanged(
-        resolve(generatedDirectory, "council-member.normalized.json"),
+        resolve(outputDirectory, "council-member.normalized.json"),
         result.councilMember
       ),
       councilBill: await writeIfChanged(
-        resolve(generatedDirectory, "council-bill.normalized.json"),
+        resolve(outputDirectory, "council-bill.normalized.json"),
         result.councilBill
       ),
       councilBillSponsor: await writeIfChanged(
-        resolve(generatedDirectory, "council-bill-sponsor.normalized.json"),
+        resolve(outputDirectory, "council-bill-sponsor.normalized.json"),
         result.councilBillSponsor
       ),
       localTax: await writeIfChanged(
-        resolve(generatedDirectory, "local-tax.normalized.json"),
+        resolve(outputDirectory, "local-tax.normalized.json"),
         result.localTax
       ),
       localTaxQuality: await writeIfChanged(
-        resolve(generatedDirectory, "local-tax.quality.report.json"),
+        resolve(outputDirectory, "local-tax.quality.report.json"),
         {
           reportVersion: "local-tax-quality-v1",
           counts: summary.normalizedLocalTaxRows,
@@ -397,7 +404,7 @@ export async function runEtl(write: boolean): Promise<{
         }
       ),
       errors: await writeIfChanged(
-        resolve(generatedDirectory, "errors.json"),
+        resolve(outputDirectory, "errors.json"),
         result.errors
       )
     };

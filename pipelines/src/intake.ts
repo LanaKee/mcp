@@ -343,16 +343,17 @@ function revisionName(fileName: string, revision: number): string {
 function reserveStorePath(
   fileName: string,
   category: string,
-  taken: Set<string>
+  taken: Set<string>,
+  storeRoot: string
 ): { path: string; action: "accepted" | "revision" } {
-  const base = `datasets/${category}/${fileName}`.normalize("NFC");
+  const base = `${storeRoot}/${category}/${fileName}`.normalize("NFC");
   if (!taken.has(base)) {
     taken.add(base);
     return { path: base, action: "accepted" };
   }
   for (let revision = 2; revision < 1000; revision += 1) {
     const candidate =
-      `datasets/${category}/${revisionName(fileName, revision)}`.normalize("NFC");
+      `${storeRoot}/${category}/${revisionName(fileName, revision)}`.normalize("NFC");
     if (!taken.has(candidate)) {
       taken.add(candidate);
       return { path: candidate, action: "revision" };
@@ -368,6 +369,7 @@ function reserveStorePath(
 export async function planIntake(options: {
   inboxDirectory: string;
   repositoryRoot: string;
+  datasetDirectory?: string;
   storeIndex: StoreIndex;
   maxBytes?: number;
 }): Promise<IntakePlan> {
@@ -375,6 +377,10 @@ export async function planIntake(options: {
   const taken = new Set(options.storeIndex.paths);
   const batchHashes = new Map<string, string>();
   const decisions: IntakeDecision[] = [];
+  const storeRoot = relative(
+    options.repositoryRoot,
+    options.datasetDirectory ?? resolve(options.repositoryRoot, "datasets")
+  ).normalize("NFC");
 
   for (const inboxPath of files) {
     const fileName = (inboxPath.split("/").at(-1) ?? inboxPath).normalize("NFC");
@@ -477,7 +483,8 @@ export async function planIntake(options: {
     const reserved = reserveStorePath(
       fileName,
       storeCategory(described.contentKind, described.extension),
-      taken
+      taken,
+      storeRoot
     );
     batchHashes.set(sha256, reserved.path);
     decisions.push({
@@ -652,6 +659,7 @@ export async function runIntake(options: {
     const plan = await planIntake({
       inboxDirectory: options.inboxDirectory,
       repositoryRoot: options.repositoryRoot,
+      datasetDirectory: options.datasetDirectory,
       storeIndex,
       maxBytes: options.maxBytes
     });

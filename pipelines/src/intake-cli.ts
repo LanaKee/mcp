@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
-import { DatabaseOperationError } from "./db.js";
+import { applySchemaToDatabase, DatabaseOperationError } from "./db.js";
 import { generatedDirectory, repositoryRoot } from "./etl.js";
 import { recordIntakeRun, summarizeIntakeLedger } from "./intake-db.js";
 import { runIntake, type IntakeRunResult } from "./intake.js";
@@ -22,6 +22,7 @@ function usage(): string {
     "Options:",
     "  --inbox DIR              inbox directory (default data/intake/inbox)",
     "  --workspace DIR          intake workspace (default data/intake)",
+    "  --dataset-dir DIR        isolated raw store (default datasets)",
     "  --dry-run                plan only; no files move and nothing is written",
     "  --skip-process           store files but do not normalize or load them",
     "  --skip-ledger            do not write the intake run to PostgreSQL",
@@ -72,6 +73,7 @@ function databaseUrl(): string {
 const VALUE_FLAGS = new Set([
   "--inbox",
   "--workspace",
+  "--dataset-dir",
   "--max-bytes",
   "--pdf-limit",
   "--embedding-provider",
@@ -124,10 +126,14 @@ async function main(): Promise<void> {
     repositoryRoot,
     optionValue(flags, "--inbox") ?? DEFAULT_INBOX
   );
+  const datasetDirectory = resolve(
+    repositoryRoot,
+    optionValue(flags, "--dataset-dir") ?? DEFAULT_DATASETS
+  );
 
   const intake: IntakeRunResult = await runIntake({
     inboxDirectory,
-    datasetDirectory: DEFAULT_DATASETS,
+    datasetDirectory,
     repositoryRoot,
     workspaceDirectory,
     dryRun,
@@ -137,7 +143,10 @@ async function main(): Promise<void> {
 
   const stored = intake.counts.accepted + intake.counts.revision;
   let ledger = null;
+  let schemaApplied = false;
   if (!dryRun && !skipLedger) {
+    await applySchemaToDatabase(databaseUrl());
+    schemaApplied = true;
     ledger = await recordIntakeRun(databaseUrl(), intake);
   }
 
@@ -148,7 +157,7 @@ async function main(): Promise<void> {
     processed = await normalizeAndLoad({
       databaseUrl: databaseUrl(),
       source: "regenerate",
-      applySchema: true,
+      applySchema: !schemaApplied,
       skipPdf: flags.includes("--skip-pdf"),
       pdfLimit: positiveInteger(optionValue(flags, "--pdf-limit"), "--pdf-limit"),
       embeddingProvider: optionValue(flags, "--embedding-provider"),
@@ -157,6 +166,8 @@ async function main(): Promise<void> {
         optionValue(flags, "--embedding-batch-size"),
         "--embedding-batch-size"
       ),
+      datasetDirectory,
+      generatedDirectory: resolve(workspaceDirectory, "generated"),
       onExtractionProgress: ({ current, total, status, pages, chunks }) => {
         if (current === total || current % 25 === 0) {
           console.error(

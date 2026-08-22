@@ -11,6 +11,7 @@ import {
   storeCategory,
   validateIntakePayload
 } from "./intake.js";
+import { runEtl } from "./etl.js";
 
 let root = "";
 let inbox = "";
@@ -66,6 +67,54 @@ async function intake(options: { dryRun?: boolean } = {}) {
 }
 
 describe("dataset intake", () => {
+  it("stores into an explicitly isolated raw store", async () => {
+    const isolated = resolve(root, "isolated/raw");
+    await mkdir(isolated, { recursive: true });
+    await writeInbox("경상북도_포항시_지방세 징수현황_20241231.csv", TAX_CSV);
+
+    const result = await runIntake({
+      inboxDirectory: inbox,
+      datasetDirectory: isolated,
+      repositoryRoot: root,
+      workspaceDirectory: workspace
+    });
+
+    expect(result.decisions[0]?.storedPath).toBe(
+      "isolated/raw/local-tax/경상북도_포항시_지방세 징수현황_20241231.csv"
+    );
+    expect(
+      await exists(
+        resolve(
+          isolated,
+          "local-tax/경상북도_포항시_지방세 징수현황_20241231.csv"
+        )
+      )
+    ).toBe(true);
+    expect(
+      await exists(
+        resolve(
+          datasets,
+          "local-tax/경상북도_포항시_지방세 징수현황_20241231.csv"
+        )
+      )
+    ).toBe(false);
+  });
+
+  it("normalizes an isolated dataset store without writing global artifacts", async () => {
+    await writeInbox("경상북도_포항시_지방세 징수현황_20241231.csv", TAX_CSV);
+    await intake();
+
+    const output = resolve(root, "generated");
+    const { result } = await runEtl(true, {
+      datasetDirectory: datasets,
+      generatedDirectory: output
+    });
+
+    expect(result.catalog).toHaveLength(1);
+    expect(result.catalog[0]?.contentKind).toBe("local_tax_payment_media");
+    expect(await exists(resolve(output, "catalog.json"))).toBe(true);
+  });
+
   it("stores a new file under its routed category and empties the inbox", async () => {
     await writeInbox("경상북도_포항시_지방세 징수현황_20241231.csv", TAX_CSV);
 

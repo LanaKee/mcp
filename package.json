@@ -21,6 +21,7 @@
     "intake": "pnpm --filter @gb/pipelines intake",
     "intake:dry-run": "pnpm --filter @gb/pipelines intake:dry-run",
     "intake:status": "pnpm --filter @gb/pipelines intake:status",
+    "experiment:intake-onboarding": "pnpm --filter @gb/pipelines intake:onboarding",
     "lifecycle:status": "pnpm --filter @gb/pipelines lifecycle:status",
     "lifecycle:approve": "pnpm --filter @gb/pipelines lifecycle:approve",
     "lifecycle:retire": "pnpm --filter @gb/pipelines lifecycle:retire",

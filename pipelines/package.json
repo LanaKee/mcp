@@ -18,6 +18,7 @@
     "intake": "tsx src/intake-cli.ts run",
     "intake:dry-run": "tsx src/intake-cli.ts run --dry-run",
     "intake:status": "tsx src/intake-cli.ts status",
+    "intake:onboarding": "tsx src/intake-onboarding.ts",
     "lifecycle:status": "tsx src/lifecycle-cli.ts status",
     "lifecycle:approve": "tsx src/lifecycle-cli.ts approve",
     "lifecycle:retire": "tsx src/lifecycle-cli.ts retire",
