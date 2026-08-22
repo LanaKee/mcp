@@ -24,6 +24,7 @@
   "dependencies": {
     "@gb/retrieval": "workspace:*",
     "csv-parse": "^6.1.0",
+    "fflate": "^0.8.3",
     "iconv-lite": "^0.7.0",
     "pdfjs-dist": "^6.2.108",
     "pg": "^8.23.0",

@@ -20,6 +20,10 @@ import {
   type LocalTaxNormalizationResult,
   type LocalTaxSourceInput
 } from "./local-tax.js";
+import {
+  mergeLocalTaxNormalizations,
+  normalizeLocalTaxYearbook
+} from "./local-tax-yearbook.js";
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const generatedDirectory = resolve(repositoryRoot, "data/generated");
@@ -88,6 +92,7 @@ export async function collectEtlData(): Promise<EtlResult> {
   const population: OfficialPopulationRow[] = [];
   const council: OfficialCouncilRow[] = [];
   const localTaxInputs: LocalTaxSourceInput[] = [];
+  const localTaxYearbooks: LocalTaxNormalizationResult[] = [];
   const errors: EtlError[] = catalog
     .filter((entry) => entry.error)
     .map((entry) => ({ path: entry.path, error: entry.error! }));
@@ -151,6 +156,18 @@ export async function collectEtlData(): Promise<EtlResult> {
             dataStatus: "official_observed" as const
           }))
         );
+      } else if (
+        entry.extension === ".hwpx" &&
+        entry.contentKind === "local_tax_yearbook" &&
+        entry.parseStatus === "parsed"
+      ) {
+        localTaxYearbooks.push(
+          normalizeLocalTaxYearbook({
+            path: entry.path,
+            sha256: entry.sha256,
+            buffer: await readFile(absolute)
+          })
+        );
       }
     } catch (caught) {
       errors.push({
@@ -160,10 +177,12 @@ export async function collectEtlData(): Promise<EtlResult> {
     }
   }
 
-  const localTax =
+  const localTax = mergeLocalTaxNormalizations([
     localTaxInputs.length > 0
       ? normalizeLocalTaxSources(localTaxInputs)
-      : emptyLocalTaxNormalization();
+      : emptyLocalTaxNormalization(),
+    ...localTaxYearbooks
+  ]);
   errors.push(
     ...localTax.qualityIssues
       .filter((issue) => issue.severity === "error")

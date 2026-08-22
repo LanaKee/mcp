@@ -176,6 +176,13 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     resolve(repositoryRoot, "db/migrations/008_official_local_tax_facts.sql"),
     "utf8"
   );
+  const localTaxYearbookMigration = await readFile(
+    resolve(
+      repositoryRoot,
+      "db/migrations/009_local_tax_yearbook_coverage.sql"
+    ),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
@@ -187,6 +194,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(pdfPageQualityMigration);
     await client.query(sourceLifecycleMigration);
     await client.query(officialLocalTaxMigration);
+    await client.query(localTaxYearbookMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
@@ -197,6 +205,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(pdfPageQualityMigration);
     await client.query(sourceLifecycleMigration);
     await client.query(officialLocalTaxMigration);
+    await client.query(localTaxYearbookMigration);
   }
 }
 

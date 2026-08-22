@@ -51,15 +51,16 @@ SHA-256을 포함하므로 같은 경로의 파일이 변경되어도 이전 버
 |---|---|
 | `accounting_basis` | `settlement`, `reported`, 기존 sample의 `budget` |
 | `amount_semantics` | `collected_amount`, `payment_amount`, `reported_total_tax_burden`, sample의 `demo_settlement`, 기존 행의 `legacy_unspecified` |
-| `source_grain` | `collection_status`, `payment_media`, `per_capita_burden`, `demo_sample`, 기존 행의 `legacy_unspecified` |
+| `source_grain` | `collection_status`, `statistical_yearbook_local_collection`, `payment_media`, `per_capita_burden`, `demo_sample`, 기존 행의 `legacy_unspecified` |
 | `unit_original` / `unit_multiplier` | 원천 `KRW`/`thousand_KRW`와 KRW 변환 배수 1/1,000 |
 | `unit_provenance` | 명시 원/천원 header, 무표기 원 기본, cross-source 천원 reconciliation |
 | `is_aggregate` | 합계/총계/소계/계 행 또는 검증된 detail 합산 여부 |
-| `source_row` / `metadata` | 원본 행과 파생에 사용한 행 목록 등 |
+| `source_row` / `metadata` | 원본 행과 파생에 사용한 행 목록, collection scope, `headlineEligible` 등 |
 
-headline 선택 우선순위는 징수현황의 수납액, 징수현황이 없는 지역·연도의
-1인당 부담 원천 지방세 총액, 징수 세목이 없는 납부현황 세목 합계다. 서로 다른 의미를
-하나의 숫자로 강제하지 않고 위 컬럼으로 노출한다.
+headline 선택 우선순위는 동일 범위 징수현황의 수납액, 행정안전부 연감의 시·군세
+소계, 1인당 부담 원천 지방세 총액, 징수 세목이 없는 납부현황 세목 합계다.
+도세+시·군세 결합 합계는 원본 fact로 보존하지만 `headlineEligible=false`라서 비교
+headline으로 사용하지 않는다. 서로 다른 의미를 하나의 숫자로 강제하지 않는다.
 
 ### 지방세 원천 grain
 
@@ -76,6 +77,12 @@ headline 선택 우선순위는 징수현황의 수납액, 징수현황이 없�
 | `local_tax_exemption_status` | 지역·연도·세목별 비과세/감면/부과 금액과 신고/계산 비율 |
 | `local_tax_unrefunded_status` | 지역·연도·세목·미환급유형·납세자유형별 당해/누적 건수·금액 |
 | `local_tax_enforcement_statistic` | 지역·영치일·기관별 체납 건수/금액; 영치장소 문자열은 미저장 |
+
+`statistical_yearbook_local_collection`은 행정안전부 2025 지방세통계연감의
+2024 회계연도 `1-16. 경상북도` 표에서 시세/군세 소계와 세목을 읽은 headline grain이다.
+원천의 `단위: 천원`을 1,000배하고, 각 지역에서 `전체 징수액 - 도세 = 시·군세 소계 =
+시·군세 세목 합계`를 검증한다. source row는 표의 canonical 지역 행이며 176개 fact가
+22개 source row locator를 공유한다.
 
 예천의 두 자리 연도는 00~99를 20YY로 확장한 뒤 2000~실행연도+1 범위를 다시
 검증한다. 영천 비과세·감면 720행은 `세액`/`건수` 규모가 열 의미와 모순되어 값을

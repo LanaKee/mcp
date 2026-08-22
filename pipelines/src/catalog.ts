@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, relative } from "node:path";
 import { detectCsvKind, parseKoreanCsv, type CsvKind } from "./csv.js";
+import { localTaxYearbookFiscalYear } from "./local-tax-yearbook.js";
 import { populationWorkbookReferenceDate } from "./xlsx.js";
 
 export interface CatalogEntry {
@@ -13,7 +14,12 @@ export interface CatalogEntry {
   collectedAt: string;
   referenceDate: string | null;
   mediaType: string;
-  contentKind: CsvKind | "population_workbook" | "pdf_document" | "other";
+  contentKind:
+    | CsvKind
+    | "population_workbook"
+    | "local_tax_yearbook"
+    | "pdf_document"
+    | "other";
   encoding: string | null;
   dataStatus: "official_observed" | "catalog_only";
   parseStatus: "parsed" | "catalogued" | "error";
@@ -43,6 +49,7 @@ function referenceDate(fileName: string): string | null {
 const mediaTypes: Record<string, string> = {
   ".csv": "text/csv",
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".hwpx": "application/hwp+zip",
   ".pdf": "application/pdf",
   ".json": "application/json",
   ".xml": "application/xml"
@@ -68,6 +75,7 @@ export async function buildCatalog(
       let parseStatus: CatalogEntry["parseStatus"] =
         extension === ".pdf" ? "catalogued" : "parsed";
       let error: string | null = null;
+      let yearbookYear: number | null = null;
       if (extension === ".csv") {
         try {
           const parsed = parseKoreanCsv(buffer);
@@ -77,11 +85,20 @@ export async function buildCatalog(
           parseStatus = "error";
           error = caught instanceof Error ? caught.message : String(caught);
         }
+      } else if (extension === ".hwpx") {
+        yearbookYear = localTaxYearbookFiscalYear(buffer);
+        if (yearbookYear !== null) {
+          contentKind = "local_tax_yearbook";
+        } else {
+          parseStatus = "catalogued";
+        }
       }
       const fileReferenceDate =
         extension === ".xlsx"
           ? populationWorkbookReferenceDate(buffer)
-          : referenceDate(path.normalize("NFC"));
+          : yearbookYear
+            ? `${yearbookYear}-12-31`
+            : referenceDate(path.normalize("NFC"));
       return {
         path: relative(repositoryRoot, path).normalize("NFC"),
         fileNameNfc: path.split("/").at(-1)?.normalize("NFC") ?? path.normalize("NFC"),

@@ -91,6 +91,12 @@ describe("PostgresDataRepository query contracts", () => {
       "CASE t.data_status WHEN 'official_observed' THEN 0 ELSE 1 END"
     );
     expect(call.text).toContain("WHEN 'collection_status' THEN 0");
+    expect(call.text).toContain(
+      "WHEN 'statistical_yearbook_local_collection' THEN 1"
+    );
+    expect(call.text).toContain(
+      "COALESCE(t.metadata ->> 'headlineEligible', 'true') = 'true'"
+    );
     expect(call.values).toEqual([
       2022,
       2024,

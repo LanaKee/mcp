@@ -80,6 +80,7 @@ export interface PlannedLocalTax {
   sourceGrain:
     | "demo_sample"
     | "collection_status"
+    | "statistical_yearbook_local_collection"
     | "payment_media"
     | "per_capita_burden";
   unitOriginal: "KRW" | "thousand_KRW";
@@ -270,6 +271,7 @@ function populationEntityKey(row: PlannedPopulation): string {
 }
 
 function sourceProvider(path: string): string {
+  if (path.normalize("NFC").includes("행정안전부")) return "행정안전부";
   const region = resolveGyeongbukRegion(path);
   if (!region) return "공공데이터 원천";
   if (path.normalize("NFC").includes("의회")) {
@@ -837,8 +839,14 @@ export async function createLoadPlan(
       sourceKey: officialSourceKey(entry.path, entry.sha256),
       title: entry.fileNameNfc,
       provider: sourceProvider(entry.path),
-      sourceUrl: null,
-      licenseNote: null,
+      sourceUrl:
+        entry.contentKind === "local_tax_yearbook"
+          ? "https://www.data.go.kr/data/15086648/fileData.do"
+          : null,
+      licenseNote:
+        entry.contentKind === "local_tax_yearbook"
+          ? "공공데이터포털 이용허락범위 제한 없음"
+          : null,
       filePath: entry.path,
       fileSha256: entry.sha256,
       collectedAt: entry.collectedAt,

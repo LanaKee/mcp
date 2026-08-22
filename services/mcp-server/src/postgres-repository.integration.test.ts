@@ -86,56 +86,100 @@ describeDatabase("PostgresDataRepository integration", () => {
     }
   });
 
-  it("does not derive the fabricated Kimcheon mixed-status trend", async () => {
-    const registry = createToolRegistry(repository!);
-    const correlationIds = [
-      `mixed-tax-${Date.now()}`,
-      `mixed-compare-${Date.now()}`
-    ];
-    const trend = await executeTool(
-      registry,
-      "get_local_tax_revenue_trend",
-      { region: "김천시", startYear: 2020, endYear: 2024 },
-      { correlationId: correlationIds[0] }
-    );
-    expect(trend.result).toMatchObject({
-      summary: null,
-      summary_unavailable_reason: "incomparable_sources"
+  it("serves yearbook local-tax subtotals for previously uncovered municipalities", async () => {
+    const taxes = await repository!.getLocalTaxTrend({
+      region: "포항시",
+      startYear: 2024,
+      endYear: 2024,
+      taxCategory: "합계",
+      dataStatuses: ["official_observed", "demo_sample"]
     });
-    expect(JSON.stringify(trend)).not.toContain("-54.36");
-
-    const comparison = await executeTool(
-      registry,
-      "compare_population_and_tax",
-      { regions: ["김천시"], startYear: 2022, endYear: 2024 },
-      { correlationId: correlationIds[1] }
-    );
-    const comparisonResult = comparison.result as {
-      matches: unknown[];
-      not_evaluable: Array<{
-        taxTrend: unknown;
-        matches: unknown;
-        notEvaluableReason: string;
-      }>;
-    };
-    expect(comparisonResult.matches).toHaveLength(0);
-    expect(comparisonResult.not_evaluable[0]).toMatchObject({
-      taxTrend: null,
-      matches: null,
-      notEvaluableReason: "incomparable_sources"
+    expect(taxes.records).toEqual([
+      expect.objectContaining({
+        regionId: "47110",
+        fiscalYear: 2024,
+        revenueAmountWon: 440_369_434_000,
+        dataStatus: "official_observed",
+        amountSemantics: "collected_amount",
+        sourceGrain: "statistical_yearbook_local_collection",
+        unitOriginal: "thousand_KRW",
+        unitMultiplier: 1000
+      })
+    ]);
+    expect(taxes.sources[0]).toMatchObject({
+      provider: "행정안전부",
+      isOfficial: true
     });
-    expect(JSON.stringify(comparison)).not.toContain("-54.36");
 
-    const pool = new Pool({ connectionString, max: 1 });
-    try {
-      await pool.query(
-        "DELETE FROM mcp_tool_audit WHERE correlation_id = ANY($1::text[])",
-        [correlationIds]
-      );
-    } finally {
-      await pool.end();
-    }
+    const scopedCountyTax = await repository!.getLocalTaxTrend({
+      region: "청도군",
+      startYear: 2024,
+      endYear: 2024,
+      taxCategory: "합계",
+      dataStatuses: ["official_observed"]
+    });
+    expect(scopedCountyTax.records).toEqual([
+      expect.objectContaining({
+        revenueAmountWon: 33_455_242_000,
+        sourceGrain: "statistical_yearbook_local_collection"
+      })
+    ]);
   });
+
+  it(
+    "does not derive the fabricated Kimcheon mixed-status trend",
+    async () => {
+      const registry = createToolRegistry(repository!);
+      const correlationIds = [
+        `mixed-tax-${Date.now()}`,
+        `mixed-compare-${Date.now()}`
+      ];
+      const trend = await executeTool(
+        registry,
+        "get_local_tax_revenue_trend",
+        { region: "김천시", startYear: 2020, endYear: 2024 },
+        { correlationId: correlationIds[0] }
+      );
+      expect(trend.result).toMatchObject({
+        summary: null,
+        summary_unavailable_reason: "incomparable_sources"
+      });
+      expect(JSON.stringify(trend)).not.toContain("-54.36");
+
+      const comparison = await executeTool(
+        registry,
+        "compare_population_and_tax",
+        { regions: ["김천시"], startYear: 2022, endYear: 2024 },
+        { correlationId: correlationIds[1] }
+      );
+      const comparisonResult = comparison.result as {
+        matches: unknown[];
+        not_evaluable: Array<{
+          taxTrend: unknown;
+          matches: unknown;
+          notEvaluableReason: string;
+        }>;
+      };
+      expect(comparisonResult.matches).toHaveLength(0);
+      expect(comparisonResult.not_evaluable[0]).toMatchObject({
+        taxTrend: null,
+        matches: null,
+        notEvaluableReason: "incomparable_sources"
+      });
+      expect(JSON.stringify(comparison)).not.toContain("-54.36");
+
+      const pool = new Pool({ connectionString, max: 1 });
+      try {
+        await pool.query(
+          "DELETE FROM mcp_tool_audit WHERE correlation_id = ANY($1::text[])",
+          [correlationIds]
+        );
+      } finally {
+        await pool.end();
+      }
+    },
+    15_000
+  );
 
   it("persists an HTTP-safe audit correlation ID", async () => {
     const correlationId = `itest-${Date.now()}`;

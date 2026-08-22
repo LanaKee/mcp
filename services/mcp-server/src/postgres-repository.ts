@@ -252,6 +252,7 @@ export class PostgresDataRepository implements DataRepository {
           | null;
         source_grain:
           | "collection_status"
+          | "statistical_yearbook_local_collection"
           | "payment_media"
           | "per_capita_burden"
           | "demo_sample"
@@ -287,9 +288,10 @@ export class PostgresDataRepository implements DataRepository {
                CASE t.data_status WHEN 'official_observed' THEN 0 ELSE 1 END,
                CASE t.source_grain
                  WHEN 'collection_status' THEN 0
-                 WHEN 'per_capita_burden' THEN 1
-                 WHEN 'payment_media' THEN 2
-                 ELSE 3
+                 WHEN 'statistical_yearbook_local_collection' THEN 1
+                 WHEN 'per_capita_burden' THEN 2
+                 WHEN 'payment_media' THEN 3
+                 ELSE 4
                END,
                t.is_aggregate DESC,
                ds.source_key
@@ -300,6 +302,7 @@ export class PostgresDataRepository implements DataRepository {
          WHERE t.fiscal_year BETWEEN $1 AND $2
            AND t.tax_category = $3
            AND t.data_status = ANY($4::text[])
+           AND COALESCE(t.metadata ->> 'headlineEligible', 'true') = 'true'
            AND ($5::text IS NULL OR r.normalized_name = $5 OR r.region_name ILIKE ('%' || $5 || '%'))
        )
        SELECT *

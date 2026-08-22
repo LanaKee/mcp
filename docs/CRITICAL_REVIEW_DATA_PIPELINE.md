@@ -30,6 +30,17 @@
   42.4% 경고가 발생했다.
 - 신규 지방세 CSV 18개를 포함해 440개 파일을 다시 catalog/ETL했다. 공식 headline
   지방세 368행은 5개 지역, 29개 지역-연도를 포괄하고 demo 12행은 그대로 보존됐다.
+- 이후 행정안전부 2025 지방세통계연감 HWPX(SHA-256
+  `0fc7693fbbc145190b9cd09a8ddd5922892eedcaf0aa8f824ce6bf23f2617c25`)의
+  2024 경상북도 표를 내용 기반으로 정규화했다. 연감 fact 176행/22개 지역 소계로
+  공식 headline은 544행, 22개 시·군, 46개 지역-연도로 늘었다.
+- 22개 `전체-도세=시·군세`와 22개 `시·군세 소계=세목 합계`가 모두 일치했다.
+  김천 municipal CSV는 연감 시세 소계와 정확히 일치했다. 청도·봉화 CSV 합계는
+  도세+군세 결합 범위임이 연감 전체 합계와 일치해 원본을 보존하되
+  `headlineEligible=false`로 표시했다.
+- 최종 DB에는 연감 locator 176개/지역 행 22개, 품질 info 31/warning 57/error 0이
+  적재됐다. 2024 포항 공식 합계 API는 239.0ms에 440,369,434,000원과
+  `statistical_yearbook_local_collection`을 반환했고 audit도 성공했다.
 - 지방세 세부 grain은 징수 220, 납부매체 1,131, 과세 57, 1인당 부담 15,
   납세자 378, 비과세·감면 96, 미환급 64, 영치 통계 90행이다.
 - 동일 generated artifact 재적재는 insert 0건으로 끝났고 current PDF chunk/embedding
@@ -108,6 +119,11 @@ detail 합계와 검증하고 세목 합산에서 중복 사용하지 않는다.
 격리했다. 김천 일반건축물 40,694 data row는 주소 단위 재산 정보이므로 catalog만 남기고
 fact/search/embedding에서 제외했다. 문경 영치장소도 저장하지 않았다.
 
+행정안전부 HWPX 연감은 filename이 아니라 내부 `제4장 2024년도 ... 부과·징수실적`,
+`1-16. 경상북도`, `City Tax`/`County Tax`, `단위: 천원` marker로 판별한다.
+시·군세만 local headline으로 사용하며 도세가 포함된 결합 합계는 제거하지 않고
+비교 제외 metadata를 남긴다. 연감 공개 metadata의 이용허락범위는 제한 없음이다.
+
 ### 혼합 series 파생 통계
 
 point별 status label만으로는 안전하지 않았다. demo 결산 2022~2023과 공식 수납 2024를
@@ -124,8 +140,12 @@ demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 
 ### 정확성·데이터 품질
 
-- 공식 headline 지방세는 22개 시·군 중 경산·구미·김천·봉화·청도 5개만 포괄한다.
-  나머지 지역 비교는 sample-only이거나 결과가 없으므로 광역 일반화가 불가능하다.
+- 2024년 공식 headline은 22개 시·군 전체를 포괄하지만 새로 보완한 17개 지역은
+  대부분 단일 연도뿐이다. 한 점은 추세가 아니므로 이들 지역의 증감률/비교 verdict는
+  여전히 생성할 수 없다.
+- HWPX parser는 현재 연감의 경상북도 표와 aligned continuation row 구조를 검증한다.
+  표 구조가 바뀌면 조용히 추정하지 않고 ETL을 실패시키지만, 인쇄 page 번호 locator는
+  아직 없고 장/표/지역 행 locator만 제공한다.
 - 경산·구미 1인당 부담 자료의 `지방세 금액`은 수납액과 같은 grain이 아니며
   `reported_total_tax_burden`으로 표시한다.
 - 영천 quarantine은 제공기관 schema 확인 전에는 해제할 수 없다.
@@ -178,8 +198,10 @@ demo와 UI는 공식/데모/비교불가 segment를 분리한다.
 
 ## 다음 우선순위
 
-1. **P1 지방세 coverage:** 나머지 17개 시·군의 동일 grain 공식 원천과 라이선스를
-   확보하고 지역별 기간/세목 completeness와 cross-source reconciliation을 평가한다.
+1. **P1 지방세 종단 coverage:** 2024 단일 점으로 끝나는 시·군의 2023 이전 동일
+   시·군세 scope를 확보하고 연감 간 세목/schema drift를 평가한다. 새로 감지된
+   `datasets/extra/` PDF 7개는 우선 catalog-only로 두고 구조·연도·라이선스를 검증한
+   뒤에만 tax fact 후보로 사용한다.
 2. **P1 OCR:** 승인된 로컬 OCR queue, OCR 전/후 provenance와 OCR golden/품질 점수.
    현재 corpus 0건 실패는 향후 scan PDF 대응을 입증하지 않는다.
 3. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.

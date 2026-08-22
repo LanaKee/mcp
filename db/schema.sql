@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS local_tax_revenue (
     source_grain IN (
       'legacy_unspecified',
       'collection_status',
+      'statistical_yearbook_local_collection',
       'payment_media',
       'per_capita_burden',
       'demo_sample'

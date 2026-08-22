@@ -156,7 +156,11 @@ export interface NormalizedHeadlineTaxRevenue {
     | "collected_amount"
     | "payment_amount"
     | "reported_total_tax_burden";
-  sourceGrain: "collection_status" | "payment_media" | "per_capita_burden";
+  sourceGrain:
+    | "collection_status"
+    | "statistical_yearbook_local_collection"
+    | "payment_media"
+    | "per_capita_burden";
   unitOriginal: TaxUnitOriginal;
   unitMultiplier: 1 | 1000;
   unitProvenance: TaxUnitProvenance;

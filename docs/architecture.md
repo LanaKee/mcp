@@ -34,6 +34,8 @@ flowchart LR
 - `pipelines/src/csv.ts`: UTF-8/CP949 판별, 헤더 기반 유형 감지, 인구·의안 정규화
 - `pipelines/src/local-tax.ts`: 지방세 grain 판별, canonical 코드 검증, KRW 단위 변환,
   aggregate/detail reconciliation, 품질 issue·격리와 headline fact 선택
+- `pipelines/src/local-tax-yearbook.ts`: HWPX 내부 장/표 marker 기반 행정안전부 연감
+  판별, 시·군세/도세 scope 분리, 22개 지역 subtotal/detail reconciliation
 - `pipelines/src/xlsx.ts`: 제목에서 기준 월을 찾고 canonical 경북/시군 행을 탐색
 - `pipelines/src/regions.ts`: 경상북도와 현재 시·군 코드, alias, 지역 추론
 - `pipelines/src/load-plan.ts`: 공식/데모 데이터를 결정적 source/fact/locator 계획으로 변환
@@ -83,8 +85,9 @@ flowchart LR
 - `services/mcp-server/src/postgres-repository.ts`: 공식 우선 ranking, 명시적 상태 필터,
   bounded fact/document query, source/page context 구현
 - 지방세 ranking은 같은 지역·연도·세목에서 공식 자료를 먼저 고르고, 공식 grain끼리는
-  징수 수납액, 1인당 부담 총액, 납부액 순으로 선택한다. 회계 기준이 다르다는 이유로
-  공식과 샘플을 중복 반환하지 않는다.
+  동일 범위 지자체 징수 수납액, 연감 시·군세 소계, 1인당 부담 총액, 납부액 순으로
+  선택한다. `headlineEligible=false`인 도세+시·군세 결합 합계는 도구에서 제외한다.
+  회계 기준이 다르다는 이유로 공식과 샘플을 중복 반환하지 않는다.
 - PostgreSQL 경로는 FTS/trigram으로 bounded candidate를 만든 뒤 저장 `real[]` embedding을
   cosine rerank한다. 배열 전체 ANN scan은 하지 않는다.
 - source context는 current page/chunk locator만 노출해 과거 chunker 결과가 섞이지 않는다.
@@ -146,7 +149,7 @@ flowchart LR
 - 지역/연도/서식이 더 다양한 golden PDF와 실제 반복 footer 표본 확충
 - 승인된 scheduler/backup 정책과 operator-run stale purge/VACUUM window
 - corpus가 커질 때 모델별 pgvector partition/ANN index
-- 나머지 17개 시·군 공식 headline 지방세 source와 원천 라이선스 확충
+- 2024년 외 연도의 22개 시·군 동일 scope 공식 headline과 completeness 확충
 - 영천 비과세·감면 열 의미의 제공기관 확인 후 quarantine 해제 여부 결정
 - lifecycle/audit purge의 외부 scheduler와 경보 전달 채널
 - multi-instance 공용 rate-limit store와 tenant별 token/권한

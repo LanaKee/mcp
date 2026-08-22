@@ -17,7 +17,8 @@
 - 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 주장 검증, 출처 조회,
   근거 제한형 행정문서 초안 등 8개 도구
 - NFD 파일명에 의존하지 않고 헤더/내용으로 판별하는 CP949·UTF-8 CSV 및 XLSX ETL
-- 9개 지방세 원천 grain의 KRW 단위 정규화, 품질 검증, 격리와 공식 우선 조회
+- 9개 지방세 원천 grain과 행정안전부 HWPX 연감의 KRW 단위 정규화, 품질 검증,
+  격리와 공식 우선 조회
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
 - PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - page-level 품질 지표, 반복 머리말 제거, 발언자/표 경계 chunk와 golden 회귀 평가
@@ -223,8 +224,8 @@ ETL은 다음을 수행합니다.
 2. CSV를 UTF-8 우선, 실패 시 CP949로 해석
 3. 포항 연도별 인구의 `년월` 날짜를 그대로 보존하고 다양한 의회 의안 CSV를 판별
 4. 인구 XLSX 제목에서 `2026년 7월`을 찾아 `2026-07-31` 기준 경북/시군 값을 정규화
-5. `datasets/new/`를 재귀 탐색하고 파일명이 아니라 헤더로 지방세 9개 grain과
-   별도 격리 대상을 판별
+5. `datasets/new/`를 재귀 탐색하고 파일명이 아니라 CSV 헤더 또는 HWPX 내부
+   장/표 marker로 지방세 9개 grain, 공식 연감과 별도 격리 대상을 판별
 6. 명시된 원/천원 단위를 KRW 정수로 바꾸고, 김천의 무표기 납부액은 명시적
    천원 징수자료와 6개 세목 exact match가 있을 때만 천원으로 판정
 7. PDF 원천은 `catalog_only` source로 보존하면서 raw/cleaned page hash와 품질 지표를 기록
@@ -240,7 +241,8 @@ ETL은 다음을 수행합니다.
 적재기는 다음을 보장합니다.
 
 - 경상북도와 현재 22개 시·군(군위군 제외)의 canonical 지역 키 사용
-- 경로+SHA-256 기반 출처 버전 보존, PDF 포함 440개 원천 카탈로그 적재
+- 경로+SHA-256 기반 출처 버전 보존. 현재 로컬 실행은 HWPX 연감과 별도 추가 PDF를
+  포함한 448개 원천을 카탈로그에 적재
 - 500행 단위 parameterized upsert와 단일 fact 트랜잭션
 - 원천 SHA/경로/행 번호 기반 의회 레코드 ID와 인구·의회 `source_locator`
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
@@ -250,8 +252,11 @@ ETL은 다음을 수행합니다.
   않되 현재 추출에 없는 chunk를 `is_current = false`로 제외
 - 검색은 lifecycle에서 `approved`인 단일 version의 `approved_current` chunk만 사용
 - embedding은 생성 batch마다 PostgreSQL에 적재해 전체 vector corpus를 메모리에 쌓지 않음
-- 지방세 합계는 징수 수납액, 1인당 부담 원천의 지방세 총액, 납부액 순서로
-  방어적으로 선택하며 `amount_semantics`와 `source_grain`을 보존
+- 지방세 합계는 동일 범위의 지자체 징수 수납액, 행정안전부 연감의 시·군세 소계,
+  1인당 부담 원천의 지방세 총액, 납부액 순서로 방어적으로 선택하며
+  `amount_semantics`와 `source_grain`을 보존
+- 도세+시·군세 결합 합계는 `headlineEligible=false`로 보존하고 도구용 시·군세
+  headline에서 제외
 - 같은 지역·연도·세목에서는 `official_observed`를 `demo_sample`보다 우선하되
   서로 다른 상태를 한 점으로 합산하지 않음
 
@@ -259,9 +264,9 @@ ETL은 다음을 수행합니다.
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 39 | 4 | 401 |
+| `data_source` | 40 | 4 | 408 |
 | `population_observation` | 221 | 12 | - |
-| `local_tax_revenue` | 368 | 12 | - |
+| `local_tax_revenue` | 544 | 12 | - |
 | `local_tax_collection_status` | 220 | 0 | - |
 | `local_tax_payment_media` | 1,131 | 0 | - |
 | `local_tax_assessment_status` | 57 | 0 | - |
@@ -276,6 +281,10 @@ ETL은 다음을 수행합니다.
 | `document_page` | 11,712 | 0 | - |
 | `document_chunk` | 23,795 | 0 | - |
 | `document_chunk_embedding` | 23,795 | 0 | - |
+
+추가된 `datasets/extra/` PDF 7개는 이번 지방세 coverage 작업에서 catalog-only로만
+등록했다. 기존 검색 corpus인 document 401개와 current chunk/embedding 23,795개는
+변경하지 않았다.
 
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
@@ -400,8 +409,9 @@ docs/                     설계·도구·데이터 사전·변경 기록
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
 - demo와 공식, 또는 서로 다른 금액 의미/회계 기준/grain/단위를 가로지르는 증감률은
   계산하지 않는다. demo 값은 claim 검증이나 공공문서 근거로 사용할 수 없다.
-- 공식 지방세 합계 시계열은 현재 경산·구미·김천·봉화·청도 5개 지역,
-  29개 지역-연도에 한정된다. 다른 지역·연도는 샘플 상태를 확인해야 한다.
+- 공식 지방세 합계는 2024년 기준 현재 22개 시·군 전체를 포괄하고, 기존 CSV 기간을
+  합쳐 46개 지역-연도다. 다년 homogeneous series는 여전히 경산·구미·봉화·청도 등
+  일부 지역에만 있으므로 한 점뿐인 지역은 증감률을 계산하지 않는다.
 - 영천 비과세·감면 720행은 금액/건수 열 의미가 검증되지 않아 적재하지 않았다.
 - 김천 주소 단위 일반건축물 시가표준액 40,694행은 일반 분석·검색·embedding에서 제외했다.
 - 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.

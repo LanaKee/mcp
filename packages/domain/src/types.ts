@@ -23,6 +23,7 @@ export interface LocalTaxRecord {
     | "demo_settlement";
   sourceGrain?:
     | "collection_status"
+    | "statistical_yearbook_local_collection"
     | "payment_media"
     | "per_capita_burden"
     | "demo_sample";

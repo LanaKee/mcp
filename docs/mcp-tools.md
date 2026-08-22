@@ -24,6 +24,8 @@
 - 출력: 회계연도별 지방세(원), 개별 `dataStatus`, 회계 기준,
   `amountSemantics`, `sourceGrain`, 원단위/배수와 증감
 - 같은 지역·연도·세목에 공식과 샘플이 모두 있으면 공식만 선택한다.
+- 공식 합계에서 `collection_status`가 도세+시·군세 결합 범위이면 headline에서
+  제외하고 `statistical_yearbook_local_collection`의 시·군세 소계를 사용한다.
 - 일부 연도만 공식인 추세는 각 point 상태와 limitation을 명시하며 상태가 다른 값을
   합산하지 않는다. 상태·회계기준·금액 의미·grain·원단위/배수 중 하나라도 다르면
   `summary: null`, `incomparable_sources`다.
