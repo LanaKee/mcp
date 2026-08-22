@@ -7,7 +7,10 @@ import {
   type LocalTaxCsvKind
 } from "./local-tax.js";
 import type { NormalizedPopulationObservation } from "./population.js";
-import { inferGyeongbukRegion } from "./regions.js";
+import {
+  gyeongbukAdapter,
+  type RegionAdapter
+} from "./region-adapter.js";
 
 export type CsvKind =
   | "population_annual"
@@ -146,16 +149,29 @@ const numberValue = (value: string) => Number(value.replace(/[,\s]/g, "")) || 0;
 
 export type NormalizedPopulationRow = NormalizedPopulationObservation;
 
-export function inferRegionName(pathName: string): string | null {
-  return inferGyeongbukRegion(pathName)?.regionName ?? null;
+/**
+ * Resolves the region a file belongs to.
+ *
+ * The province adapter is a parameter rather than an import so the same
+ * normalisers can load another province's files unchanged. It defaults to
+ * Gyeongbuk because every currently loaded source is Gyeongbuk, and a caller
+ * that forgets to pass one should get the province we actually have data for
+ * rather than a silent cross-province match.
+ */
+export function inferRegionName(
+  pathName: string,
+  adapter: RegionAdapter = gyeongbukAdapter
+): string | null {
+  return adapter.infer(pathName)?.regionName ?? null;
 }
 
 export function normalizeAnnualPopulation(
   decoded: DecodedCsv,
-  pathName: string
+  pathName: string,
+  adapter: RegionAdapter = gyeongbukAdapter
 ): NormalizedPopulationRow[] {
   if (decoded.kind !== "population_annual") return [];
-  const regionName = inferRegionName(pathName);
+  const regionName = inferRegionName(pathName, adapter);
   if (!regionName) return [];
   return decoded.rows.flatMap((row, index) => {
       const referenceDate = parseReferenceDate(
@@ -190,7 +206,8 @@ export function normalizeAnnualPopulation(
 export function normalizePopulationSnapshot(
   decoded: DecodedCsv,
   pathName: string,
-  catalogReferenceDate: string | null
+  catalogReferenceDate: string | null,
+  adapter: RegionAdapter = gyeongbukAdapter
 ): NormalizedPopulationRow[] {
   if (decoded.kind !== "population_local") return [];
   const isMunicipalityTable = decoded.headers.some(
@@ -198,7 +215,7 @@ export function normalizePopulationSnapshot(
   );
   if (isMunicipalityTable) {
     return decoded.rows.flatMap((row, index) => {
-      const region = inferGyeongbukRegion(firstValue(row, ["시군별"]));
+      const region = adapter.infer(firstValue(row, ["시군별"]));
       const populationTotal = numberValue(firstValue(row, ["인구"]));
       const referenceDate = catalogReferenceDate
         ? parseReferenceDate(catalogReferenceDate)
@@ -224,7 +241,7 @@ export function normalizePopulationSnapshot(
     });
   }
 
-  const regionName = inferRegionName(pathName);
+  const regionName = inferRegionName(pathName, adapter);
   if (!regionName) return [];
   const rowDates = [
     ...new Set(
