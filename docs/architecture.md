@@ -13,9 +13,7 @@ flowchart LR
   ETL --> PG[(PostgreSQL)]
   ETL --> LIFE[Version Approval / Retention]
   LIFE --> PG
-  SAMPLE[명시적 demo_sample]
   PG --> REPO[Feature-flagged Repository]
-  SAMPLE --> REPO
   REPO --> DOMAIN[Domain Analytics]
   REPO --> RET[Lexical + Metadata Retrieval]
   RET --> TOOLS[Purpose-specific MCP Tools]
@@ -56,7 +54,7 @@ flowchart LR
 
 - `db/schema.sql`: 정량 fact, 정책·의회, 문서 chunk, source locator
 - `data_source.data_status`는 `official_observed`, `demo_sample`, `catalog_only` 중 하나다.
-- `pnpm db:normalize`은 ETL, 스키마/마이그레이션, 공식 데이터와 데모 전체 적재를 수행한다.
+- `pnpm db:normalize`은 ETL, 스키마/마이그레이션과 공식 데이터만 적재한다.
 - source key는 원천 경로와 SHA를 기반으로 결정적이다. 일반 의회 CSV record ID는
   원천 SHA/경로/행을 사용하고, 포항 공개 의안은 직렬화 변경에도 안정적인 원문
   레코드 ID를 사용한다. 기존 ID 교체는 동일 원문 레코드가 새 계획에도 있을 때만
@@ -105,9 +103,8 @@ flowchart LR
 - PostgreSQL 경로는 FTS/trigram으로 bounded candidate를 만든 뒤 저장 `real[]` embedding을
   cosine rerank한다. 배열 전체 ANN scan은 하지 않는다.
 - source context는 current page/chunk locator만 노출해 과거 chunker 결과가 섞이지 않는다.
-- `search_policies`는 demo `policy_program` 자격 평가와 공식
-  `provincial_work_plan` page passage를 별도 배열로 반환한다. 공식 prose에서 자격 필드를
-  추론하거나 demo verdict와 합치지 않는다.
+- `search_policies`는 공식 `policy_program`과 `provincial_work_plan` page passage를
+  출처와 함께 반환한다. 공식 prose에서 확인되지 않은 자격 필드를 추론하지 않는다.
 - stale purge는 최소 보존기간, advisory lock, 정확한 candidate-set hash, bounded
   FK-safe batch를 요구하며 approved/current/provenance를 보호한다.
 - 기본 feature-hash는 lexical 신호이며 semantic provider가 아니다. OpenAI provider는

@@ -44,7 +44,7 @@ describe("HTTP API", () => {
     });
   });
 
-  it("runs a representative question", async () => {
+  it("runs a representative question without demo fallback data", async () => {
     const response = await fetch(`${baseUrl}/api/demo`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -53,7 +53,7 @@ describe("HTTP API", () => {
     const value = (await response.json()) as Record<string, unknown>;
     expect(response.status).toBe(200);
     expect(value).toHaveProperty("conclusion");
-    expect(value.data_status).toBe("demo_sample");
+    expect(value.data_status).toBe("empty");
     expect(value.conclusion).toContain("결론을 생성하지 않았습니다");
     expect(JSON.stringify(value)).not.toContain("지방세 +");
   });

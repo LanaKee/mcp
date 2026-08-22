@@ -17,7 +17,13 @@ describe("repository runtime selection", () => {
     vi.stubEnv("DATA_REPOSITORY", "postgres");
     vi.stubEnv("DATABASE_URL", "");
     await expect(createDataRepository()).rejects.toThrow(
-      "requires DATABASE_URL; no in-memory fallback was used"
+      "requires DATABASE_URL; demo fallback was removed"
     );
+  });
+
+  it("does not silently load demo data when auto mode has no database", async () => {
+    vi.stubEnv("DATA_REPOSITORY", "auto");
+    vi.stubEnv("DATABASE_URL", "");
+    await expect(createDataRepository()).rejects.toThrow("demo fallback was removed");
   });
 });

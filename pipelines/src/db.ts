@@ -265,6 +265,10 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     ),
     "utf8"
   );
+  const removeDemoDataMigration = await readFile(
+    resolve(repositoryRoot, "db/migrations/012_remove_demo_data.sql"),
+    "utf8"
+  );
   const existing = await client.query<{ document_table: string | null }>(
     "SELECT to_regclass('public.document')::text AS document_table"
   );
@@ -279,6 +283,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(localTaxYearbookMigration);
     await client.query(policyDocumentQualityMigration);
     await client.query(populationMeasurementMigration);
+    await client.query(removeDemoDataMigration);
     await client.query(schema);
   } else {
     await client.query(schema);
@@ -292,6 +297,7 @@ export async function applyDatabaseSchema(client: Client): Promise<void> {
     await client.query(localTaxYearbookMigration);
     await client.query(policyDocumentQualityMigration);
     await client.query(populationMeasurementMigration);
+    await client.query(removeDemoDataMigration);
   }
 }
 

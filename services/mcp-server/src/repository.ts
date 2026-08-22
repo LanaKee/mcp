@@ -19,8 +19,7 @@ export type FactDataStatus = Extract<
 >;
 
 export const DEFAULT_FACT_STATUSES: readonly FactDataStatus[] = [
-  "official_observed",
-  "demo_sample"
+  "official_observed"
 ];
 
 export interface RepositoryResult<T> {

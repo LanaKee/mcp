@@ -3,11 +3,9 @@
 경상북도와 시·군의 인구·지방세·정책·의회 데이터를 **목적별 MCP 도구**로
 조회하고, 결론·근거·출처·한계를 함께 보여 주는 해커톤용 vertical slice입니다.
 
-> [!WARNING]
-> `data/sample/`의 인구·지방세·정책·의회 값은 `demo_sample`인 기능 시연용이다.
-> `datasets/`에서 파싱한 값만 `official_observed`이며, 이 값도 원출처와 기준일을
-> 확인한 뒤 사용해야 한다. 공식 지방세가 있는 지역·연도는 샘플보다 우선하며, 없는
-> 구간만 응답에 `demo_sample`로 명시된다.
+> [!IMPORTANT]
+> 운영 데이터와 기본 조회는 `official_observed`만 사용한다. 결과를 사용할 때도
+> 원출처와 기준일을 확인해야 한다. `demo_sample` 운영 행과 자동 fallback은 제거했다.
 
 ## 구현 범위
 
@@ -41,8 +39,8 @@ pnpm start
 ```
 
 브라우저에서 <http://localhost:8787>을 엽니다.
-`DATA_REPOSITORY=auto`가 기본이며 `DATABASE_URL`이 있으면 PostgreSQL, 없으면
-명시적 데모 메모리 저장소를 사용한다. `.env`는 서버가 자동으로 읽는다. 로컬 HTTP
+`DATA_REPOSITORY=auto`가 기본이며 `DATABASE_URL`이 없거나 PostgreSQL이 준비되지
+않으면 시작에 실패한다. 명시적 메모리 모드는 빈 저장소로 시작한다. `.env`는 서버가 자동으로 읽는다. 로컬 HTTP
 인증 기본은 `HTTP_AUTH_MODE=off`이며 외부에 노출해서는 안 된다.
 서버 bind 기본도 `HTTP_HOST=127.0.0.1`이며 Docker만 명시적으로 `0.0.0.0`을 사용한다.
 
@@ -137,7 +135,7 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
 
 모든 사실 응답은 최상위 `data_status`, `data_statuses`, `sources`,
 `limitations`를 포함한다. 입력의 선택 `dataStatuses`로
-`official_observed`/`demo_sample`을 명시할 수 있고 기본값은 둘 다 허용한다. 실제
+`official_observed`/`demo_sample`을 명시할 수 있지만 기본값은 공식 자료만 허용한다. 실제
 반환 상태가 둘 이상이면 `data_status: "mixed"`이며 개별 상태는 `data_statuses`와
 레코드에 유지된다. 단, 파생 통계는 label만으로 안전하다고 간주하지 않는다.
 `dataStatus`와 지표의 회계 기준·금액 의미·source grain·원단위가 모두 같은 두 점
@@ -175,9 +173,9 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
 
 | `DATA_REPOSITORY` | 동작 |
 |---|---|
-| `auto` | `DATABASE_URL`이 있으면 PostgreSQL, 없으면 메모리 데모 |
+| `auto` | `DATABASE_URL`과 준비된 PostgreSQL이 필수이며 실패 시 시작 중단 |
 | `postgres` | PostgreSQL 필수. 연결/스키마 실패 시 시작 실패하며 fallback하지 않음 |
-| `memory`, `disabled` | 명시적으로 `data/sample/` 메모리 repository 사용 |
+| `memory`, `disabled` | 명시적으로 빈 메모리 repository 사용 |
 
 PostgreSQL 모드의 모든 SQL은 목적별 parameterized/bounded query다. 종료 시 pool을
 닫으며, 도구 실행은 요청 원문 대신 salted SHA-256과 필드 타입/길이만
@@ -204,9 +202,6 @@ pnpm db:normalize
 
 # 이미 생성한 산출물을 적재(제한된 DB 사용자는 스키마 적용 생략 가능)
 pnpm db:load -- --skip-schema
-
-# 공식 원천만 적재하고 demo_sample은 제외
-pnpm db:normalize -- --official-only
 
 # PDF만 페이지 추출/chunk/로컬 임베딩 후 적재
 pnpm pdf:normalize
@@ -266,16 +261,15 @@ ETL은 다음을 수행합니다.
   `amount_semantics`와 `source_grain`을 보존
 - 도세+시·군세 결합 합계는 `headlineEligible=false`로 보존하고 도구용 시·군세
   headline에서 제외
-- 같은 지역·연도·세목에서는 `official_observed`를 `demo_sample`보다 우선하되
-  서로 다른 상태를 한 점으로 합산하지 않음
+- 운영 로드 계획은 `official_observed`와 `catalog_only`만 만들며 `demo_sample`을 생성하지 않음
 
 현재 제공 원천과 샘플의 현재 행 기대 건수(`document_chunk`/embedding은 `is_current` join 기준):
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 454 | 4 | 3 |
-| `population_observation` | 264 | 12 | - |
-| `local_tax_revenue` | 544 | 12 | - |
+| `data_source` | 454 | 0 | 3 |
+| `population_observation` | 264 | 0 | - |
+| `local_tax_revenue` | 544 | 0 | - |
 | `local_tax_collection_status` | 220 | 0 | - |
 | `local_tax_payment_media` | 1,131 | 0 | - |
 | `local_tax_assessment_status` | 57 | 0 | - |
@@ -284,8 +278,8 @@ ETL은 다음을 수행합니다.
 | `local_tax_exemption_status` | 96 | 0 | - |
 | `local_tax_unrefunded_status` | 64 | 0 | - |
 | `local_tax_enforcement_statistic` | 90 | 0 | - |
-| `policy_program` | 0 | 3 | - |
-| `council_record` | 49,708 | 5 | - |
+| `policy_program` | 0 | 0 | - |
+| `council_record` | 49,708 | 0 | - |
 | `document` | 405 | 0 | 3 |
 
 `datasets/extra/`의 2021·2023·2025·2026 도정 업무계획은 공식 page passage로
@@ -420,7 +414,7 @@ packages/retrieval/       한글 lexical/hybrid 검색
 packages/evaluation/      평가 결과 판정
 pipelines/                원천 파일 인벤토리와 정규화
 db/                       PostgreSQL 스키마와 마이그레이션
-data/sample/              재배포 가능한 명시적 데모 샘플
+services/mcp-server/test-fixtures/demo/  demo 거부 동작만 검증하는 테스트 fixture
 evals/                    대표 평가 질문
 docs/                     설계·도구·데이터 사전·변경 기록
 ```

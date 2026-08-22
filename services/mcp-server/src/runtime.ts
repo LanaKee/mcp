@@ -1,7 +1,7 @@
 import { loadEnvFile } from "node:process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadDemoData } from "./data-store.js";
+import { emptyDataStore } from "./data-store.js";
 import { PostgresDataRepository } from "./postgres-repository.js";
 import {
   InMemoryDataRepository,
@@ -29,7 +29,7 @@ export async function createDataRepository(): Promise<DataRepository> {
   loadRepositoryEnvironment();
   const configured = (process.env.DATA_REPOSITORY ?? "auto").toLowerCase();
   if (["memory", "in-memory", "disabled", "off"].includes(configured)) {
-    return new InMemoryDataRepository(await loadDemoData());
+    return new InMemoryDataRepository(emptyDataStore());
   }
   if (!["auto", "postgres"].includes(configured)) {
     throw new Error(
@@ -38,12 +38,9 @@ export async function createDataRepository(): Promise<DataRepository> {
   }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    if (configured === "postgres") {
-      throw new Error(
-        "DATA_REPOSITORY=postgres requires DATABASE_URL; no in-memory fallback was used"
-      );
-    }
-    return new InMemoryDataRepository(await loadDemoData());
+    throw new Error(
+      `${configured === "postgres" ? "DATA_REPOSITORY=postgres requires" : "DATA_REPOSITORY=auto requires"} DATABASE_URL; demo fallback was removed`
+    );
   }
   const repository = PostgresDataRepository.fromConnectionString(databaseUrl);
   const readiness = await repository.readiness();

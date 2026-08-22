@@ -363,7 +363,7 @@ export function buildPostgresHybridSearchQuery(
       0.35,
       candidateLimit,
       ftsQuery,
-      input.dataStatuses ?? ["official_observed", "demo_sample"],
+      input.dataStatuses ?? ["official_observed"],
       input.organization ?? null,
       input.documentTypes ?? null
     ]

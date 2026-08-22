@@ -11,4 +11,3 @@ region_id,region_name,fiscal_year,tax_category,revenue_amount_won,accounting_bas
 47190,구미시,2022,합계,765000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
 47190,구미시,2023,합계,801000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
 47190,구미시,2024,합계,838000000000,settlement,demo_sample,demo-local-tax-2026,2026-08-22
-

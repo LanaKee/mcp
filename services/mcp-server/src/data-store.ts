@@ -20,8 +20,18 @@ export interface DemoDataStore {
   sources: SourceRef[];
 }
 
+export function emptyDataStore(): DemoDataStore {
+  return {
+    population: [],
+    taxes: [],
+    policies: [],
+    council: [],
+    sources: []
+  };
+}
+
 const serviceDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const sampleDirectory = resolve(serviceDirectory, "../../data/sample");
+const sampleDirectory = resolve(serviceDirectory, "test-fixtures/demo");
 
 async function readJson<T>(name: string): Promise<T> {
   return JSON.parse(await readFile(resolve(sampleDirectory, name), "utf8")) as T;

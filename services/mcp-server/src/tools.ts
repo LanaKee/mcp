@@ -26,7 +26,7 @@ import {
 } from "./repository.js";
 
 export type JsonSchema = Record<string, unknown>;
-export type ResponseDataStatus = DataStatus | "mixed";
+export type ResponseDataStatus = DataStatus | "mixed" | "empty";
 
 export interface ToolResponse<TResult = unknown> {
   data_status: ResponseDataStatus;
@@ -80,7 +80,7 @@ function statuses(input: unknown): FactDataStatus[] {
 
 function responseStatus(values: DataStatus[]): ResponseDataStatus {
   const unique = [...new Set(values)];
-  if (unique.length === 0) return "mixed";
+  if (unique.length === 0) return "empty";
   return unique.length === 1 ? unique[0]! : "mixed";
 }
 

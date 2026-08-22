@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
-import { parseKoreanCsv } from "./csv.js";
+import { extname } from "node:path";
 import { parseReferenceDate } from "./dates.js";
 import {
-  repositoryRoot,
   type EtlResult,
   type OfficialCouncilRow,
   type OfficialPopulationRow
@@ -193,48 +190,6 @@ export interface LoadPlan {
   inputSha256: string;
 }
 
-interface DemoSourceDefinition {
-  sourceId: string;
-  title: string;
-  provider: string;
-  sourceUrl: string | null;
-  collectedAt: string;
-  dataStatus: "demo_sample";
-  isOfficial: false;
-  locator: string;
-  note: string;
-}
-
-interface DemoPolicy {
-  policyId: string;
-  title: string;
-  regionId: string;
-  regionName: string;
-  ageMin: number | null;
-  ageMax: number | null;
-  industries: string[];
-  stages: string[];
-  eligibilityText: string;
-  support: string;
-  applicationPeriod: string;
-  sourceId: string;
-  dataStatus: "demo_sample";
-}
-
-interface DemoCouncil {
-  recordId: string;
-  regionId: string;
-  regionName: string;
-  council: string;
-  meetingDate: string;
-  session: string;
-  title: string;
-  content: string;
-  sourceId: string;
-  locator: string;
-  dataStatus: "demo_sample";
-}
-
 const mediaTypes: Record<string, string> = {
   ".csv": "text/csv",
   ".json": "application/json",
@@ -248,10 +203,6 @@ function sha256(value: string | Buffer): string {
 
 export function officialSourceKey(path: string, fileSha256: string): string {
   return `official:${path.normalize("NFC")}:${fileSha256}`;
-}
-
-export function demoSourceKey(logicalSourceId: string, fileSha256: string): string {
-  return `demo:${logicalSourceId}:${fileSha256}`;
 }
 
 export function deterministicCouncilId(input: {
@@ -664,214 +615,7 @@ function addOfficialTaxData(
   }
 }
 
-async function addDemoData(plan: Omit<LoadPlan, "inputSha256">): Promise<void> {
-  const sampleDirectory = resolve(repositoryRoot, "data/sample");
-  const definitions = JSON.parse(
-    await readFile(resolve(sampleDirectory, "sources.json"), "utf8")
-  ) as DemoSourceDefinition[];
-  const sourceKeys = new Map<string, string>();
-
-  for (const source of definitions) {
-    const absolute = resolve(repositoryRoot, source.locator);
-    const fileBuffer = await readFile(absolute);
-    const fileSha256 = sha256(fileBuffer);
-    const sourceKey = demoSourceKey(source.sourceId, fileSha256);
-    sourceKeys.set(source.sourceId, sourceKey);
-    plan.sources.push({
-      sourceKey,
-      title: source.title,
-      provider: source.provider,
-      sourceUrl: source.sourceUrl,
-      licenseNote: source.note,
-      filePath: source.locator,
-      fileSha256,
-      collectedAt: source.collectedAt,
-      referenceDate: null,
-      mediaType: mediaTypes[extname(source.locator)] ?? "application/octet-stream",
-      dataStatus: "demo_sample",
-      isOfficial: false,
-      metadata: { logicalSourceId: source.sourceId, note: source.note }
-    });
-  }
-
-  const populationPath = "data/sample/population.csv";
-  const populationRows = parseKoreanCsv(
-    await readFile(resolve(repositoryRoot, populationPath))
-  ).rows;
-  for (let index = 0; index < populationRows.length; index += 1) {
-    const row = populationRows[index]!;
-    const region = validatedRegion(row.region_id ?? "", row.region_name ?? "");
-    const sourceKey = sourceKeys.get(row.source_id ?? "");
-    const year = integer(row.year ?? "");
-    const populationTotal = integer(row.population_total ?? "");
-    if (!region || !sourceKey || !year || populationTotal === null) {
-      plan.rejected.push({
-        entityType: "population_observation",
-        sourcePath: populationPath,
-        sourceRow: index + 2,
-        reason: "Invalid demo population region, source, year, or total"
-      });
-      continue;
-    }
-    const fact: PlannedPopulation = {
-      regionId: region.regionId,
-      referenceDate: `${year}-12-31`,
-      populationTotal,
-      populationMale: null,
-      populationFemale: null,
-      householdCount: null,
-      foreignPopulation: null,
-      measurementBasis: "demo_annual_population",
-      referenceDatePrecision: "year",
-      metadata: {
-        referenceDateRole: "canonical_demo_year_period_end"
-      },
-      sourceKey,
-      sourceRow: index + 2,
-      dataStatus: "demo_sample"
-    };
-    plan.population.push(fact);
-    plan.locators.push({
-      sourceKey,
-      entityType: "population_observation",
-      entityKey: populationEntityKey(fact),
-      pageNumber: null,
-      rowNumber: index + 2,
-      sectionName: null,
-      characterStart: null,
-      characterEnd: null,
-      locatorText: `${populationPath}#row=${index + 2}`
-    });
-  }
-
-  const taxPath = "data/sample/local-tax.csv";
-  const taxRows = parseKoreanCsv(await readFile(resolve(repositoryRoot, taxPath))).rows;
-  for (let index = 0; index < taxRows.length; index += 1) {
-    const row = taxRows[index]!;
-    const region = validatedRegion(row.region_id ?? "", row.region_name ?? "");
-    const sourceKey = sourceKeys.get(row.source_id ?? "");
-    const fiscalYear = integer(row.fiscal_year ?? "");
-    const revenueAmountWon = integer(row.revenue_amount_won ?? "");
-    const accountingBasis =
-      row.accounting_basis === "budget" || row.accounting_basis === "settlement"
-        ? row.accounting_basis
-        : null;
-    if (!region || !sourceKey || !fiscalYear || revenueAmountWon === null || !accountingBasis) {
-      plan.rejected.push({
-        entityType: "local_tax_revenue",
-        sourcePath: taxPath,
-        sourceRow: index + 2,
-        reason: "Invalid demo local-tax region, source, year, amount, or basis"
-      });
-      continue;
-    }
-    plan.localTax.push({
-      regionId: region.regionId,
-      fiscalYear,
-      taxCategory: row.tax_category ?? "",
-      revenueAmountWon,
-      accountingBasis,
-      amountSemantics: "demo_settlement",
-      sourceGrain: "demo_sample",
-      unitOriginal: "KRW",
-      unitMultiplier: 1,
-      unitProvenance: "demo_declared_krw",
-      isAggregate: isAggregateCategoryForPlan(row.tax_category ?? ""),
-      sourceRow: index + 2,
-      sourceKey,
-      dataStatus: "demo_sample",
-      metadata: { demo: true }
-    });
-  }
-
-  const policyPath = "data/sample/policies.json";
-  const policies = JSON.parse(
-    await readFile(resolve(repositoryRoot, policyPath), "utf8")
-  ) as DemoPolicy[];
-  for (let index = 0; index < policies.length; index += 1) {
-    const row = policies[index]!;
-    const region = validatedRegion(row.regionId, row.regionName);
-    const sourceKey = sourceKeys.get(row.sourceId);
-    if (!region || !sourceKey) {
-      plan.rejected.push({
-        entityType: "policy_program",
-        sourcePath: policyPath,
-        sourceRow: index + 1,
-        reason: "Invalid demo policy region or source"
-      });
-      continue;
-    }
-    plan.policies.push({
-      policyId: row.policyId,
-      regionId: region.regionId,
-      title: row.title,
-      managingOrganization:
-        plan.sources.find((source) => source.sourceKey === sourceKey)?.provider ??
-        "gyeongbuk-public-ai 프로젝트",
-      targetAgeMin: row.ageMin,
-      targetAgeMax: row.ageMax,
-      industries: row.industries,
-      stages: row.stages,
-      eligibilityText: row.eligibilityText,
-      supportText: row.support,
-      applicationStart: null,
-      applicationEnd: null,
-      sourceKey,
-      dataStatus: "demo_sample",
-      metadata: { applicationPeriod: row.applicationPeriod }
-    });
-  }
-
-  const councilPath = "data/sample/council-records.json";
-  const councilRows = JSON.parse(
-    await readFile(resolve(repositoryRoot, councilPath), "utf8")
-  ) as DemoCouncil[];
-  for (let index = 0; index < councilRows.length; index += 1) {
-    const row = councilRows[index]!;
-    const region = validatedRegion(row.regionId, row.regionName);
-    const sourceKey = sourceKeys.get(row.sourceId);
-    const meetingDate = parseReferenceDate(row.meetingDate);
-    if (!region || !sourceKey || !meetingDate) {
-      plan.rejected.push({
-        entityType: "council_record",
-        sourcePath: councilPath,
-        sourceRow: index + 1,
-        reason: "Invalid demo council region, source, or meeting date"
-      });
-      continue;
-    }
-    plan.council.push({
-      councilRecordId: row.recordId,
-      regionId: region.regionId,
-      councilName: row.council,
-      sessionName: row.session,
-      meetingDate,
-      agendaNumber: null,
-      title: row.title,
-      proposer: null,
-      resolution: null,
-      sourceKey,
-      dataStatus: "demo_sample",
-      metadata: { content: row.content, locator: row.locator }
-    });
-    plan.locators.push({
-      sourceKey,
-      entityType: "council_record",
-      entityKey: row.recordId,
-      pageNumber: null,
-      rowNumber: index + 1,
-      sectionName: row.session,
-      characterStart: null,
-      characterEnd: null,
-      locatorText: row.locator
-    });
-  }
-}
-
-export async function createLoadPlan(
-  etl: EtlResult,
-  options: { includeDemo?: boolean } = {}
-): Promise<LoadPlan> {
+export async function createLoadPlan(etl: EtlResult): Promise<LoadPlan> {
   const plan: Omit<LoadPlan, "inputSha256"> = {
     regions: GYEONGBUK_REGIONS.map((region) => ({
       regionId: region.regionId,
@@ -943,7 +687,6 @@ export async function createLoadPlan(
   for (const row of etl.population) addOfficialPopulation(row, plan);
   for (const row of etl.council) addOfficialCouncil(row, plan);
   addOfficialTaxData(etl, plan);
-  if (options.includeDemo !== false) await addDemoData(plan);
 
   plan.sources = uniqueBy(plan.sources, (row) => row.sourceKey);
   plan.population = uniqueBy(

@@ -21,7 +21,7 @@ type Command = "schema" | "load" | "normalize";
 
 function usage(): string {
   return [
-    "Usage: db-cli.ts <schema|load|normalize> [--official-only] [--skip-schema] [--skip-pdf]",
+    "Usage: db-cli.ts <schema|load|normalize> [--skip-schema] [--skip-pdf]",
     "       [--pdf-limit N] [--embedding-provider hashed|openai] [--allow-external]",
     "  schema          apply the repository schema and migrations",
     "  load            load existing data/generated artifacts",
@@ -98,8 +98,6 @@ async function main(): Promise<void> {
     "--embedding-batch-size"
   ]);
   const booleanFlags = new Set([
-    "--official-only",
-    "--include-demo",
     "--skip-schema",
     "--skip-pdf",
     "--allow-external"
@@ -120,7 +118,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  const includeDemo = !flags.includes("--official-only");
   const skipSchema = flags.includes("--skip-schema");
   const pdfLimit = positiveInteger(optionValue(flags, "--pdf-limit"), "--pdf-limit");
   const embeddingBatchSize = positiveInteger(
@@ -139,7 +136,7 @@ async function main(): Promise<void> {
       `Local-tax normalization has ${severeTaxIssues.length} severe quality issue(s); database load was refused. Review data/generated/local-tax.quality.report.json.`
     );
   }
-  const plan = await createLoadPlan(etl, { includeDemo });
+  const plan = await createLoadPlan(etl);
   const load = await loadDatabase(url, plan, { applySchema: !skipSchema });
   let pdf:
     | {
@@ -177,7 +174,7 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         command,
-        includeDemo,
+        officialOnly: true,
         schemaApplied: !skipSchema,
         normalized: {
           files: etl.catalog.length,

@@ -15,7 +15,8 @@ describe("MCP tools", () => {
   it("returns demo context without a population/tax verdict", async () => {
     const response = await executeTool(registry, "compare_population_and_tax", {
       startYear: 2022,
-      endYear: 2024
+      endYear: 2024,
+      dataStatuses: ["demo_sample"]
     });
     expect(response.data_status).toBe("demo_sample");
     const result = response.result as {
@@ -54,7 +55,8 @@ describe("MCP tools", () => {
       region: "상주시",
       age: 34,
       query: "스마트팜",
-      stage: "예비창업"
+      stage: "예비창업",
+      dataStatuses: ["demo_sample"]
     });
     const result = response.result as {
       matches: Array<{ eligible: boolean; reasons: string[] }>;
@@ -68,7 +70,8 @@ describe("MCP tools", () => {
       query: "지방소멸",
       dateFrom: "2020-01-01",
       dateTo: "2022-12-31",
-      limit: 10
+      limit: 10,
+      dataStatuses: ["demo_sample"]
     });
     const result = response.result as { matches: Array<{ id: string }> };
     expect(result.matches.map((item) => item.id)).toContain("demo-council-2020");

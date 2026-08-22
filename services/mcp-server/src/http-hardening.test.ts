@@ -192,7 +192,8 @@ describe("HTTP production hardening", () => {
             body: JSON.stringify({
               region: "포항시",
               startYear: 2024,
-              endYear: 2024
+              endYear: 2024,
+              dataStatuses: ["demo_sample"]
             })
           }
         );

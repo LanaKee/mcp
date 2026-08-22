@@ -108,9 +108,8 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
 ### `policy_program`
 
 지역, 정책명, 주관기관, 최소/최대 나이, 산업, 창업 단계, 자격 설명, 지원 내용,
-신청기간과 원출처를 저장한다. 현재 행은 기능 시연용 `demo_sample` 3건이다. 공식
-도정 업무계획 prose는 이 테이블에 자격·지원액을 추론해 넣지 않고 문서 passage로
-검색한다.
+신청기간과 원출처를 저장한다. 운영 DB의 `demo_sample` 행은 제거했다. 공식 도정
+업무계획 prose는 이 테이블에 자격·지원액을 추론해 넣지 않고 문서 passage로 검색한다.
 
 ### `council_record`
 
@@ -268,12 +267,10 @@ stale/audit purge plan과 ANALYZE/VACUUM 실행을 기록한다. `planned`, `run
 논리 byte 추정, batch 결과와 bounded 오류를 가진다. `partial` plan은 같은 token으로
 재개할 수 있고 candidate가 달라지면 새 dry-run이 필요하다.
 
-## 샘플 파일
+## demo 거부 테스트 fixture
 
 | 파일 | 범위 | 상태 |
 |---|---|---|
-| `population.csv` | 포항·상주·김천·구미, 2022~2024 | `demo_sample` |
-| `local-tax.csv` | 위 시군 지방세 합계 가상 결산값 | `demo_sample` |
-| `policies.json` | 상주/경북 스마트팜 가상 정책 3건 | `demo_sample` |
-| `council-records.json` | 2020~2024 지방소멸 가상 요약 | `demo_sample` |
-| `sources.json` | 샘플 출처와 비공식 경고 | `demo_sample` |
+운영 데이터에는 `demo_sample`이 없다. `services/mcp-server/test-fixtures/demo/`의
+합성 fixture는 도구가 데모를 공식 근거로 채택하지 않는지 검증할 때만 사용하며
+런타임과 DB 로드 계획에서는 읽지 않는다.
