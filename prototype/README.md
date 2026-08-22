@@ -22,6 +22,10 @@ pnpm prototype:dev          # http://localhost:3100
 | `MCP_AUTH_TOKEN` | (없음) | 서버가 토큰 인증 모드일 때만 필요 |
 | `PROTOTYPE_MODEL` | `claude-sonnet-5` | 근거를 카드로 배치하는 모델 |
 
+모델은 역할이 둘로 나뉜다. **도구 선택**은 MCP 서버의 `PLANNER_MODEL`(현재
+`gpt-5.6-sol`)이, **화면 구성**은 이 앱의 `PROTOTYPE_MODEL`(현재 `claude-sonnet-5`)이
+맡는다. 어떤 조합이 쓰였는지는 답변 아래에 그대로 표시된다.
+
 ## 화면
 
 | 경로 | 내용 |
@@ -34,8 +38,8 @@ pnpm prototype:dev          # http://localhost:3100
 ## 구조
 
 ```
-질문 → /api/chat → MCP /api/agent (카탈로그 검색 · 도구 호출 · 근거 수집)
-                 → claude-sonnet-5 (근거를 블록 JSON으로 배치)
+질문 → /api/chat → MCP /api/agent  (gpt-5.6-sol이 도구를 고르고 서버가 호출·수집)
+                 → claude-sonnet-5 (모인 근거를 블록 JSON으로 배치)
                  → zod 검증 → 카드 렌더링
 ```
 

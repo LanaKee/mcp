@@ -36,12 +36,13 @@ framer-motion, lucide-react.
 ### 2. 근거가 먼저, 표현이 나중
 
 ```
-질문 → /api/chat → MCP /api/agent  (카탈로그 검색 · 도구 호출 · 근거 수집)
-                 → claude-sonnet-5 (근거를 블록으로 배치)
+질문 → /api/chat → MCP /api/agent  (PLANNER_MODEL이 도구를 고르고 서버가 호출·수집)
+                 → PROTOTYPE_MODEL   (모인 근거를 블록으로 배치)
                  → zod 검증 → 렌더링
 ```
 
-모델에게 주는 것은 에이전트가 도구 호출로 실제 받은 값뿐이고, 프롬프트는 수치를
+도구 선택은 `gpt-5.6-sol`, 화면 구성은 `claude-sonnet-5`가 맡는다(각각
+`PLANNER_MODEL`, `PROTOTYPE_MODEL`). 모델에게 주는 것은 에이전트가 도구 호출로 실제 받은 값뿐이고, 프롬프트는 수치를
 그대로 옮기고 직접 계산하지 말라고 못 박는다. `evidenceContract.cannotClaim`에
 적힌 주장은 어떤 블록에도 넣지 못하게 했다.
 

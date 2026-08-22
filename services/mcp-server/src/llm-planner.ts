@@ -574,12 +574,31 @@ export function chatClientFor(
 /**
  * Builds a chat client from whichever API key is configured.
  *
+ * `PLANNER_MODEL` names the model directly and wins over key precedence: the
+ * fallback chain below picks a provider by whichever key happens to be set
+ * first, which makes every other provider unreachable on a machine that holds
+ * all four keys. Naming the model is the only way to say "plan with this one".
+ *
  * Returns null when no key is set so the caller keeps the deterministic
  * planner. The agent must work with no third-party dependency at all.
  */
 export function chatClientFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): { client: ChatCompletion; modelName: string } | null {
+  const named = env.PLANNER_MODEL?.trim();
+  if (named) {
+    try {
+      const { client, modelName } = chatClientFor(named, env);
+      return { client, modelName };
+    } catch (error) {
+      // A typo in the model id or a missing key must not take the server down;
+      // planning degrades to the deterministic planner, which answers the same
+      // questions with a narrower route.
+      console.warn(
+        `PLANNER_MODEL='${named}'을 쓸 수 없어 기본 선택으로 넘어갑니다: ${(error as Error).message}`
+      );
+    }
+  }
   if (env.OPENAI_API_KEY) {
     const model = env.OPENAI_PLANNER_MODEL ?? "gpt-4o-mini";
     return {

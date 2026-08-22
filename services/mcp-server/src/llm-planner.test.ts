@@ -265,6 +265,45 @@ describe("chat client selection", () => {
       } as NodeJS.ProcessEnv)?.modelName
     ).toBe("gpt-4.1");
   });
+
+  it("PLANNER_MODEL wins over key precedence", () => {
+    // Every key is set, so the fallback chain would pick OpenAI's default and
+    // make the other three providers unreachable.
+    expect(
+      chatClientFromEnv({
+        PLANNER_MODEL: "claude-sonnet-5",
+        OPENAI_API_KEY: "k",
+        GROK_API_KEY: "k",
+        GEMINI_API_KEY: "k",
+        CLAUDE_API_KEY: "k"
+      } as NodeJS.ProcessEnv)?.modelName
+    ).toBe("claude-sonnet-5");
+  });
+
+  it("PLANNER_MODEL routes to the provider that serves the id", () => {
+    expect(
+      chatClientFromEnv({
+        PLANNER_MODEL: "gpt-5.6-sol",
+        OPENAI_API_KEY: "k"
+      } as NodeJS.ProcessEnv)?.modelName
+    ).toBe("gpt-5.6-sol");
+  });
+
+  it("falls back to key precedence when PLANNER_MODEL is unusable", () => {
+    // The key for the named model is missing; the server must still start.
+    expect(
+      chatClientFromEnv({
+        PLANNER_MODEL: "claude-sonnet-5",
+        OPENAI_API_KEY: "k"
+      } as NodeJS.ProcessEnv)?.modelName
+    ).toBe("gpt-4o-mini");
+    expect(
+      chatClientFromEnv({
+        PLANNER_MODEL: "made-up-model",
+        GROK_API_KEY: "k"
+      } as NodeJS.ProcessEnv)?.modelName
+    ).toContain("grok");
+  });
 });
 
 describe("LLM request shape", () => {
