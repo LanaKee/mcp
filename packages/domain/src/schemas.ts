@@ -178,6 +178,25 @@ export const draftPublicDocumentInputSchema = z
   })
   .strict();
 
+export const datasetSearchInputSchema = z
+  .object({
+    query: z.string().min(1).max(300),
+    /** Restricts results to datasets that can be joined with this one. */
+    joinableWith: z.string().min(1).max(80).optional(),
+    /** Excludes narrative material when the caller needs observed facts only. */
+    evidenceRole: z.enum(["observed_fact", "narrative_context_only"]).optional(),
+    limit: z.number().int().min(1).max(20).default(5)
+  })
+  .strict();
+
+export const datasetDescribeInputSchema = z
+  .object({
+    datasetId: z.string().min(1).max(80),
+    /** When false the live coverage probe is skipped (cheaper, but no year range). */
+    includeCoverage: z.boolean().default(true)
+  })
+  .strict();
+
 export type DataStatus = z.infer<typeof dataStatusSchema>;
 export type SourceRef = z.infer<typeof sourceRefSchema>;
 export type PopulationTrendInput = z.infer<typeof populationTrendInputSchema>;
@@ -193,3 +212,5 @@ export type VerifyClaimInput = z.infer<typeof verifyClaimInputSchema>;
 export type DraftPublicDocumentInput = z.infer<
   typeof draftPublicDocumentInputSchema
 >;
+export type DatasetSearchInput = z.infer<typeof datasetSearchInputSchema>;
+export type DatasetDescribeInput = z.infer<typeof datasetDescribeInputSchema>;

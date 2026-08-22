@@ -4,6 +4,8 @@ import {
   comparePopulationAndTax,
   comparisonInputSchema,
   councilSearchInputSchema,
+  datasetDescribeInputSchema,
+  datasetSearchInputSchema,
   draftPublicDocument,
   draftPublicDocumentInputSchema,
   evaluatePolicyEligibility,
@@ -26,6 +28,7 @@ import {
   type DataRepository,
   type FactDataStatus
 } from "./repository.js";
+import { describeDataset, searchDatasets } from "./catalog-tools.js";
 
 export type JsonSchema = Record<string, unknown>;
 export type ResponseDataStatus = DataStatus | "mixed" | "empty";
@@ -700,6 +703,86 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         limitations: [
           ...input.verifiedAnalysis.limitations,
           "제출 전 최신 서식과 담당 기관 요구사항을 확인해야 합니다."
+        ]
+      };
+    }
+  );
+
+  add(
+    "search_datasets",
+    "질문에 답할 수 있는 데이터셋 후보를 찾습니다. 각 후보의 기간·지역 커버리지, 측정 단위, 조인 키, 이를 읽는 도구를 함께 돌려주므로 어떤 도구를 호출할지 스스로 결정할 수 있습니다.",
+    datasetSearchInputSchema,
+    objectSchema(
+      {
+        query: { type: "string", minLength: 1, maxLength: 300 },
+        joinableWith: { type: "string", maxLength: 80 },
+        evidenceRole: {
+          type: "string",
+          enum: ["observed_fact", "narrative_context_only"]
+        },
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 5 }
+      },
+      ["query"]
+    ),
+    async (input) => {
+      const found = await searchDatasets(repository, {
+        query: input.query,
+        joinableWith: input.joinableWith,
+        evidenceRole: input.evidenceRole,
+        limit: input.limit ?? 5
+      });
+      const coverageStatuses = [
+        ...new Set(found.hits.flatMap((hit) => hit.coverage.dataStatuses))
+      ];
+      return {
+        // The catalog describes data; it does not observe it. Reporting the
+        // union of the candidates' statuses keeps callers from treating a
+        // catalog lookup as evidence in its own right.
+        data_status: responseStatus(coverageStatuses),
+        data_statuses: coverageStatuses,
+        result: { datasets: found.hits, notes: found.notes },
+        sources: mergeSources(...found.hits.map((hit) => hit.coverage.sources)),
+        limitations: [
+          "이 응답은 데이터셋 메타데이터이며 그 자체로 질문에 대한 답이나 근거가 아닙니다.",
+          "실제 값을 얻으려면 각 후보의 tools에 있는 도구를 호출해야 합니다.",
+          ...(found.hits.some(
+            (hit) => hit.evidenceRole === "narrative_context_only"
+          )
+            ? [
+                "narrative_context_only 데이터셋은 배경 설명에만 쓰고 수치 주장의 근거로 인용하지 않습니다."
+              ]
+            : [])
+        ]
+      };
+    }
+  );
+
+  add(
+    "describe_dataset",
+    "데이터셋 하나의 상세 프로필을 돌려줍니다. 측정 항목의 의미와 단위, 비교 시 주의사항, 조인 가능한 다른 데이터셋과 그 전제 조건, 현재 적재된 기간·지역 커버리지를 포함합니다.",
+    datasetDescribeInputSchema,
+    objectSchema(
+      {
+        datasetId: { type: "string", minLength: 1, maxLength: 80 },
+        includeCoverage: { type: "boolean", default: true }
+      },
+      ["datasetId"]
+    ),
+    async (input) => {
+      const profile = await describeDataset(repository, {
+        datasetId: input.datasetId,
+        includeCoverage: input.includeCoverage ?? true
+      });
+      const coverageStatuses = profile.coverage?.dataStatuses ?? [];
+      return {
+        data_status: responseStatus(coverageStatuses),
+        data_statuses: coverageStatuses,
+        result: profile,
+        sources: profile.coverage?.sources ?? [],
+        limitations: [
+          "이 응답은 데이터셋 메타데이터이며 그 자체로 질문에 대한 답이나 근거가 아닙니다.",
+          ...profile.usageRules,
+          ...profile.relationships.flatMap((relationship) => relationship.caveats)
         ]
       };
     }

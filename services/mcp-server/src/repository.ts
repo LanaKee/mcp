@@ -307,6 +307,35 @@ export interface StorageCapacitySummary {
   warnings: string[];
 }
 
+/**
+ * Live shape of one catalogued dataset.
+ *
+ * Everything here is measured at query time. The static catalog deliberately
+ * does not hard-code year ranges or row counts, because a stale coverage claim
+ * would be an unsourced assertion — exactly what the rest of the system refuses
+ * to produce.
+ */
+export interface DatasetCoverage {
+  datasetId: string;
+  /** False when the dataset has no rows the caller is allowed to see. */
+  available: boolean;
+  rowCount: number;
+  yearRange: { start: number; end: number } | null;
+  regionCount: number;
+  /** Sample of covered regions, capped so the response stays promptable. */
+  regions: string[];
+  dataStatuses: DataStatus[];
+  /** Most recent reference/observation date present, not the crawl time. */
+  lastObservedAt: string | null;
+  sources: SourceRef[];
+  /** Set when coverage could not be measured, e.g. the demo store lacks the table. */
+  note: string | null;
+}
+
+export interface CatalogRepository {
+  getDatasetCoverage(datasetIds: string[]): Promise<DatasetCoverage[]>;
+}
+
 export interface DataRepository
   extends PopulationRepository,
     LocalTaxRepository,
@@ -316,6 +345,7 @@ export interface DataRepository
     PressReleaseRepository,
     MemberBillRepository,
     SourceRepository,
+    CatalogRepository,
     ClaimRepository {
   readonly mode: "memory" | "postgres";
   readiness(): Promise<RepositoryReadiness>;
@@ -323,6 +353,9 @@ export interface DataRepository
   writeAudit(event: AuditEvent): Promise<void>;
   close(): Promise<void>;
 }
+
+/** Keeps catalog responses small enough to paste into a prompt. */
+const MAX_COVERAGE_REGIONS = 30;
 
 function uniqueStatuses(values: DataStatus[]): DataStatus[] {
   return [...new Set(values)];
@@ -590,6 +623,103 @@ export class InMemoryDataRepository implements DataRepository {
 
   async readiness(): Promise<RepositoryReadiness> {
     return { ready: true, mode: this.mode };
+  }
+
+  /**
+   * Coverage for the demo store. Datasets that only exist in Postgres report
+   * `available: false` with a note rather than an empty range, so an agent can
+   * tell "this deployment has no such data" apart from "this data is empty".
+   */
+  async getDatasetCoverage(datasetIds: string[]): Promise<DatasetCoverage[]> {
+    const build = <T>(
+      datasetId: string,
+      rows: T[],
+      year: (row: T) => number,
+      regionName: (row: T) => string,
+      sourceId: (row: T) => string,
+      dataStatus: (row: T) => DataStatus
+    ): DatasetCoverage => {
+      const years = rows.map(year).filter((value) => Number.isFinite(value));
+      const regions = [...new Set(rows.map(regionName))];
+      const sources = [...new Set(rows.map(sourceId))]
+        .map((id) => this.sourceMap.get(id))
+        .filter((source): source is SourceRef => Boolean(source));
+      return {
+        datasetId,
+        available: rows.length > 0,
+        rowCount: rows.length,
+        yearRange:
+          years.length > 0
+            ? { start: Math.min(...years), end: Math.max(...years) }
+            : null,
+        regionCount: regions.length,
+        regions: regions.slice(0, MAX_COVERAGE_REGIONS),
+        dataStatuses: uniqueStatuses(rows.map(dataStatus)),
+        lastObservedAt:
+          years.length > 0 ? `${Math.max(...years)}-12-31` : null,
+        sources,
+        note: null
+      };
+    };
+
+    const unavailable = (datasetId: string, note: string): DatasetCoverage => ({
+      datasetId,
+      available: false,
+      rowCount: 0,
+      yearRange: null,
+      regionCount: 0,
+      regions: [],
+      dataStatuses: [],
+      lastObservedAt: null,
+      sources: [],
+      note
+    });
+
+    return datasetIds.map((datasetId) => {
+      switch (datasetId) {
+        case "population_observation":
+          return build(
+            datasetId,
+            this.store.population,
+            (row) => row.year,
+            (row) => row.regionName,
+            (row) => row.sourceId,
+            (row) => row.dataStatus
+          );
+        case "local_tax_revenue":
+          return build(
+            datasetId,
+            this.store.taxes,
+            (row) => row.fiscalYear,
+            (row) => row.regionName,
+            (row) => row.sourceId,
+            (row) => row.dataStatus
+          );
+        case "policy_program":
+          return build(
+            datasetId,
+            this.store.policies,
+            () => Number.NaN,
+            (row) => row.regionName,
+            (row) => row.sourceId,
+            (row) => row.dataStatus
+          );
+        case "council_record":
+          return build(
+            datasetId,
+            this.store.council,
+            (row) => Number(row.meetingDate.slice(0, 4)),
+            (row) => row.regionName,
+            (row) => row.sourceId,
+            (row) => row.dataStatus
+          );
+        default:
+          return unavailable(
+            datasetId,
+            "이 데이터셋은 PostgreSQL 모드에서만 제공됩니다. 현재는 메모리 데모 저장소입니다."
+          );
+      }
+    });
   }
 
   async storageCapacity(): Promise<null> {

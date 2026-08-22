@@ -16,6 +16,7 @@ import { Pool, type QueryResultRow } from "pg";
 import type {
   AuditEvent,
   CouncilMemberSummary,
+  DatasetCoverage,
   CouncilSearchHit,
   DataRepository,
   DocumentSearchHit,
@@ -70,6 +71,159 @@ function uniqueSources(rows: SourceRow[]): SourceRef[] {
   return [
     ...new Map(rows.map((row) => [row.source_key, sourceRef(row)])).values()
   ];
+}
+
+/** Caps on catalog responses so they remain small enough to put in a prompt. */
+const MAX_COVERAGE_REGIONS = 30;
+const MAX_COVERAGE_SOURCES = 10;
+
+interface CoverageRow {
+  row_count: string;
+  min_year: number | null;
+  max_year: number | null;
+  region_count: string | null;
+  regions: string[] | null;
+  data_statuses: string[] | null;
+  last_observed_at: string | null;
+  source_keys: string[] | null;
+}
+
+/**
+ * How to measure one dataset. Expressed declaratively so every dataset is
+ * probed with identical aggregate semantics; a hand-written query per dataset
+ * would drift and quietly report incomparable coverage numbers.
+ */
+interface CoverageProbe {
+  /** FROM clause, including any joins needed to reach region/source/date. */
+  from: string;
+  /** SQL integer expression for the observation year, or null if not time-based. */
+  yearExpression: string | null;
+  /** SQL text expression naming the region, or null if the dataset has no region. */
+  regionExpression: string | null;
+  /** SQL date expression for the most recent observation, or null. */
+  observedAtExpression: string | null;
+  dataStatusExpression: string;
+  sourceKeyExpression: string;
+  /** Extra predicate, e.g. restricting to the approved current chunk version. */
+  where: string | null;
+}
+
+const REGION_JOIN = "LEFT JOIN dim_region r ON r.region_id = t.region_id";
+const SOURCE_JOIN = "JOIN data_source s ON s.source_id = t.source_id";
+
+const DATASET_COVERAGE_PROBES: Record<string, CoverageProbe> = {
+  population_observation: {
+    from: `population_observation t ${REGION_JOIN} ${SOURCE_JOIN}`,
+    yearExpression: "t.year::int",
+    regionExpression: "r.region_name",
+    observedAtExpression: "t.reference_date",
+    dataStatusExpression: "t.data_status",
+    sourceKeyExpression: "s.source_key",
+    where: null
+  },
+  local_tax_revenue: {
+    from: `local_tax_revenue t ${REGION_JOIN} ${SOURCE_JOIN}`,
+    yearExpression: "t.fiscal_year::int",
+    regionExpression: "r.region_name",
+    observedAtExpression: "make_date(t.fiscal_year::int, 12, 31)",
+    dataStatusExpression: "t.data_status",
+    sourceKeyExpression: "s.source_key",
+    where: null
+  },
+  policy_program: {
+    from: `policy_program t ${REGION_JOIN} ${SOURCE_JOIN}`,
+    yearExpression: "EXTRACT(YEAR FROM t.application_start)::int",
+    regionExpression: "r.region_name",
+    observedAtExpression: "t.application_end",
+    dataStatusExpression: "t.data_status",
+    sourceKeyExpression: "s.source_key",
+    where: null
+  },
+  council_record: {
+    from: `council_record t ${REGION_JOIN} ${SOURCE_JOIN}`,
+    yearExpression: "EXTRACT(YEAR FROM t.meeting_date)::int",
+    regionExpression: "r.region_name",
+    observedAtExpression: "t.meeting_date",
+    dataStatusExpression: "t.data_status",
+    sourceKeyExpression: "s.source_key",
+    where: null
+  },
+  press_release: {
+    from: `press_release t ${REGION_JOIN} ${SOURCE_JOIN}`,
+    yearExpression: "EXTRACT(YEAR FROM t.published_date)::int",
+    regionExpression: "r.region_name",
+    observedAtExpression: "t.published_date",
+    dataStatusExpression: "t.data_status",
+    sourceKeyExpression: "s.source_key",
+    where: null
+  },
+  council_bill: {
+    from: `council_bill t ${SOURCE_JOIN}`,
+    yearExpression: "EXTRACT(YEAR FROM t.proposed_date)::int",
+    regionExpression: null,
+    observedAtExpression: "t.proposed_date",
+    dataStatusExpression: "t.data_status",
+    sourceKeyExpression: "s.source_key",
+    where: null
+  },
+  document_chunk: {
+    from: `document_chunk t
+             JOIN document d ON d.document_id = t.document_id
+             LEFT JOIN dim_region r ON r.region_id = d.region_id
+             JOIN data_source s ON s.source_id = d.source_id`,
+    yearExpression: "EXTRACT(YEAR FROM d.published_date)::int",
+    regionExpression: "r.region_name",
+    observedAtExpression: "d.published_date",
+    dataStatusExpression: "d.data_status",
+    sourceKeyExpression: "s.source_key",
+    // Only the approved current extraction is retrievable, so coverage must
+    // count the same rows a search would actually return.
+    where: "t.approved_current"
+  }
+};
+
+function coverageQuery(probe: CoverageProbe): string {
+  const year = probe.yearExpression;
+  const region = probe.regionExpression;
+  const observedAt = probe.observedAtExpression;
+  return `SELECT
+      count(*)::bigint AS row_count,
+      ${year ? `min(${year})` : "NULL::int"} AS min_year,
+      ${year ? `max(${year})` : "NULL::int"} AS max_year,
+      ${
+        region
+          ? `count(DISTINCT ${region})::bigint`
+          : "0::bigint"
+      } AS region_count,
+      ${
+        region
+          ? `(array_agg(DISTINCT ${region}) FILTER (WHERE ${region} IS NOT NULL))[1:${MAX_COVERAGE_REGIONS}]`
+          : "ARRAY[]::text[]"
+      } AS regions,
+      array_agg(DISTINCT ${probe.dataStatusExpression}) AS data_statuses,
+      ${
+        observedAt
+          ? `to_char(max(${observedAt}), 'YYYY-MM-DD')`
+          : "NULL::text"
+      } AS last_observed_at,
+      (array_agg(DISTINCT ${probe.sourceKeyExpression}))[1:${MAX_COVERAGE_SOURCES}] AS source_keys
+    FROM ${probe.from}
+    ${probe.where ? `WHERE ${probe.where}` : ""}`;
+}
+
+function unavailableCoverage(datasetId: string, note: string): DatasetCoverage {
+  return {
+    datasetId,
+    available: false,
+    rowCount: 0,
+    yearRange: null,
+    regionCount: 0,
+    regions: [],
+    dataStatuses: [],
+    lastObservedAt: null,
+    sources: [],
+    note
+  };
 }
 
 function uniqueStatuses(rows: Array<{ data_status: DataStatus }>): DataStatus[] {
@@ -1248,6 +1402,85 @@ export class PostgresDataRepository implements DataRepository {
       taxCategory: "합계",
       dataStatuses: input.dataStatuses
     });
+  }
+
+  /**
+   * Measures live coverage for catalogued datasets.
+   *
+   * Each dataset is probed with the same aggregate shape so a new dataset only
+   * needs a row in {@link DATASET_COVERAGE_PROBES}. Unknown dataset ids and
+   * missing tables degrade to `available: false` with a note instead of
+   * throwing, because a catalog lookup must never take down a tool call.
+   */
+  async getDatasetCoverage(datasetIds: string[]): Promise<DatasetCoverage[]> {
+    return Promise.all(
+      datasetIds.map(async (datasetId) => {
+        const probe = DATASET_COVERAGE_PROBES[datasetId];
+        if (!probe) {
+          return unavailableCoverage(
+            datasetId,
+            "카탈로그에 등록되지 않은 데이터셋입니다."
+          );
+        }
+        try {
+          const { rows } = await this.executor.query<CoverageRow>(
+            coverageQuery(probe)
+          );
+          const row = rows[0];
+          if (!row || Number(row.row_count) === 0) {
+            return unavailableCoverage(
+              datasetId,
+              "테이블은 존재하지만 적재된 행이 없습니다."
+            );
+          }
+          const sourceKeys = (row.source_keys ?? []).filter(Boolean);
+          const sources =
+            sourceKeys.length > 0
+              ? await this.loadSourcesByKey(sourceKeys)
+              : [];
+          return {
+            datasetId,
+            available: true,
+            rowCount: Number(row.row_count),
+            yearRange:
+              row.min_year !== null && row.max_year !== null
+                ? { start: Number(row.min_year), end: Number(row.max_year) }
+                : null,
+            regionCount: Number(row.region_count ?? 0),
+            regions: (row.regions ?? []).filter(Boolean),
+            dataStatuses: (row.data_statuses ?? []).filter(
+              Boolean
+            ) as DataStatus[],
+            lastObservedAt: row.last_observed_at ?? null,
+            sources,
+            note: null
+          } satisfies DatasetCoverage;
+        } catch (caught) {
+          // A missing table means this deployment simply has not loaded that
+          // dataset yet. Surfacing it as unavailable is more useful than an
+          // error, and keeps search_datasets working on partial deployments.
+          return unavailableCoverage(
+            datasetId,
+            `커버리지를 측정하지 못했습니다: ${
+              caught instanceof Error ? caught.message : String(caught)
+            }`
+          );
+        }
+      })
+    );
+  }
+
+  private async loadSourcesByKey(sourceKeys: string[]): Promise<SourceRef[]> {
+    const { rows } = await this.executor.query<SourceRow>(
+      `SELECT source_key, title, provider, source_url, collected_at,
+              data_status, is_official, file_path, license_note
+         FROM data_source
+        WHERE source_key = ANY($1::text[])
+        ORDER BY collected_at DESC
+        LIMIT $2`,
+      [sourceKeys, MAX_COVERAGE_SOURCES]
+    );
+    return rows.map(sourceRef);
   }
 
   async storageCapacity(): Promise<StorageCapacitySummary> {
