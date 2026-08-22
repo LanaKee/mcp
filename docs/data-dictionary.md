@@ -43,8 +43,52 @@ SHA-256을 포함하므로 같은 경로의 파일이 변경되어도 이전 버
 
 ### `local_tax_revenue`
 
-지역·회계연도·세목별 지방세 금액(원)과 예산/결산 기준을 저장한다. **국세는 범위
-밖**이다. 현재 저장소 샘플은 모두 가상 결산값이다.
+지역·회계연도·세목별 도구용 headline 지방세 금액(원)을 저장한다. **국세는 범위
+밖**이다. 공식 원천과 기존 가상 샘플을 함께 보존하되 repository는 같은
+지역·연도·세목에서 공식을 우선한다.
+
+| 컬럼 | 설명 |
+|---|---|
+| `accounting_basis` | `settlement`, `reported`, 기존 sample의 `budget` |
+| `amount_semantics` | `collected_amount`, `payment_amount`, `reported_total_tax_burden`, sample의 `demo_settlement`, 기존 행의 `legacy_unspecified` |
+| `source_grain` | `collection_status`, `payment_media`, `per_capita_burden`, `demo_sample`, 기존 행의 `legacy_unspecified` |
+| `unit_original` / `unit_multiplier` | 원천 `KRW`/`thousand_KRW`와 KRW 변환 배수 1/1,000 |
+| `unit_provenance` | 명시 원/천원 header, 무표기 원 기본, cross-source 천원 reconciliation |
+| `is_aggregate` | 합계/총계/소계/계 행 또는 검증된 detail 합산 여부 |
+| `source_row` / `metadata` | 원본 행과 파생에 사용한 행 목록 등 |
+
+headline 선택 우선순위는 징수현황의 수납액, 징수현황이 없는 지역·연도의
+1인당 부담 원천 지방세 총액, 징수 세목이 없는 납부현황 세목 합계다. 서로 다른 의미를
+하나의 숫자로 강제하지 않고 위 컬럼으로 노출한다.
+
+### 지방세 원천 grain
+
+모든 행은 `official_observed`, canonical `region_id`, source SHA/version,
+`source_row`, `ingestion_run_id`, KRW 변환 provenance를 가진다.
+
+| 테이블 | grain / 주요 값 |
+|---|---|
+| `local_tax_collection_status` | 지역·연도·세목별 부과, 수납, 환급, 결손/정리보류, 미수납, 신고/계산 징수율 |
+| `local_tax_payment_media` | 지역·연도·세목·납부매체·전자고지별 건수/납부액/비율 |
+| `local_tax_assessment_status` | 지역·연도·세목별 과세/비과세 건수와 금액; 원천 blank는 NULL |
+| `local_tax_per_capita_burden` | 지역·연도별 주민/세대당 부담, 지방세 총액, 선택 인구/세대수 |
+| `local_tax_taxpayer_status` | 지역·연도·세목·납세자유형·관내외별 납세자 수 |
+| `local_tax_exemption_status` | 지역·연도·세목별 비과세/감면/부과 금액과 신고/계산 비율 |
+| `local_tax_unrefunded_status` | 지역·연도·세목·미환급유형·납세자유형별 당해/누적 건수·금액 |
+| `local_tax_enforcement_statistic` | 지역·영치일·기관별 체납 건수/금액; 영치장소 문자열은 미저장 |
+
+예천의 두 자리 연도는 00~99를 20YY로 확장한 뒤 2000~실행연도+1 범위를 다시
+검증한다. 영천 비과세·감면 720행은 `세액`/`건수` 규모가 열 의미와 모순되어 값을
+교환하지 않고 격리했다. 김천 일반건축물 40,694 data row는 주소 단위 microdata이므로
+catalog에만 governance 결정을 남기고 일반 fact/search/embedding에 적재하지 않았다.
+
+### `data_quality_issue`
+
+source/row/field별 결정적 issue key, severity, 관측/기대값, quarantine 여부와 ingestion
+run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical code/name 일치, 음수/잘못된
+숫자, zero-only, 징수율 재계산, natural-key 중복, aggregate/detail 합계, 부분 blank,
+검증되지 않은 열 의미와 개인정보 제외 결정을 포함한다. 공개 응답에 원본 주소나 영치
+장소를 복사하지 않는다.
 
 ### `policy_program`
 
@@ -145,9 +189,9 @@ chunk, provider, model, version별 임베딩을 저장한다. `embedding`은 `re
 ### `source_locator`
 
 엔터티 키를 원본 페이지, 행, 절, 문자 범위 또는 사람이 읽을 수 있는 locator와
-연결한다. 현재 적재기는 공식/데모 인구와 의회 레코드의 행 위치, PDF
-document/page/current chunk locator를 기록한다. repository는 stale page/chunk locator를
-source context에서 제외한다.
+연결한다. 현재 적재기는 공식/데모 인구, 의회 레코드, 공식 지방세 각 grain/headline의
+행 위치, PDF document/page/current chunk locator를 기록한다. repository는 stale
+page/chunk locator를 source context에서 제외한다.
 
 ### `mcp_tool_audit`
 

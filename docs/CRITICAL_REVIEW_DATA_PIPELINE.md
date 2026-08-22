@@ -28,6 +28,14 @@
 - 최종 capacity는 DB 1,521,482,775 bytes, `document_chunk` 846,340,096 bytes,
   embedding 361,824,256 bytes, `source_locator` 175,742,976 bytes였다. stale ratio
   42.4% 경고가 발생했다.
+- 신규 지방세 CSV 18개를 포함해 440개 파일을 다시 catalog/ETL했다. 공식 headline
+  지방세 368행은 5개 지역, 29개 지역-연도를 포괄하고 demo 12행은 그대로 보존됐다.
+- 지방세 세부 grain은 징수 220, 납부매체 1,131, 과세 57, 1인당 부담 15,
+  납세자 378, 비과세·감면 96, 미환급 64, 영치 통계 90행이다.
+- 동일 generated artifact 재적재는 insert 0건으로 끝났고 current PDF chunk/embedding
+  23,795, page 11,712, 공식 인구 221, 공식 의회 46,596을 유지했다.
+- DB-backed 김천 합계 도구는 공식 수납액 107,720,311,000원을 371.4ms에 반환했고
+  PDF 의회 검색은 page locator 포함 3건을 476.7ms에 반환했다. 두 호출 audit도 확인했다.
 
 ## 이번 P1에서 수정한 고신뢰 문제
 
@@ -77,10 +85,35 @@ timeout이 있고 VACUUM은 별도 확인이 필요하다.
 다시 UPDATE해 bloat를 늘릴 수 있었다. 값이 실제로 달라지는 행만 갱신하도록 predicate를
 추가했고 schema 재적용 전후 sampled current/stale chunk의 `xmin`이 유지됨을 확인했다.
 
+### 공식 지방세 단위·grain·개인정보
+
+호환되지 않는 원천을 `local_tax_revenue` 하나에 강제로 넣지 않고 8개 세부 fact grain으로
+분리했다. headline 값은 원천 의미와 선택 근거를 별도 컬럼에 남긴다. aggregate 행은
+detail 합계와 검증하고 세목 합산에서 중복 사용하지 않는다.
+
+명시적 `(천원)`만 1,000배 변환한다. 무표기 김천 납부액은 파일명이 아니라 명시적 천원
+징수자료의 주민세·재산세·자동차세·담배소비세·지방소비세·지방소득세 6개 exact match로
+판정했다. 무표기 원 단위 자료는 근거가 없으면 KRW로 남긴다.
+
+원천 blank는 0으로 만들지 않고 nullable 또는 row quarantine으로 보존한다. integer
+징수율과 재계산값의 0.2~1 percentage point 차이는 publisher rounding/truncation 가능성이
+높아 info로 분류하고, 1 point를 넘는 차이만 warning으로 둔다.
+
+영천 720행은 `세액=548`, `건수=6,969,586` 같은 규모 역전이 보여도 자동 swap하지 않고
+격리했다. 김천 일반건축물 40,694 data row는 주소 단위 재산 정보이므로 catalog만 남기고
+fact/search/embedding에서 제외했다. 문경 영치장소도 저장하지 않았다.
+
 ## 영역별 남은 위험
 
 ### 정확성·데이터 품질
 
+- 공식 headline 지방세는 22개 시·군 중 경산·구미·김천·봉화·청도 5개만 포괄한다.
+  나머지 지역 비교는 sample-only이거나 결과가 없으므로 광역 일반화가 불가능하다.
+- 경산·구미 1인당 부담 자료의 `지방세 금액`은 수납액과 같은 grain이 아니며
+  `reported_total_tax_burden`으로 표시한다.
+- 영천 quarantine은 제공기관 schema 확인 전에는 해제할 수 없다.
+- 31개 zero-only 행, 과세 부분 blank 22행, 전체 blank 과세 1행은 원천 품질 신호이며
+  자동 보정하지 않았다.
 - golden은 4개 문서 5페이지의 구조 회귀이며 전체 문장 정확도나 법적 완전성을 입증하지 않는다.
 - 실제 반복 footer가 없어 footer 제거는 합성 test만 있다.
 - PDF glyph 순서, 다단 편집, 병합 셀은 PDF.js reading order와 다를 수 있다.
@@ -128,9 +161,11 @@ timeout이 있고 VACUUM은 별도 확인이 필요하다.
 
 ## 다음 우선순위
 
-1. **P1 OCR:** 승인된 로컬 OCR queue, OCR 전/후 provenance와 OCR golden/품질 점수.
+1. **P1 지방세 coverage:** 나머지 17개 시·군의 동일 grain 공식 원천과 라이선스를
+   확보하고 지역별 기간/세목 completeness와 cross-source reconciliation을 평가한다.
+2. **P1 OCR:** 승인된 로컬 OCR queue, OCR 전/후 provenance와 OCR golden/품질 점수.
    현재 corpus 0건 실패는 향후 scan PDF 대응을 입증하지 않는다.
-2. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
-3. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
-4. **P1 운영 자동화:** backup/restore rehearsal, lifecycle scheduler와 경보 전달.
-5. **P2 규모:** provider/dimension별 pgvector partition과 ANN index.
+3. **P1 semantic:** 검증된 multilingual local model 또는 승인된 외부 provider의 평가.
+4. **P1 golden 확대:** 다른 지역·연도·다단·실제 footer·복잡 표 표본.
+5. **P1 운영 자동화:** backup/restore rehearsal, lifecycle scheduler와 경보 전달.
+6. **P2 규모:** provider/dimension별 pgvector partition과 ANN index.

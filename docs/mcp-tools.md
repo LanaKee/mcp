@@ -17,13 +17,21 @@
 ## `get_local_tax_revenue_trend`
 
 - 입력: `region`, `startYear`, `endYear`, 선택 `taxCategory`, `dataStatuses`
-- 출력: 회계연도별 지방세(원), 회계 기준, 증감
+- 출력: 회계연도별 지방세(원), 개별 `dataStatus`, 회계 기준,
+  `amountSemantics`, `sourceGrain`, 원단위/배수와 증감
+- 같은 지역·연도·세목에 공식과 샘플이 모두 있으면 공식만 선택한다.
+- 일부 연도만 공식인 추세는 각 point 상태와 limitation을 명시하며 상태가 다른 값을
+  합산하지 않는다. 공식이 전혀 없으면 `demo_sample` only 경고를 반환한다.
 - 국세는 지원하지 않는다.
 
 ## `compare_population_and_tax`
 
 - 입력: `startYear`, `endYear`, 선택 `regions`, `dataStatuses`
 - 출력: 모든 비교 가능 지역과 `인구 감소 && 지방세 증가` 일치 지역
+- 각 지역 결과는 `populationDataStatuses`, `taxDataStatuses`,
+  `taxAmountSemantics`, `taxSourceGrains`를 포함한다.
+- 공식 지방세가 있는 지역·연도는 공식 값을 사용하며 sample-only/mixed 구간을
+  limitation에서 명시한다.
 - 동시 변화는 인과관계가 아니다.
 
 ## `search_policies`
@@ -52,6 +60,8 @@
 - 입력: `metric`(`population`/`local_tax`), `region`, `year`,
   `claimedValue`, 선택 `tolerancePercent`, `dataStatuses`
 - 출력: `consistent`/`inconsistent`, 기준값, 차이, 차이율
+- 지방세 검증은 기준값의 `accounting_basis`, `amount_semantics`,
+  `source_grain`, record 상태를 함께 반환한다.
 
 ## `get_source_context`
 

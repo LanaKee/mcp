@@ -6,7 +6,8 @@
 > [!WARNING]
 > `data/sample/`의 인구·지방세·정책·의회 값은 `demo_sample`인 기능 시연용이다.
 > `datasets/`에서 파싱한 값만 `official_observed`이며, 이 값도 원출처와 기준일을
-> 확인한 뒤 사용해야 한다.
+> 확인한 뒤 사용해야 한다. 공식 지방세가 있는 지역·연도는 샘플보다 우선하며, 없는
+> 구간만 응답에 `demo_sample`로 명시된다.
 
 ## 구현 범위
 
@@ -16,6 +17,7 @@
 - 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 주장 검증, 출처 조회,
   근거 제한형 행정문서 초안 등 8개 도구
 - NFD 파일명에 의존하지 않고 헤더/내용으로 판별하는 CP949·UTF-8 CSV 및 XLSX ETL
+- 9개 지방세 원천 grain의 KRW 단위 정규화, 품질 검증, 격리와 공식 우선 조회
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
 - PDF.js 기반 401개 회의록/감사 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - page-level 품질 지표, 반복 머리말 제거, 발언자/표 경계 chunk와 golden 회귀 평가
@@ -216,10 +218,15 @@ ETL은 다음을 수행합니다.
 2. CSV를 UTF-8 우선, 실패 시 CP949로 해석
 3. 포항 연도별 인구의 `년월` 날짜를 그대로 보존하고 다양한 의회 의안 CSV를 판별
 4. 인구 XLSX 제목에서 `2026년 7월`을 찾아 `2026-07-31` 기준 경북/시군 값을 정규화
-5. PDF 원천은 `catalog_only` source로 보존하면서 raw/cleaned page hash와 품질 지표를 기록
-6. 문서 전체에서 고신뢰 반복 머리말/꼬리말만 제거하고 발언자 전환과 표 행을 원자적으로 chunk
-7. 텍스트가 없는 문서/페이지는 `ocr_required`, 오류는 `extraction_failed`로 명시
-8. 파싱 오류를 `errors.json`과 종료 코드로 노출
+5. `datasets/new/`를 재귀 탐색하고 파일명이 아니라 헤더로 지방세 9개 grain과
+   별도 격리 대상을 판별
+6. 명시된 원/천원 단위를 KRW 정수로 바꾸고, 김천의 무표기 납부액은 명시적
+   천원 징수자료와 6개 세목 exact match가 있을 때만 천원으로 판정
+7. PDF 원천은 `catalog_only` source로 보존하면서 raw/cleaned page hash와 품질 지표를 기록
+8. 문서 전체에서 고신뢰 반복 머리말/꼬리말만 제거하고 발언자 전환과 표 행을 원자적으로 chunk
+9. 텍스트가 없는 문서/페이지는 `ocr_required`, 오류는 `extraction_failed`로 명시
+10. 파싱 오류와 지방세 품질 문제를 각각 `errors.json`,
+    `local-tax.quality.report.json` 및 종료 코드로 노출
 
 `data/generated/`는 재생성 가능하므로 Git에서 제외됩니다.
 
@@ -228,7 +235,7 @@ ETL은 다음을 수행합니다.
 적재기는 다음을 보장합니다.
 
 - 경상북도와 현재 22개 시·군(군위군 제외)의 canonical 지역 키 사용
-- 경로+SHA-256 기반 출처 버전 보존, PDF 포함 422개 원천 카탈로그 적재
+- 경로+SHA-256 기반 출처 버전 보존, PDF 포함 440개 원천 카탈로그 적재
 - 500행 단위 parameterized upsert와 단일 fact 트랜잭션
 - 원천 SHA/경로/행 번호 기반 의회 레코드 ID와 인구·의회 `source_locator`
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
@@ -238,14 +245,26 @@ ETL은 다음을 수행합니다.
   않되 현재 추출에 없는 chunk를 `is_current = false`로 제외
 - 검색은 lifecycle에서 `approved`인 단일 version의 `approved_current` chunk만 사용
 - embedding은 생성 batch마다 PostgreSQL에 적재해 전체 vector corpus를 메모리에 쌓지 않음
+- 지방세 합계는 징수 수납액, 1인당 부담 원천의 지방세 총액, 납부액 순서로
+  방어적으로 선택하며 `amount_semantics`와 `source_grain`을 보존
+- 같은 지역·연도·세목에서는 `official_observed`를 `demo_sample`보다 우선하되
+  서로 다른 상태를 한 점으로 합산하지 않음
 
 현재 제공 원천과 샘플의 현재 행 기대 건수(`document_chunk`/embedding은 `is_current` join 기준):
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 21 | 4 | 401 |
+| `data_source` | 39 | 4 | 401 |
 | `population_observation` | 221 | 12 | - |
-| `local_tax_revenue` | 0 | 12 | - |
+| `local_tax_revenue` | 368 | 12 | - |
+| `local_tax_collection_status` | 220 | 0 | - |
+| `local_tax_payment_media` | 1,131 | 0 | - |
+| `local_tax_assessment_status` | 57 | 0 | - |
+| `local_tax_per_capita_burden` | 15 | 0 | - |
+| `local_tax_taxpayer_status` | 378 | 0 | - |
+| `local_tax_exemption_status` | 96 | 0 | - |
+| `local_tax_unrefunded_status` | 64 | 0 | - |
+| `local_tax_enforcement_statistic` | 90 | 0 | - |
 | `policy_program` | 0 | 3 | - |
 | `council_record` | 46,596 | 5 | - |
 | `document` | 401 | 0 | - |
@@ -256,6 +275,9 @@ ETL은 다음을 수행합니다.
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
 SELECT data_status, count(*) FROM population_observation GROUP BY data_status;
+SELECT data_status, count(*) FROM local_tax_revenue GROUP BY data_status;
+SELECT severity, issue_code, count(*) FROM data_quality_issue
+GROUP BY severity, issue_code ORDER BY severity, issue_code;
 SELECT data_status, count(*) FROM council_record GROUP BY data_status;
 SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
 SELECT text_class, count(*) FROM document_page WHERE is_current GROUP BY text_class;
@@ -371,6 +393,10 @@ docs/                     설계·도구·데이터 사전·변경 기록
 - golden은 4개 local PDF의 5페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
+- 공식 지방세 합계 시계열은 현재 경산·구미·김천·봉화·청도 5개 지역,
+  29개 지역-연도에 한정된다. 다른 지역·연도는 샘플 상태를 확인해야 한다.
+- 영천 비과세·감면 720행은 금액/건수 열 의미가 검증되지 않아 적재하지 않았다.
+- 김천 주소 단위 일반건축물 시가표준액 40,694행은 일반 분석·검색·embedding에서 제외했다.
 - 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.
 - token은 단일 shared secret이며 tenant/role 권한 모델은 없다.
 - rate limit은 process-local이므로 여러 replica에서는 공용 Redis/게이트웨이가 필요하다.

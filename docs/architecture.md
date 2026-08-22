@@ -32,6 +32,8 @@ flowchart LR
 
 - `pipelines/src/catalog.ts`: 재귀 인벤토리, SHA-256, 날짜·미디어 형식·상태
 - `pipelines/src/csv.ts`: UTF-8/CP949 판별, 헤더 기반 유형 감지, 인구·의안 정규화
+- `pipelines/src/local-tax.ts`: 지방세 grain 판별, canonical 코드 검증, KRW 단위 변환,
+  aggregate/detail reconciliation, 품질 issue·격리와 headline fact 선택
 - `pipelines/src/xlsx.ts`: 제목에서 기준 월을 찾고 canonical 경북/시군 행을 탐색
 - `pipelines/src/regions.ts`: 경상북도와 현재 시·군 코드, alias, 지역 추론
 - `pipelines/src/load-plan.ts`: 공식/데모 데이터를 결정적 source/fact/locator 계획으로 변환
@@ -52,6 +54,12 @@ flowchart LR
 - `data_source.data_status`는 `official_observed`, `demo_sample`, `catalog_only` 중 하나다.
 - `pnpm db:normalize`은 ETL, 스키마/마이그레이션, 공식 데이터와 데모 전체 적재를 수행한다.
 - source key와 의회 record ID는 원천 SHA/경로/행을 기반으로 결정적이며 행을 삭제하지 않는다.
+- 지방세는 징수, 납부매체, 과세, 1인당 부담, 납세자, 비과세·감면, 미환급,
+  번호판 영치를 호환되지 않는 별도 grain으로 저장한다.
+- `local_tax_revenue`는 도구용 headline fact이며 원본 의미를
+  `amount_semantics`, `source_grain`, 원단위/배수/판정근거, aggregate 여부로 보존한다.
+- address-level property valuation은 catalog governance만 저장하고 fact/search/embedding에
+  넣지 않는다. 영치 장소 문자열도 저장하지 않는다.
 - PDF page는 raw/cleaned hash와 품질 지표를 가지며 현재 extractor 결과만 `is_current`다.
 - PDF 처리 version은 `candidate`, `approved`, `retired` lifecycle을 가지며 partial unique
   index로 approved version 하나만 허용한다.
@@ -72,6 +80,9 @@ flowchart LR
   repository 계약과 메모리 구현
 - `services/mcp-server/src/postgres-repository.ts`: 공식 우선 ranking, 명시적 상태 필터,
   bounded fact/document query, source/page context 구현
+- 지방세 ranking은 같은 지역·연도·세목에서 공식 자료를 먼저 고르고, 공식 grain끼리는
+  징수 수납액, 1인당 부담 총액, 납부액 순으로 선택한다. 회계 기준이 다르다는 이유로
+  공식과 샘플을 중복 반환하지 않는다.
 - PostgreSQL 경로는 FTS/trigram으로 bounded candidate를 만든 뒤 저장 `real[]` embedding을
   cosine rerank한다. 배열 전체 ANN scan은 하지 않는다.
 - source context는 current page/chunk locator만 노출해 과거 chunker 결과가 섞이지 않는다.
@@ -119,6 +130,11 @@ flowchart LR
 16. stale/audit 삭제는 dry-run이 기본이며 exact plan token, 최소 보존기간, allowlist,
     advisory lock과 bounded 실행 한도를 모두 통과해야 한다.
 17. purge transaction에서 VACUUM을 실행하거나 `53100` VACUUM을 자동 재시도하지 않는다.
+18. 지방세 금액의 blank는 0으로 만들지 않고 NULL 또는 row quarantine으로 남기며,
+    aggregate와 detail을 중복 합산하지 않는다.
+19. 무표기 천원 판정은 명시적 천원 source와 3개 이상 exact category reconciliation이
+    있어야 하며 filename 추정은 금지한다.
+20. 검증되지 않은 영천 열 교환은 자동 수정하지 않고 quality issue로 격리한다.
 
 ## 후속 확장
 
@@ -126,7 +142,8 @@ flowchart LR
 - 지역/연도/서식이 더 다양한 golden PDF와 실제 반복 footer 표본 확충
 - 승인된 scheduler/backup 정책과 operator-run stale purge/VACUUM window
 - corpus가 커질 때 모델별 pgvector partition/ANN index
-- 실제 지방세·정책 공식 소스 adapter와 라이선스 검토
+- 나머지 17개 시·군 공식 headline 지방세 source와 원천 라이선스 확충
+- 영천 비과세·감면 열 의미의 제공기관 확인 후 quarantine 해제 여부 결정
 - lifecycle/audit purge의 외부 scheduler와 경보 전달 채널
 - multi-instance 공용 rate-limit store와 tenant별 token/권한
 - reverse proxy TLS, secret rotation, WAF 정책의 배포 자동 검증
