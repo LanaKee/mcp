@@ -10,6 +10,7 @@ import { extractKoreanNumbers, findMatch } from "./korean-number.js";
 import { looksLikeRefusal } from "./arms/prompt.js";
 import type {
   ArmResponse,
+  ArmName,
   ArmSummary,
   BenchmarkCase,
   CaseScore,
@@ -149,7 +150,7 @@ function ratio(numerator: number, denominator: number): number {
 }
 
 export function summarizeArm(
-  arm: "vanilla" | "mcp",
+  arm: ArmName,
   scores: CaseScore[],
   cases: BenchmarkCase[]
 ): ArmSummary {

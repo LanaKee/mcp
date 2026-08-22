@@ -31,9 +31,21 @@ importers:
       '@gb/mcp-server':
         specifier: workspace:*
         version: link:../services/mcp-server
+      '@gb/retrieval':
+        specifier: workspace:*
+        version: link:../packages/retrieval
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
+      iconv-lite:
+        specifier: ^0.7.3
+        version: 0.7.3
       pg:
         specifier: ^8.23.0
         version: 8.23.0
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
     devDependencies:
       '@types/pg':
         specifier: ^8.23.1

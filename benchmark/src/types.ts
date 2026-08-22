@@ -28,6 +28,8 @@ export type CaseCategory =
   /** Scores whether the answer carries provenance that resolves to a real source row. */
   | "provenance";
 
+export type ArmName = "vanilla" | "raw_rag" | "mcp";
+
 /** Declarative pointer to the truth, resolved against the database at run time. */
 export type GroundTruthSpec =
   | { kind: "population_year"; region: string; year: number }
@@ -92,7 +94,7 @@ export interface BenchmarkCase {
 
 /** Raw output of one arm on one case, before grading. */
 export interface ArmResponse {
-  arm: "vanilla" | "mcp";
+  arm: ArmName;
   /**
    * The answer prose, and the only text the grader reads.
    *
@@ -123,7 +125,7 @@ export interface ArmResponse {
 
 /** Grading verdict for one arm on one case. */
 export interface CaseScore {
-  arm: "vanilla" | "mcp";
+  arm: ArmName;
   caseId: string;
   /** The arm committed to a substantive answer rather than declining. */
   committed: boolean;
@@ -148,7 +150,7 @@ export interface CaseScore {
 }
 
 export interface ArmSummary {
-  arm: "vanilla" | "mcp";
+  arm: ArmName;
   cases: number;
   correct: number;
   accuracy: number;

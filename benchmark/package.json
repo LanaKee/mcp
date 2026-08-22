@@ -7,13 +7,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "compare": "tsx src/run.ts",
+    "compare:raw-rag": "tsx src/raw-rag-run.ts",
     "compare:dry-run": "tsx src/run.ts --dry-run",
     "compare:models": "tsx src/compare-models.ts"
   },
   "dependencies": {
     "@gb/domain": "workspace:*",
     "@gb/mcp-server": "workspace:*",
-    "pg": "^8.23.0"
+    "@gb/retrieval": "workspace:*",
+    "fflate": "^0.8.3",
+    "iconv-lite": "^0.7.3",
+    "pg": "^8.23.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1"
