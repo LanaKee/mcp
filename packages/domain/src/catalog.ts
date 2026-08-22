@@ -269,7 +269,10 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       {
         tool: "search_policies",
         answers: "신청자 조건에 부합하는 정책과 미충족 조건",
-        requiredArguments: ["region", "query"]
+        // age is not optional in the tool's schema: eligibility cannot be
+        // judged without it, so a planner must be told to obtain it rather
+        // than discovering the requirement as a runtime rejection.
+        requiredArguments: ["region", "age", "query"]
       }
     ],
     usageRules: [
@@ -417,7 +420,11 @@ export const DATASET_CATALOG: readonly DatasetDefinition[] = [
       {
         tool: "search_member_bills",
         answers: "의원별 또는 주제별 발의 의안과 처리 결과",
-        requiredArguments: []
+        // The tool itself refuses unless member or query is present. Declaring
+        // [] told planners the call was free-form and produced an empty call
+        // that the tool then rejected, so the catalog now states the weaker of
+        // the two requirements it can express.
+        requiredArguments: ["query"]
       }
     ],
     usageRules: [
@@ -596,6 +603,34 @@ export function datasetVocabulary(dataset: DatasetDefinition): string[] {
  * generated character bigram) to overlap the controlled vocabulary is what
  * stops nonsense queries from silently selecting an arbitrary dataset.
  */
+/**
+ * Terms that name *where* rather than *what*.
+ *
+ * Every dataset in this catalog is about Gyeongbuk, so a place name carries no
+ * signal about which dataset answers a question. Left in the gate, "경상북도의
+ * 국세 납부 실적" matches the press-release dataset on the province name alone
+ * and the agent answers an out-of-scope question from unrelated material.
+ * They still contribute to ranking — they just cannot, by themselves, make a
+ * dataset relevant.
+ */
+const GEOGRAPHIC_TERMS = new Set([
+  "경상북도",
+  "경북",
+  "행정구역",
+  "시군",
+  "시군별",
+  "지역",
+  "지자체",
+  "기초자치단체",
+  "광역자치단체"
+]);
+
+function isGeographicTerm(term: string): boolean {
+  if (GEOGRAPHIC_TERMS.has(term)) return true;
+  // Bare 시/군 names such as 포항시 or 울진군; two characters plus the suffix.
+  return /^[\p{Script=Hangul}]{2,4}(?:시|군|읍|면|동)$/u.test(term);
+}
+
 export function isDatasetRelevant(
   dataset: DatasetDefinition,
   query: string
@@ -606,7 +641,9 @@ export function isDatasetRelevant(
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length >= 2);
   if (words.length === 0) return false;
-  const vocabulary = datasetVocabulary(dataset);
+  const vocabulary = datasetVocabulary(dataset).filter(
+    (term) => !isGeographicTerm(term)
+  );
   return words.some((word) =>
     vocabulary.some((term) => word.includes(term) || term.includes(word))
   );

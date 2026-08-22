@@ -36,3 +36,5 @@ export function evaluateToolResult(
   };
   return { id: testCase.id, passed: Object.values(checks).every(Boolean), checks };
 }
+
+export * from "./benchmark.js";

@@ -38,6 +38,14 @@ export async function searchDatasets(
     query: string;
     joinableWith?: string;
     evidenceRole?: string;
+    /**
+     * Narrows the reported coverage to one region.
+     *
+     * Without it the hit carries union coverage, which reads as "population has
+     * 2006-2026" even when the region in the question only has 2025-2026 — and a
+     * planner that trusts it asks for an empty window.
+     */
+    region?: string;
     limit: number;
   }
 ): Promise<{ hits: DatasetSearchHit[]; notes: string[] }> {
@@ -102,7 +110,8 @@ export async function searchDatasets(
   }
 
   const coverages = await repository.getDatasetCoverage(
-    ranked.map((hit) => hit.id)
+    ranked.map((hit) => hit.id),
+    input.region ? { region: input.region } : {}
   );
   const coverageById = new Map(
     coverages.map((coverage) => [coverage.datasetId, coverage])
@@ -168,7 +177,7 @@ export interface DatasetProfile {
 /** Everything an agent needs to decide whether and how to query one dataset. */
 export async function describeDataset(
   repository: CatalogRepository,
-  input: { datasetId: string; includeCoverage: boolean }
+  input: { datasetId: string; includeCoverage: boolean; region?: string }
 ): Promise<DatasetProfile> {
   const dataset = getDatasetDefinition(input.datasetId);
   if (!dataset) {
@@ -177,7 +186,12 @@ export async function describeDataset(
     );
   }
   const coverage = input.includeCoverage
-    ? ((await repository.getDatasetCoverage([dataset.datasetId]))[0] ??
+    ? ((
+        await repository.getDatasetCoverage(
+          [dataset.datasetId],
+          input.region ? { region: input.region } : {}
+        )
+      )[0] ??
       emptyCoverage(dataset.datasetId, "커버리지를 조회하지 못했습니다."))
     : null;
 
@@ -210,7 +224,11 @@ export function catalogVocabularyOverlap(query: string): string[] {
   return tokenizeKorean(query).filter((term) => vocabulary.has(term));
 }
 
-function emptyCoverage(datasetId: string, note: string): DatasetCoverage {
+function emptyCoverage(
+  datasetId: string,
+  note: string,
+  regionCoverage: DatasetCoverage["regionCoverage"] = null
+): DatasetCoverage {
   return {
     datasetId,
     available: false,
@@ -221,6 +239,7 @@ function emptyCoverage(datasetId: string, note: string): DatasetCoverage {
     dataStatuses: [],
     lastObservedAt: null,
     sources: [],
+    regionCoverage,
     note
   };
 }

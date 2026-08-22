@@ -16,7 +16,9 @@ import { Pool, type QueryResultRow } from "pg";
 import type {
   AuditEvent,
   CouncilMemberSummary,
+  CoverageOptions,
   DatasetCoverage,
+  RegionCoverage,
   CouncilSearchHit,
   DataRepository,
   DocumentSearchHit,
@@ -78,6 +80,9 @@ const MAX_COVERAGE_REGIONS = 30;
 const MAX_COVERAGE_SOURCES = 10;
 
 interface CoverageRow {
+  scoped_row_count: string | null;
+  scoped_min_year: number | null;
+  scoped_max_year: number | null;
   row_count: string;
   min_year: number | null;
   max_year: number | null;
@@ -182,11 +187,39 @@ const DATASET_COVERAGE_PROBES: Record<string, CoverageProbe> = {
   }
 };
 
-function coverageQuery(probe: CoverageProbe): string {
+/**
+ * Builds the probe query, optionally scoped to one region.
+ *
+ * Union-wide coverage is actively misleading for planning: population spans
+ * 2006-2026 across all regions, but only Pohang has the early years, so a
+ * planner trusting the union asks for a window that has no rows for the region
+ * it was actually asked about. The region predicate mirrors the one the tools
+ * themselves use, so coverage describes exactly the rows a tool would return.
+ */
+function coverageQuery(probe: CoverageProbe, scopedToRegion: boolean): string {
   const year = probe.yearExpression;
   const region = probe.regionExpression;
   const observedAt = probe.observedAtExpression;
+  // The region narrows a FILTER clause rather than the WHERE clause, so one
+  // round trip returns both the deployment-wide picture (does this dataset
+  // exist here at all) and the region-specific picture (what years exist for
+  // the region asked about). Putting it in WHERE made province-level rows —
+  // every 경상북도 press release — vanish from a 청도군 question.
+  const regionPredicate =
+    scopedToRegion && region
+      ? "(r.normalized_name = $1 OR r.region_name ILIKE ('%' || $1 || '%'))"
+      : null;
+  // FILTER binds to the aggregate itself, so any cast must be applied to the
+  // filtered result rather than to the aggregate before it.
+  const scoped = (aggregate: string, cast: string, fallback: string) =>
+    regionPredicate
+      ? `(${aggregate} FILTER (WHERE ${regionPredicate}))${cast}`
+      : fallback;
+  const where = probe.where;
   return `SELECT
+      ${scoped("count(*)", "::bigint", "NULL::bigint")} AS scoped_row_count,
+      ${year ? scoped(`min(${year})`, "", "NULL::int") : "NULL::int"} AS scoped_min_year,
+      ${year ? scoped(`max(${year})`, "", "NULL::int") : "NULL::int"} AS scoped_max_year,
       count(*)::bigint AS row_count,
       ${year ? `min(${year})` : "NULL::int"} AS min_year,
       ${year ? `max(${year})` : "NULL::int"} AS max_year,
@@ -208,10 +241,14 @@ function coverageQuery(probe: CoverageProbe): string {
       } AS last_observed_at,
       (array_agg(DISTINCT ${probe.sourceKeyExpression}))[1:${MAX_COVERAGE_SOURCES}] AS source_keys
     FROM ${probe.from}
-    ${probe.where ? `WHERE ${probe.where}` : ""}`;
+    ${where ? `WHERE ${where}` : ""}`;
 }
 
-function unavailableCoverage(datasetId: string, note: string): DatasetCoverage {
+function unavailableCoverage(
+  datasetId: string,
+  note: string,
+  regionCoverage: RegionCoverage | null = null
+): DatasetCoverage {
   return {
     datasetId,
     available: false,
@@ -222,6 +259,7 @@ function unavailableCoverage(datasetId: string, note: string): DatasetCoverage {
     dataStatuses: [],
     lastObservedAt: null,
     sources: [],
+    regionCoverage,
     note
   };
 }
@@ -1412,7 +1450,11 @@ export class PostgresDataRepository implements DataRepository {
    * missing tables degrade to `available: false` with a note instead of
    * throwing, because a catalog lookup must never take down a tool call.
    */
-  async getDatasetCoverage(datasetIds: string[]): Promise<DatasetCoverage[]> {
+  async getDatasetCoverage(
+    datasetIds: string[],
+    options: CoverageOptions = {}
+  ): Promise<DatasetCoverage[]> {
+    const region = options.region?.trim() || undefined;
     return Promise.all(
       datasetIds.map(async (datasetId) => {
         const probe = DATASET_COVERAGE_PROBES[datasetId];
@@ -1422,9 +1464,13 @@ export class PostgresDataRepository implements DataRepository {
             "카탈로그에 등록되지 않은 데이터셋입니다."
           );
         }
+        // A dataset with no region dimension cannot be narrowed, so it keeps
+        // union coverage rather than silently reporting an empty scope.
+        const scopedToRegion = region !== undefined && probe.regionExpression !== null;
         try {
           const { rows } = await this.executor.query<CoverageRow>(
-            coverageQuery(probe)
+            coverageQuery(probe, scopedToRegion),
+            scopedToRegion ? [region] : []
           );
           const row = rows[0];
           if (!row || Number(row.row_count) === 0) {
@@ -1453,7 +1499,20 @@ export class PostgresDataRepository implements DataRepository {
             ) as DataStatus[],
             lastObservedAt: row.last_observed_at ?? null,
             sources,
-            note: null
+            note: null,
+            regionCoverage: scopedToRegion
+              ? {
+                  region: region!,
+                  rowCount: Number(row.scoped_row_count ?? 0),
+                  yearRange:
+                    row.scoped_min_year !== null && row.scoped_max_year !== null
+                      ? {
+                          start: Number(row.scoped_min_year),
+                          end: Number(row.scoped_max_year)
+                        }
+                      : null
+                }
+              : null
           } satisfies DatasetCoverage;
         } catch (caught) {
           // A missing table means this deployment simply has not loaded that

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { DATASET_CATALOG } from "@gb/domain";
 import { loadDemoData, type DemoDataStore } from "./data-store.js";
 import { InMemoryDataRepository } from "./repository.js";
 import { createToolRegistry, executeTool, type ToolRegistry } from "./tools.js";
@@ -154,5 +155,53 @@ describe("dataset catalog tools", () => {
     };
     expect(profile.coverage.available).toBe(false);
     expect(profile.coverage.note).toContain("PostgreSQL");
+  });
+});
+
+describe("catalog tool bindings match the tools' own validation", () => {
+  let registry: ToolRegistry;
+
+  beforeAll(async () => {
+    registry = createToolRegistry(new InMemoryDataRepository(await loadDemoData()));
+  });
+
+  it("binds only tools the server actually registers", () => {
+    for (const dataset of DATASET_CATALOG) {
+      for (const binding of dataset.tools) {
+        expect(
+          Object.hasOwn(registry.tools, binding.tool),
+          `${dataset.datasetId} -> ${binding.tool}`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("declares enough required arguments to satisfy each tool's schema", () => {
+    // The regression this locks in: search_member_bills declared no required
+    // arguments while its schema refuses unless member or query is present, so
+    // a planner that dutifully satisfied the catalog still produced a call the
+    // tool rejected. A binding that cannot be satisfied is a broken contract
+    // between the catalog and the server.
+    const sampleFor = (name: string): unknown => {
+      if (name.endsWith("Year")) return 2024;
+      if (name === "age") return 34;
+      if (name === "limit") return 5;
+      if (name === "sourceIds") return ["official:sample"];
+      return "샘플";
+    };
+
+    for (const dataset of DATASET_CATALOG) {
+      for (const binding of dataset.tools) {
+        const tool = registry.tools[binding.tool];
+        if (!tool) continue;
+        const input = Object.fromEntries(
+          binding.requiredArguments.map((name) => [name, sampleFor(name)])
+        );
+        expect(
+          () => tool.parse(input),
+          `${dataset.datasetId} -> ${binding.tool} (${JSON.stringify(input)})`
+        ).not.toThrow();
+      }
+    }
   });
 });

@@ -1,5 +1,7 @@
 import { getDatasetDefinition, joinability, type SourceRef } from "@gb/domain";
 import { searchDatasets, type DatasetSearchHit } from "./catalog-tools.js";
+import { extractEntities } from "./entities.js";
+import { yearWindowGap } from "./planner.js";
 import { executeTool, type ToolExecutionContext, type ToolRegistry } from "./tools.js";
 
 /** One tool call the planner wants to make, and why. */
@@ -62,6 +64,14 @@ export interface AgentAnswer {
   limitations: string[];
   /** Steps the planner asked for that were refused, and why. */
   rejectedSteps: Array<{ step: AgentPlanStep; reason: string }>;
+  /**
+   * Datasets the catalog offered for this question that hold no usable rows.
+   *
+   * Reported even when the question was answered from another dataset: a user
+   * asking for policy announcements deserves to know the announcements table is
+   * empty and that press releases are context, not eligibility.
+   */
+  unavailableDatasets: Array<{ datasetId: string; title: string; note: string | null }>;
 }
 
 /**
@@ -94,14 +104,30 @@ export function validateStep(
   if (!candidate.coverage.available) {
     return `${step.datasetId}에 적재된 행이 없어 호출해도 결과가 비어 있습니다.`;
   }
-  const missing = binding.requiredArguments.filter(
-    (name) =>
-      step.arguments[name] === undefined || step.arguments[name] === null
+  const missing = binding.requiredArguments.filter((name) =>
+    isBlank(step.arguments[name])
   );
   if (missing.length > 0) {
     return `${step.tool} 호출에 필요한 인자가 없습니다: ${missing.join(", ")}`;
   }
+  // Validate with the tool's own schema, not a parallel set of rules. A planner
+  // can satisfy every declared requirement and still produce a call the tool
+  // refuses — an empty query string is present but invalid — and catching that
+  // here keeps it a rejected plan step rather than a runtime failure.
+  try {
+    registry.tools[step.tool]!.parse(step.arguments);
+  } catch (caught) {
+    return `${step.tool} 인자가 도구 스키마를 통과하지 못했습니다: ${
+      caught instanceof Error ? caught.message.slice(0, 200) : String(caught)
+    }`;
+  }
   return null;
+}
+
+/** Treats an empty or whitespace-only string as a missing argument. */
+function isBlank(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  return typeof value === "string" && value.trim().length === 0;
 }
 
 /**
@@ -114,9 +140,15 @@ export async function runAgent(
   planner: Planner,
   context: ToolExecutionContext = {}
 ): Promise<AgentAnswer> {
+  // Resolve the region before searching so every candidate reports coverage for
+  // the region actually asked about. Union coverage would tell the planner that
+  // population spans 2006-2026 when the county in question only has 2025-2026,
+  // and the resulting request would come back empty.
+  const entities = extractEntities(question);
   const found = await searchDatasets(registry.repository, {
     query: question,
-    limit: 5
+    limit: 5,
+    ...(entities.region ? { region: entities.region } : {})
   });
   const consideredDatasets = found.hits.map((hit) => ({
     datasetId: hit.datasetId,
@@ -125,10 +157,26 @@ export async function runAgent(
     available: hit.coverage.available
   }));
 
+  const unavailableDatasets = found.hits
+    .filter((hit) => !hit.coverage.available)
+    .map((hit) => ({
+      datasetId: hit.datasetId,
+      title: hit.title,
+      note: hit.coverage.note
+    }));
+
+  // Computed here rather than trusted from the planner: the model is asked to
+  // state the real coverage when it declines, but a fact the system already
+  // knows must not depend on the model choosing to repeat it.
+  const coverageGaps = found.hits
+    .map((hit) => yearWindowGap(entities, hit, hit.coverage.regionCoverage !== null))
+    .filter((gap): gap is string => gap !== null);
+
   const base = {
     question,
     planner: planner.name,
     consideredDatasets,
+    unavailableDatasets,
     joins: [] as AgentAnswer["joins"],
     rejectedSteps: [] as AgentAnswer["rejectedSteps"]
   };
@@ -156,7 +204,7 @@ export async function runAgent(
       conclusion: plan.unanswerable,
       evidence: [],
       sources: [],
-      limitations: found.notes
+      limitations: [...found.notes, ...coverageGaps]
     };
   }
 
@@ -170,7 +218,7 @@ export async function runAgent(
 
   const evidence: AgentEvidence[] = [];
   const sources: SourceRef[] = [];
-  const limitations = new Set<string>(found.notes);
+  const limitations = new Set<string>([...found.notes, ...coverageGaps]);
   const executedDatasets: string[] = [];
 
   for (const step of accepted) {
@@ -234,6 +282,14 @@ export async function runAgent(
     }
   }
 
+  for (const entry of unavailableDatasets) {
+    limitations.add(
+      `${entry.title}은(는) 이 질문의 후보였지만 적재된 데이터가 없어 근거로 사용하지 않았습니다${
+        entry.note ? ` (${entry.note})` : ""
+      }.`
+    );
+  }
+
   const narrativeOnly = evidence.filter(
     (item) =>
       getDatasetDefinition(item.datasetId)?.evidenceRole ===
@@ -254,7 +310,9 @@ export async function runAgent(
       ? `${uniqueExecuted
           .map((datasetId) => getDatasetDefinition(datasetId)?.title ?? datasetId)
           .join(", ")}에서 근거를 수집했습니다.`
-      : "계획한 도구 호출이 모두 거부되어 근거를 수집하지 못했습니다.",
+      : coverageGaps.length > 0
+        ? coverageGaps.join(" ")
+        : "계획한 도구 호출이 모두 거부되어 근거를 수집하지 못했습니다.",
     evidence,
     joins,
     sources: [

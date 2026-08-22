@@ -720,6 +720,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
           type: "string",
           enum: ["observed_fact", "narrative_context_only"]
         },
+        region: { type: "string", minLength: 1, maxLength: 40 },
         limit: { type: "integer", minimum: 1, maximum: 20, default: 5 }
       },
       ["query"]
@@ -729,6 +730,7 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
         query: input.query,
         joinableWith: input.joinableWith,
         evidenceRole: input.evidenceRole,
+        ...(input.region ? { region: input.region } : {}),
         limit: input.limit ?? 5
       });
       const coverageStatuses = [
@@ -764,14 +766,16 @@ export function createToolRegistry(repository: DataRepository): ToolRegistry {
     objectSchema(
       {
         datasetId: { type: "string", minLength: 1, maxLength: 80 },
-        includeCoverage: { type: "boolean", default: true }
+        includeCoverage: { type: "boolean", default: true },
+        region: { type: "string", minLength: 1, maxLength: 40 }
       },
       ["datasetId"]
     ),
     async (input) => {
       const profile = await describeDataset(repository, {
         datasetId: input.datasetId,
-        includeCoverage: input.includeCoverage ?? true
+        includeCoverage: input.includeCoverage ?? true,
+        ...(input.region ? { region: input.region } : {})
       });
       const coverageStatuses = profile.coverage?.dataStatuses ?? [];
       return {

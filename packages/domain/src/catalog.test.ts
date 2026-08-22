@@ -126,3 +126,32 @@ describe("dataset catalog", () => {
     expect(text).toContain("회계연도");
   });
 });
+
+describe("place names are not topics", () => {
+  it("does not make any dataset relevant from a region name alone", () => {
+    for (const query of ["경상북도", "포항시", "울진군", "경북 시군"]) {
+      const matched = DATASET_CATALOG.filter((dataset) =>
+        isDatasetRelevant(dataset, query)
+      );
+      expect(matched, `"${query}"`).toHaveLength(0);
+    }
+  });
+
+  it("refuses an out-of-scope topic that merely mentions the province", () => {
+    // 국세 is national-tax, outside this project's scope. Before geographic
+    // terms were removed from the gate this matched the press-release dataset
+    // on "경상북도" and produced a sourced-looking answer to a question the
+    // system has no data for.
+    const matched = DATASET_CATALOG.filter((dataset) =>
+      isDatasetRelevant(dataset, "경상북도의 국세 납부 실적을 알려줘")
+    );
+    expect(matched).toHaveLength(0);
+  });
+
+  it("still matches when a real topic accompanies the region name", () => {
+    const matched = DATASET_CATALOG.filter((dataset) =>
+      isDatasetRelevant(dataset, "포항시 인구 추이")
+    ).map((dataset) => dataset.datasetId);
+    expect(matched).toContain("population_observation");
+  });
+});

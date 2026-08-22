@@ -185,6 +185,8 @@ export const datasetSearchInputSchema = z
     joinableWith: z.string().min(1).max(80).optional(),
     /** Excludes narrative material when the caller needs observed facts only. */
     evidenceRole: z.enum(["observed_fact", "narrative_context_only"]).optional(),
+    /** Reports coverage for this region only, instead of the union of all regions. */
+    region: z.string().min(1).max(40).optional(),
     limit: z.number().int().min(1).max(20).default(5)
   })
   .strict();
@@ -193,7 +195,9 @@ export const datasetDescribeInputSchema = z
   .object({
     datasetId: z.string().min(1).max(80),
     /** When false the live coverage probe is skipped (cheaper, but no year range). */
-    includeCoverage: z.boolean().default(true)
+    includeCoverage: z.boolean().default(true),
+    /** Reports coverage for this region only, instead of the union of all regions. */
+    region: z.string().min(1).max(40).optional()
   })
   .strict();
 

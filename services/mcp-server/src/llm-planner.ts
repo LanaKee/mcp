@@ -33,6 +33,9 @@ export function buildPlannerPrompt(input: PlannerInput): string {
     coverage: {
       available: candidate.coverage.available,
       yearRange: candidate.coverage.yearRange,
+      // Named so the model reads the range as "what exists for this region",
+      // not "what exists overall".
+      regionCoverage: candidate.coverage.regionCoverage,
       regions: candidate.coverage.regions,
       dataStatuses: candidate.coverage.dataStatuses
     }
@@ -52,7 +55,7 @@ ${JSON.stringify(catalog, null, 2)}
 1. datasetId와 tool은 위 목록에 있는 조합만 사용합니다. 새로 만들지 마십시오.
 2. 각 도구의 requiredArguments를 모두 채웁니다. 질문에서 값을 확보할 수 없으면
    그 도구를 계획에 넣지 말고 unanswerable에 이유를 적습니다.
-3. 연도는 해당 데이터셋의 coverage.yearRange 안에서만 지정합니다.
+3. 연도는 해당 데이터셋의 coverage.yearRange 안에서만 지정합니다. coverage.regionCoverage가 있으면 그 yearRange가 해당 지역에 실제로 적재된 연도이므로, 지역별 조회 도구는 그 범위를 따르고 질문이 요구한 구간이 그 밖이면 단계를 만들지 말고 unanswerable에 실제 적재 범위를 적습니다.
 4. 지역은 coverage.regions에 있는 이름을 사용합니다.
 5. available이 false인 데이터셋은 호출하지 않습니다.
 6. 질문에 답하는 데 필요한 최소한의 도구만 호출합니다.
@@ -159,15 +162,55 @@ export class LlmPlanner implements Planner {
   }
 
   async plan(input: PlannerInput): Promise<AgentPlan> {
+    let plan: AgentPlan;
     try {
       const raw = await this.options.client.complete(buildPlannerPrompt(input));
-      return parsePlanResponse(raw);
+      plan = parsePlanResponse(raw);
     } catch (caught) {
       if (!this.options.fallback) throw caught;
       // A model outage must not take the demo down. The fallback plans from the
       // same catalog output, so the answer stays sourced either way.
       return this.options.fallback.plan(input);
     }
+
+    // Drop steps aimed at datasets the catalog already reports as empty. The
+    // model is told which candidates have no rows but does not reliably obey,
+    // and letting the step through only converts a knowable planning error into
+    // a runtime refusal.
+    const empty = new Set(
+      input.candidates
+        .filter((candidate) => !candidate.coverage.available)
+        .map((candidate) => candidate.datasetId)
+    );
+    const usable = plan.steps.filter((step) => {
+      if (empty.has(step.datasetId)) return false;
+      // A required argument present but blank (models like to emit `query: ""`)
+      // is not a usable step; treating it as one would send the whole plan to
+      // the safety boundary and produce a refusal the fallback could have
+      // avoided.
+      const binding = input.candidates
+        .find((candidate) => candidate.datasetId === step.datasetId)
+        ?.tools.find((entry) => entry.tool === step.tool);
+      if (!binding) return false;
+      return binding.requiredArguments.every((name) => {
+        const value = step.arguments[name];
+        if (value === undefined || value === null) return false;
+        return typeof value !== "string" || value.trim().length > 0;
+      });
+    });
+
+    // The model may also decline a question the deterministic planner can still
+    // route, or aim every step at empty data. Falling back keeps a sourced
+    // answer available instead of surfacing an avoidable refusal.
+    if (usable.length === 0 && this.options.fallback) {
+      const fallbackPlan = await this.options.fallback.plan(input);
+      if (fallbackPlan.steps.length > 0) return fallbackPlan;
+      return {
+        steps: [],
+        unanswerable: plan.unanswerable ?? fallbackPlan.unanswerable
+      };
+    }
+    return { ...plan, steps: usable };
   }
 }
 

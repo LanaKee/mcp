@@ -11,10 +11,12 @@
     "dev:http": "tsx src/index.ts --http",
     "dev:stdio": "tsx src/index.ts --stdio",
     "start:http": "node dist/index.js --http",
-    "start:stdio": "node dist/index.js --stdio"
+    "start:stdio": "node dist/index.js --stdio",
+    "benchmark": "tsx src/benchmark-runner.ts"
   },
   "dependencies": {
     "@gb/domain": "workspace:*",
+    "@gb/evaluation": "workspace:*",
     "@gb/retrieval": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "csv-parse": "^6.1.0",

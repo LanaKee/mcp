@@ -66,6 +66,9 @@ importers:
       '@gb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@gb/evaluation':
+        specifier: workspace:*
+        version: link:../../packages/evaluation
       '@gb/retrieval':
         specifier: workspace:*
         version: link:../../packages/retrieval

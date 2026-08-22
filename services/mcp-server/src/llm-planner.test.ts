@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { loadDemoData } from "./data-store.js";
 import { InMemoryDataRepository } from "./repository.js";
 import { createToolRegistry, type ToolRegistry } from "./tools.js";
-import { runAgent } from "./agent.js";
+import { runAgent, validateStep } from "./agent.js";
 import { HeuristicPlanner } from "./planner.js";
 import { searchDatasets } from "./catalog-tools.js";
 import {
@@ -156,9 +156,62 @@ describe("LLM planner integration with the agent", () => {
         )
       })
     );
+    // With no fallback configured a hallucinated tool leaves nothing runnable,
+    // so the agent declines. The point is that it never executes and never
+    // fabricates; whether the step is dropped by the planner's own usability
+    // filter or by validateStep, no unsourced answer can escape.
     expect(answer.answered).toBe(false);
     expect(answer.evidence).toHaveLength(0);
-    expect(answer.rejectedSteps[0]!.reason).toContain("도구가 아닙니다");
+    expect(answer.sources).toHaveLength(0);
+  });
+
+  it("still routes a hallucinated tool to the safety boundary when it slips past the planner", async () => {
+    // validateStep is the last line of defence and is tested directly, because
+    // the planner-level filter is an optimisation, not the guarantee.
+    const candidates = (
+      await searchDatasets(registry.repository, {
+        query: "포항시 인구",
+        limit: 5
+      })
+    ).hits;
+    const reason = validateStep(
+      {
+        datasetId: "population_observation",
+        tool: "drop_all_tables",
+        arguments: { region: "포항시" },
+        reason: "환각"
+      },
+      candidates,
+      registry
+    );
+    expect(reason).toContain("도구가 아닙니다");
+  });
+
+  it("rejects a blank required argument the tool's own schema would refuse", async () => {
+    // Observed with a real model: it emitted `query: ""`, which satisfies
+    // "argument present" but fails the schema's min-length. The boundary now
+    // validates with the tool's own parser so this can never reach execution.
+    const candidates = (
+      await searchDatasets(registry.repository, {
+        query: "의안 발의",
+        limit: 5
+      })
+    ).hits;
+    const billCandidate = candidates.find(
+      (hit) => hit.datasetId === "council_bill"
+    );
+    expect(billCandidate).toBeDefined();
+    const reason = validateStep(
+      {
+        datasetId: "council_bill",
+        tool: "search_member_bills",
+        arguments: { query: "" },
+        reason: "빈 질의"
+      },
+      candidates,
+      registry
+    );
+    expect(reason).not.toBeNull();
   });
 
   it("falls back to the deterministic planner when the model is unreachable", async () => {

@@ -330,10 +330,36 @@ export interface DatasetCoverage {
   sources: SourceRef[];
   /** Set when coverage could not be measured, e.g. the demo store lacks the table. */
   note: string | null;
+  /**
+   * What exists for one specific region, when a region was requested.
+   *
+   * Reported *alongside* the deployment-wide numbers rather than replacing
+   * them, because the two answer different questions. `yearRange` above says
+   * population spans 2006-2026, but most counties only hold 2025-2026, so a
+   * planner trusting the union asks for an empty window. Meanwhile a
+   * province-level dataset such as press releases legitimately has no rows
+   * tagged 청도군 while still being able to answer a 청도군 question, so an
+   * empty region scope must never mark the dataset unavailable.
+   */
+  regionCoverage: RegionCoverage | null;
+}
+
+export interface RegionCoverage {
+  region: string;
+  rowCount: number;
+  yearRange: { start: number; end: number } | null;
+}
+
+export interface CoverageOptions {
+  /** Narrows every measurement to one region, when the dataset has a region dimension. */
+  region?: string;
 }
 
 export interface CatalogRepository {
-  getDatasetCoverage(datasetIds: string[]): Promise<DatasetCoverage[]>;
+  getDatasetCoverage(
+    datasetIds: string[],
+    options?: CoverageOptions
+  ): Promise<DatasetCoverage[]>;
 }
 
 export interface DataRepository
@@ -630,39 +656,72 @@ export class InMemoryDataRepository implements DataRepository {
    * `available: false` with a note rather than an empty range, so an agent can
    * tell "this deployment has no such data" apart from "this data is empty".
    */
-  async getDatasetCoverage(datasetIds: string[]): Promise<DatasetCoverage[]> {
+  async getDatasetCoverage(
+    datasetIds: string[],
+    options: CoverageOptions = {}
+  ): Promise<DatasetCoverage[]> {
+    const scope = options.region?.trim() || undefined;
     const build = <T>(
       datasetId: string,
-      rows: T[],
+      allRows: T[],
       year: (row: T) => number,
       regionName: (row: T) => string,
       sourceId: (row: T) => string,
       dataStatus: (row: T) => DataStatus
     ): DatasetCoverage => {
-      const years = rows.map(year).filter((value) => Number.isFinite(value));
-      const regions = [...new Set(rows.map(regionName))];
-      const sources = [...new Set(rows.map(sourceId))]
+      // Substring both ways so "울진" and "울진군" scope to the same rows,
+      // matching how the Postgres probe and the tools resolve region names.
+      const rows = scope
+        ? allRows.filter((row) => {
+            const name = regionName(row);
+            return name.includes(scope) || scope.includes(name);
+          })
+        : allRows;
+      if (allRows.length === 0) {
+        return unavailable(datasetId, "적재된 행이 없습니다.", null);
+      }
+      const scopedYears = rows
+        .map(year)
+        .filter((value) => Number.isFinite(value));
+      const regionCoverage: RegionCoverage | null = scope
+        ? {
+            region: scope,
+            rowCount: rows.length,
+            yearRange:
+              scopedYears.length > 0
+                ? { start: Math.min(...scopedYears), end: Math.max(...scopedYears) }
+                : null
+          }
+        : null;
+      const years = allRows.map(year).filter((value) => Number.isFinite(value));
+      const regions = [...new Set(allRows.map(regionName))];
+      const sources = [...new Set(allRows.map(sourceId))]
         .map((id) => this.sourceMap.get(id))
         .filter((source): source is SourceRef => Boolean(source));
       return {
         datasetId,
-        available: rows.length > 0,
-        rowCount: rows.length,
+        available: allRows.length > 0,
+        rowCount: allRows.length,
         yearRange:
           years.length > 0
             ? { start: Math.min(...years), end: Math.max(...years) }
             : null,
         regionCount: regions.length,
         regions: regions.slice(0, MAX_COVERAGE_REGIONS),
-        dataStatuses: uniqueStatuses(rows.map(dataStatus)),
+        dataStatuses: uniqueStatuses(allRows.map(dataStatus)),
         lastObservedAt:
           years.length > 0 ? `${Math.max(...years)}-12-31` : null,
         sources,
-        note: null
+        note: null,
+        regionCoverage
       };
     };
 
-    const unavailable = (datasetId: string, note: string): DatasetCoverage => ({
+    const unavailable = (
+      datasetId: string,
+      note: string,
+      regionCoverage: RegionCoverage | null = null
+    ): DatasetCoverage => ({
       datasetId,
       available: false,
       rowCount: 0,
@@ -672,7 +731,8 @@ export class InMemoryDataRepository implements DataRepository {
       dataStatuses: [],
       lastObservedAt: null,
       sources: [],
-      note
+      note,
+      regionCoverage
     });
 
     return datasetIds.map((datasetId) => {
