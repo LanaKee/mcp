@@ -37,6 +37,11 @@ flowchart LR
   판별, 시·군세/도세 scope 분리, 22개 지역 subtotal/detail reconciliation
 - `pipelines/src/xlsx.ts`: 제목에서 기준 월을 찾고 canonical 경북/시군 행을 탐색
 - `pipelines/src/regions.ts`: 경상북도와 현재 시·군 코드, alias, 지역 추론
+- `pipelines/src/crawl-http.ts`: robots 확인, 요청 gate, 동시성 제한, atomic write 등
+  공개 게시판 크롤러가 공유하는 HTTP primitive
+- `pipelines/src/gb-press-release.ts`: 경상북도 보도자료 목록/상세 파서와 크롤 loop.
+  게시판이 앵글 브래킷을 제거한 채 서빙하는 HWP HTML 문서를 복구하고, 복구에
+  실패하면 원본을 유지해 반쯤 정리된 본문을 색인하지 않는다
 - `pipelines/src/load-plan.ts`: 공식/데모 데이터를 결정적 source/fact/locator 계획으로 변환
 - `pipelines/src/db.ts`: transaction, parameterized batch upsert, 실행 상태와 무결성 집계
 - `pipelines/src/pdf.ts`: PDF.js layout 추출, page 품질 점수, 고신뢰 반복 margin 정리,
@@ -69,6 +74,13 @@ flowchart LR
 - 인구 fact는 `measurement_basis`와 `reference_date_precision`을 보존한다.
   과세연도 보고 인구, 주민등록 snapshot, 연간 통계를 서로 바꿔 쓰지 않으며
   동질 series가 아닐 때 파생 추세를 만들지 않는다.
+- 보도자료는 fact 모델 밖의 `press_release` 테이블에 둔다. 본문이 인용하는 수치는
+  발표 시점의 계획이라 관측값이 아니므로 fact 테이블에 섞지 않는다.
+  `data_status`는 CHECK로 `official_observed`에 고정하고 `demo_sample`을 허용하지 않는다.
+  `region_id`는 발표 주체인 도(`47`)이며, 본문에 등장한 시군은 문자열 포함
+  heuristic이라는 점을 명시한 `mentioned_region_ids`에 따로 담는다.
+- 보도자료 식별자는 스냅샷 hash가 아니라 게시판 게시물 id에서 파생하므로
+  재크롤이 행을 늘리지 않는다.
 - PDF page는 raw/cleaned hash와 품질 지표를 가지며 현재 extractor 결과만 `is_current`다.
 - page/document는 `extracted_ok`, `mojibake_suspected`,
   `unusable_for_retrieval`, `empty`와 `native_pdf_text`, `none` extraction method를
@@ -106,6 +118,10 @@ flowchart LR
 - source context는 current page/chunk locator만 노출해 과거 chunker 결과가 섞이지 않는다.
 - `search_policies`는 공식 `policy_program`과 `provincial_work_plan` page passage를
   출처와 함께 반환한다. 공식 prose에서 확인되지 않은 자격 필드를 추론하지 않는다.
+- `search_press_releases`는 FTS/trigram으로 보도자료를 찾되 `content_classification`이
+  `extracted_ok`인 행만 대상으로 한다. 응답은 `evidence_role`을
+  `narrative_context_only`로 고정하고 `dataStatuses` 파라미터를 제공하지 않아
+  통계 근거로 승격될 경로를 만들지 않는다.
 - stale purge는 최소 보존기간, advisory lock, 정확한 candidate-set hash, bounded
   FK-safe batch를 요구하며 approved/current/provenance를 보호한다.
 - 기본 feature-hash는 lexical 신호이며 semantic provider가 아니다. OpenAI provider는

@@ -12,12 +12,13 @@
 - 반응형 한국어 웹 UI와 대표 질문 4개
 - 공식 `@modelcontextprotocol/sdk` 기반 MCP 서버(로컬 stdio + 호스팅용 Streamable HTTP)
 - 같은 도구를 호출하는 HTTP API와 데모 오케스트레이션
-- 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 주장 검증, 출처 조회,
-  근거 제한형 행정문서 초안 등 8개 도구
+- 인구·지방세 추세, 교차 비교, 정책 자격 설명, 의회 검색, 보도자료 검색, 주장 검증,
+  출처 조회, 근거 제한형 행정문서 초안 등 9개 도구
 - NFD 파일명에 의존하지 않고 헤더/내용으로 판별하는 CP949·UTF-8 CSV 및 XLSX ETL
 - 9개 지방세 원천 grain과 행정안전부 HWPX 연감의 KRW 단위 정규화, 품질 검증,
   격리와 공식 우선 조회
 - 제공된 CSV·PDF·XLSX 전체의 SHA-256 카탈로그 생성
+- 경상북도 보도자료 13,707건(2020~2026) 크롤과 서술적 맥락 전용 검색 도구
 - PDF.js 기반 408개 회의록·감사·도정 업무계획 PDF 페이지 추출, chunk, 로컬 임베딩 적재
 - page-level 한국어 plausibility/mojibake 지표, 반복 머리말 제거, 발언자/표 경계
   chunk와 golden 회귀 평가
@@ -175,6 +176,12 @@ curl -X POST http://localhost:8787/api/tools/search_council_records \
   -H "authorization: Bearer $HTTP_AUTH_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"query":"지방소멸","dateFrom":"2020-01-01","dateTo":"2024-12-31","limit":5}'
+
+# 보도자료는 서술적 맥락 전용이라 dataStatuses를 받지 않는다
+curl -X POST http://localhost:8787/api/tools/search_press_releases \
+  -H "authorization: ******" \
+  -H 'content-type: application/json' \
+  -d '{"query":"청년 일자리","dateFrom":"2024-01-01","limit":5}'
 ```
 
 모든 사실 응답은 최상위 `data_status`, `data_statuses`, `sources`,
@@ -314,11 +321,12 @@ ETL은 다음을 수행합니다.
 적재기는 다음을 보장합니다.
 
 - 경상북도와 현재 22개 시·군(군위군 제외)의 canonical 지역 키 사용
-- 경로+SHA-256 기반 출처 버전 보존. 현재 로컬 실행은 HWPX 연감과 별도 추가 PDF를
-  포함한 448개 원천을 카탈로그에 적재
+- 경로+SHA-256 기반 출처 버전 보존. 현재 로컬 실행은 HWPX 연감, 별도 추가 PDF와
+  보도자료를 포함한 495개 원천을 카탈로그에 적재
 - 500행 단위 parameterized upsert와 단일 fact 트랜잭션
 - 일반 CSV는 원천 SHA/경로/행 번호, 포항 공개 의안은 원문 레코드 ID 기반의
   결정적 의회 레코드 ID와 인구·의회 `source_locator`
+- 보도자료는 게시판 게시물 id(`gb-press-<B_STEP>`)로 식별해 재크롤 시 행이 늘지 않음
 - 재실행 시 중복 없이 upsert하며, 새 실행에 없는 기존 행은 삭제하지 않음
 - 실패 시 fact 트랜잭션 rollback 및 가능한 경우 `ingestion_run.status = failed` 기록
 - 미해결 지역/잘못된 행은 임의 ID를 만들지 않고 reject 수와 오류 보고서에 기록
@@ -337,19 +345,20 @@ ETL은 다음을 수행합니다.
 
 | 테이블 | `official_observed` | `demo_sample` | `catalog_only` |
 |---|---:|---:|---:|
-| `data_source` | 454 | 0 | 3 |
-| `population_observation` | 264 | 0 | - |
+| `data_source` | 492 | 0 | 3 |
+| `population_observation` | 272 | 0 | - |
 | `local_tax_revenue` | 544 | 0 | - |
 | `local_tax_collection_status` | 220 | 0 | - |
 | `local_tax_payment_media` | 1,131 | 0 | - |
 | `local_tax_assessment_status` | 57 | 0 | - |
-| `local_tax_per_capita_burden` | 15 | 0 | - |
+| `local_tax_per_capita_burden` | 23 | 0 | - |
 | `local_tax_taxpayer_status` | 378 | 0 | - |
 | `local_tax_exemption_status` | 96 | 0 | - |
 | `local_tax_unrefunded_status` | 64 | 0 | - |
 | `local_tax_enforcement_statistic` | 90 | 0 | - |
 | `policy_program` | 0 | 0 | - |
 | `council_record` | 49,708 | 0 | - |
+| `press_release` | 13,707 | 0 | - |
 | `document` | 405 | 0 | 3 |
 
 `datasets/extra/`의 2021·2023·2025·2026 도정 업무계획은 공식 page passage로
@@ -371,6 +380,17 @@ catalog/provenance와 제외 근거만 보존하고 검색에는 넣지 않는�
 | `document_chunk` | 24,565 |
 | current `document_chunk_embedding` | 24,565 |
 
+경상북도 보도자료는 통계 fact가 아니라 서술적 맥락이므로 fact 모델 밖의 별도
+`press_release` 테이블에 저장한다.
+
+| 보도자료 항목 | 값 |
+|---|---|
+| 레코드 | 13,707 |
+| 기간 | 2020-01-06 ~ 2026-08-21 (80개월, 누락 없음) |
+| `extracted_ok` (검색 대상) | 13,702 |
+| `unusable_for_retrieval` | 5 (빈 본문 4, 마크업 복구 불가 1) |
+| 첨부 보유 | 13,674 |
+
 ```sql
 SELECT data_status, count(*) FROM data_source GROUP BY data_status;
 SELECT data_status, count(*) FROM population_observation GROUP BY data_status;
@@ -378,6 +398,8 @@ SELECT data_status, count(*) FROM local_tax_revenue GROUP BY data_status;
 SELECT severity, issue_code, count(*) FROM data_quality_issue
 GROUP BY severity, issue_code ORDER BY severity, issue_code;
 SELECT data_status, count(*) FROM council_record GROUP BY data_status;
+SELECT content_classification, count(*) FROM press_release
+GROUP BY content_classification;
 SELECT entity_type, count(*) FROM source_locator GROUP BY entity_type;
 SELECT text_class, count(*) FROM document_page WHERE is_current GROUP BY text_class;
 SELECT content_classification, count(*) FROM document_page
@@ -495,6 +517,9 @@ docs/                     설계·도구·데이터 사전·변경 기록
 
 - 2020·2022·2024 업무계획 본문 재수집은 이번 범위 밖이다. 향후 별도 승인된
   source replacement 또는 OCR 결정 없이는 검색 coverage를 주장하지 않는다.
+- 보도자료는 도가 발표한 서술형 announcement이며 관측된 통계가 아니다. 본문의
+  수치는 발표 시점의 계획이므로 `verify_claim_with_data`의 근거로 쓸 수 없고,
+  `mentioned_regions`는 본문에 시군 이름이 등장했다는 뜻일 뿐 관할을 뜻하지 않는다.
 - golden은 5개 local PDF의 6페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
 - 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
 - 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.

@@ -167,7 +167,8 @@ pnpm gb:press:crawl --accept-terms --since=2020-01-01
 pnpm gb:press:crawl --accept-terms --since=2026-01-01
 
 # 정규화 + 적재
-pnpm process
+pnpm etl
+pnpm db:load -- --skip-schema
 ```
 
 `--accept-terms`는 필수다. 공개 사이트의 이용 조건을 사람이 확인했음을 명시적으로

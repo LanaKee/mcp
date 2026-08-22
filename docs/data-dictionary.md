@@ -134,6 +134,9 @@ run을 저장한다. 현재 검사는 단위 판정, 연도 범위, canonical co
   해당 시군의 사업임을 보장하지 않는다.
 - `content_classification`: `extracted_ok`, `mojibake_suspected`,
   `unusable_for_retrieval`. 검색은 `extracted_ok`만 대상으로 한다.
+  일부 게시물은 HWP에서 내보낸 HTML 문서가 앵글 브래킷이 제거된 채 본문에
+  들어 있다. 적재 전에 이를 복구하며, 복구에 실패한 경우에만
+  `unusable_for_retrieval`이 된다.
 - `data_status`는 `official_observed`만 허용한다. demo 변형이 존재하지 않는다.
 - `metadata`에 `subheadings`, `attachmentNames`, `sourceRow`를 저장한다.
 

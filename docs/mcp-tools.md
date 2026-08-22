@@ -3,9 +3,11 @@
 모든 도구 입력은 strict Zod object이므로 선언하지 않은 필드는 거절된다. 모든 출력은
 `data_status`, `data_statuses`, `result`, `sources`, `limitations`를 갖는다. 아래 factual
 도구는 선택 `dataStatuses` 배열로 `official_observed`/`demo_sample`을 제한할 수 있다.
-기본은 둘 다이며 같은 연도/키가 충돌하면 공식 레코드를 우선한다.
+기본은 `official_observed`만이며, 운영 DB에는 `demo_sample` 행이 남아 있지 않다.
 목록 반환과 파생 결론은 별개다. point는 삭제하지 않지만 비교 가능성 조건을 통과하지
 못하면 `summary`/verdict를 생성하지 않는다.
+
+`search_press_releases`는 factual 도구가 아니므로 `dataStatuses`를 받지 않는다.
 
 ## `get_population_trend`
 
