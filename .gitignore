@@ -25,4 +25,5 @@ dump.rdb
 
 # Next.js 프로토타입 빌드 산출물
 /prototype/.next/
+/prototype/.next-verify/
 /prototype/out/
