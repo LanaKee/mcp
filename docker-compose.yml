@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     shm_size: 256mb
+    restart: unless-stopped
     environment:
       POSTGRES_DB: gyeongbuk
       POSTGRES_USER: gyeongbuk
@@ -17,8 +18,31 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
 
+  # Runs scripts/ops/backup.sh once on startup and then daily. Backups land
+  # in the backup-data volume (mount/back it up externally too — a volume on
+  # the same host is not disaster recovery on its own). See
+  # docs/CHANGES_OPERATIONAL_RESILIENCE.md for restore instructions.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ******postgres:5432/gyeongbuk
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - backup-data:/backups
+      - ./scripts/ops/backup.sh:/usr/local/bin/backup.sh:ro
+    entrypoint:
+      - sh
+      - -c
+      - "while true; do /usr/local/bin/backup.sh || echo 'backup failed, will retry next cycle' >&2; sleep 86400; done"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   mcp-server:
     build: .
+    restart: unless-stopped
     environment:
       DATA_REPOSITORY: postgres
       PORT: 8787
@@ -52,3 +76,4 @@ services:
 
 volumes:
   postgres-data:
+  backup-data:

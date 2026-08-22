@@ -1,0 +1,38 @@
+name: Production health & storage alerting
+
+# Polls a deployed instance's /health, /ready, and (with an admin token)
+# /api/admin/storage endpoints and posts a webhook alert on failure. This
+# workflow is a no-op unless PROD_SERVICE_URL is configured as a repository
+# secret/variable, so it is safe to merge before a production deployment
+# exists.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: production-health-alerting
+  cancel-in-progress: true
+
+jobs:
+  alert-check:
+    name: Poll production health/readiness/storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ vars.PROD_SERVICE_URL != '' }}
+    env:
+      SERVICE_URL: ${{ vars.PROD_SERVICE_URL }}
+      ADMIN_TOKEN: ${{ secrets.PROD_ADMIN_TOKEN }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run alert-check
+        run: bash scripts/ops/alert-check.sh
