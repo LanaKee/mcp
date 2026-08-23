@@ -41,16 +41,20 @@ pnpm build
 pnpm start
 ```
 
-화면은 `prototype/`의 Next.js 앱이며 8787이 자기 경로(`/mcp`, `/health`, `/ready`,
-`/api/*`)를 뺀 나머지를 그리로 넘긴다. 두 개를 함께 띄운다.
+브라우저에서 <http://localhost:8787>을 엽니다.
 
-```bash
-pnpm --filter @gb/prototype dev                # 3100
-PROTOTYPE_ORIGIN=http://127.0.0.1:3100 pnpm start   # 8787
-```
+화면은 `prototype/`의 Next.js 앱이고 3100에 뜬다. 8787은 자기 경로(`/mcp`,
+`/health`, `/ready`, `/api/*`)를 뺀 나머지를 그리로 넘긴다. `pnpm start`와
+`pnpm dev`가 두 프로세스를 함께 띄우므로 따로 실행할 것은 없다. 화면 없이
+서버만 띄우려면 `SKIP_PROTOTYPE=1`이고, 그때 화면 경로는 404다. 이미 떠 있는
+화면을 쓰려면 `PROTOTYPE_ORIGIN`에 그 주소를 준다.
 
-브라우저에서 <http://localhost:8787>을 엽니다. `PROTOTYPE_ORIGIN`을 비우면 화면
-경로는 404가 되고 MCP와 API만 남는다.
+| 명령 | 하는 일 |
+| --- | --- |
+| `pnpm start` | 화면(3100) + MCP 서버(8787) |
+| `pnpm dev` | 같은 구성을 개발 모드로 |
+| `pnpm start:server` | MCP 서버만 |
+| `SKIP_PROTOTYPE=1 pnpm start` | MCP 서버만 (화면 경로 404) |
 
 `DATA_REPOSITORY=auto`가 기본이며 `DATABASE_URL`이 없거나 PostgreSQL이 준비되지
 않으면 시작에 실패한다. 명시적 메모리 모드는 빈 저장소로 시작한다. `.env`는 서버가 자동으로 읽는다. 로컬 HTTP

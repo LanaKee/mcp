@@ -112,3 +112,52 @@ PROTOTYPE_ORIGIN=http://127.0.0.1:3100 pnpm start     # 8787
 `https://use.me.kr`은 이 저장소 밖의 배포를 가리킨다. 지금도 `/`에서 옛
 "경북 데이터 나침반"을 내놓는다. 이 머신에는 터널 프로세스가 없으므로 여기서
 고칠 수 없다. 그쪽 배포를 갱신해야 공개 주소에서도 프로토타입이 보인다.
+
+---
+
+## 후속: 실행을 문서에서 코드로 옮겼다 (2026-08-23)
+
+위 설계는 로컬에서 전부 실측했지만 **배포에서 깨졌다**. 8787은 3100으로 잘
+넘겼는데 3100에 아무도 없었다. `pnpm start`가 MCP 서버 하나만 띄우고, 화면은
+내가 로컬에서 손으로 띄우고 있었기 때문이다. 자세한 경위는
+`MISTAKE_PROXY_WITHOUT_A_TARGET.md`.
+
+### 바뀐 것
+
+| 파일 | 내용 |
+| --- | --- |
+| `scripts/serve.mjs` | 신규. `pnpm start`/`pnpm dev`가 화면과 서버를 함께 띄운다 |
+| `package.json` | `start`/`dev` → 오케스트레이터. `start:server`/`dev:server`로 서버만 |
+| `prototype/package.json` | `dev`/`start`가 `PORT`를 따른다 |
+| `prototype/next.config.ts` | `NEXT_STANDALONE=1`일 때만 standalone (이미지 빌드 전용) |
+| `Dockerfile` | 프로토타입을 standalone으로 빌드해 이미지에 넣는다 |
+| `docker-entrypoint.sh` | 신규. 컨테이너에서 두 프로세스를 띄운다 |
+| `docker-compose.yml` | 화면이 쓰는 키를 컨테이너에 전달 |
+| `.dockerignore` | 호스트의 `.next`가 이미지에 섞이지 않게 한다 |
+
+### 실행 규칙
+
+- `PROTOTYPE_ORIGIN`이 **루프백**이면 "이미 떠 있다"가 아니라 "이 포트에
+  띄워라"로 읽는다. 원격 `.env`에 `http://127.0.0.1:3100`이 들어 있는 상태가
+  정확히 실패했던 조건이라, 이걸 뒤집어 읽으면 같은 고장이 재현된다.
+- 외부 호스트를 가리키면 그때만 띄우지 않고 그리로 넘긴다.
+- `SKIP_PROTOTYPE=1`이면 서버만. 화면 경로는 404.
+
+### token 모드 판단을 뒤집었다
+
+앞서 `HTTP_AUTH_MODE=token` + `PROTOTYPE_ORIGIN` 조합에서 **시작을 거부**하게
+했었다. 그런데 compose가 token 모드를 강제하므로, 그 가드는 화면을 띄워야 하는
+유일한 배포를 그대로 막는다. 공개 데모에서 화면이 무인증인 것은 고장이 아니라
+의도다. 거부 대신 **무엇이 열리는지 이름을 대는 경고**로 바꿨다.
+
+### 확인한 것
+
+- `pnpm build` → `pnpm start` 하나로 3100 + 8787이 뜬다
+- 원격 실패 조건 재현: `.env`에 `PROTOTYPE_ORIGIN=http://127.0.0.1:3100`을 넣고
+  `pnpm start` → `/` 200, 화면 렌더, **ECONNREFUSED 0건**
+- 프로덕션 빌드 기준 `/`·`/intake`·`/chat`·`/health`·`/ready` 200, CSS 자산 200
+- `/mcp` initialize → 세션, tools/list → 17개
+- 화면 프로세스를 죽이면 8787도 함께 내려가고 두 포트가 모두 빈다
+- `services/mcp-server` + `prototype` 테스트 230건 통과
+- `sh -n docker-entrypoint.sh` 통과. **이미지 빌드 자체는 이 머신에 docker가
+  없어 검증하지 못했다.**

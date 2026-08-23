@@ -13,13 +13,13 @@
  *   SKIP_PROTOTYPE=1  화면 없이 MCP 서버만.
  */
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const mode = process.argv[2] === "dev" ? "dev" : "start";
-const prototypePort = Number(process.env.PROTOTYPE_PORT ?? 3100);
 
 /** 자식들. 하나가 죽으면 나머지도 함께 내린다. */
 const children = [];
@@ -99,23 +99,78 @@ async function waitFor(port, attempts = 150) {
 
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
+/**
+ * 저장소 `.env`를 읽어 넣는다. MCP 서버는 자기가 `.env`를 읽으므로, 여기서
+ * 읽지 않으면 두 프로세스가 서로 다른 `PROTOTYPE_ORIGIN`을 본다. 이미
+ * 정의된 값은 덮어쓰지 않는다.
+ */
+function loadDotEnv() {
+  let text;
+  try {
+    text = readFileSync(resolve(repoRoot, ".env"), "utf8");
+  } catch {
+    return;
+  }
+  for (const line of text.split(/\r?\n/u)) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/u);
+    if (!match) continue;
+    const key = match[1];
+    const value = (match[2] ?? "").trim().replace(/^["']|["']$/gu, "");
+    if (!key || value === "" || process.env[key]) continue;
+    process.env[key] = value;
+  }
+}
+
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "0.0.0.0"]);
+
+function serverArgs() {
+  return ["--filter", "@gb/mcp-server", mode === "dev" ? "dev:http" : "start:http"];
+}
+
 async function main() {
-  let origin = (process.env.PROTOTYPE_ORIGIN ?? "").trim();
+  loadDotEnv();
 
   if (process.env.SKIP_PROTOTYPE === "1") {
-    origin = "";
     console.log("[serve] SKIP_PROTOTYPE=1 — MCP 서버만 띄운다. 화면 경로는 404다.");
-  } else if (origin) {
-    console.log(`[serve] PROTOTYPE_ORIGIN이 이미 있다: ${origin} — 여기서 띄우지 않는다.`);
-  } else {
-    origin = `http://127.0.0.1:${prototypePort}`;
-    run("prototype", pnpm, [
-      "--filter",
-      "@gb/prototype",
-      mode === "dev" ? "dev" : "start"
-    ]);
+    run("mcp-server", pnpm, serverArgs(), { PROTOTYPE_ORIGIN: "" });
+    return;
+  }
+
+  const configured = (process.env.PROTOTYPE_ORIGIN ?? "").trim();
+  let port = Number(process.env.PROTOTYPE_PORT ?? 3100);
+  let externalOrigin = "";
+
+  if (configured) {
+    let url;
+    try {
+      url = new URL(configured);
+    } catch {
+      console.error(`[serve] PROTOTYPE_ORIGIN을 읽을 수 없다: ${configured}`);
+      process.exit(1);
+      return;
+    }
+    // 루프백을 가리키는 값은 "이미 떠 있다"가 아니라 "여기에 띄워라"는
+    // 뜻이다. 뒤집어 읽으면 아무도 없는 포트로 넘기게 되고, 배포된 서버가
+    // ECONNREFUSED만 찍는다.
+    if (LOOPBACK.has(url.hostname)) {
+      port = Number(url.port || 80);
+    } else {
+      externalOrigin = url.origin;
+      console.log(`[serve] 외부 화면을 쓴다: ${externalOrigin} — 여기서 띄우지 않는다.`);
+    }
+  }
+
+  const origin = externalOrigin || `http://127.0.0.1:${port}`;
+
+  if (!externalOrigin) {
+    run(
+      "prototype",
+      pnpm,
+      ["--filter", "@gb/prototype", mode === "dev" ? "dev" : "start"],
+      { PORT: String(port) }
+    );
     console.log(`[serve] 화면이 뜨기를 기다린다: ${origin}`);
-    if (!(await waitFor(prototypePort))) {
+    if (!(await waitFor(port))) {
       console.error("[serve] 화면이 뜨지 않았다. MCP 서버를 띄우지 않는다.");
       shutdown(1);
       return;
@@ -123,12 +178,7 @@ async function main() {
     console.log("[serve] 화면 준비됨.");
   }
 
-  run(
-    "mcp-server",
-    pnpm,
-    ["--filter", "@gb/mcp-server", mode === "dev" ? "dev:http" : "start:http"],
-    { PROTOTYPE_ORIGIN: origin }
-  );
+  run("mcp-server", pnpm, serverArgs(), { PROTOTYPE_ORIGIN: origin });
 }
 
 main().catch((error) => {
