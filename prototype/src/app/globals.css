@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink-950: #0f1011;
+  --color-ink-950: #131415;
   --color-ink-900: #141517;
   --color-ink-850: #17181b;
   --color-ink-800: #1c1e21;
@@ -9,7 +9,7 @@
   --color-ink-600: #32353a;
   --color-panel: #2e3035;
   --color-panel-soft: #383b41;
-  --color-mint-400: #7ddba3;
+  --color-mint-400: #63d195;
   --color-mint-500: #6ac68d;
   --color-mint-600: #4fae74;
   --color-mint-950: #16261d;
@@ -82,10 +82,16 @@ textarea {
 }
 
 /* 노치와 홈 인디케이터. 값이 없는 기기에서는 0이 되어 아무 일도 하지 않는다. */
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.safe-top {
-  padding-top: env(safe-area-inset-top);
+/*
+ * 노치와 홈 인디케이터를 피하는 여백.
+ *
+ * 처음에는 .safe-top { padding-top: env(...) } 같은 클래스였는데, 같은
+ * 요소에 붙은 py-10의 패딩을 통째로 덮어써서 화면 아래 버튼이 잘렸다.
+ * 그래서 값을 변수로만 내보내고, 쓰는 쪽에서 pt-[max(2.5rem,var(--safe-t))]
+ * 처럼 원래 여백과 큰 쪽을 고르게 한다. 안전영역이 0인 기기에서는 디자인
+ * 여백이, 노치가 있는 기기에서는 안전영역이 이긴다.
+ */
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }

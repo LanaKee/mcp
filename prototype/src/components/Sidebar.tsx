@@ -150,7 +150,7 @@ export function Sidebar({
           기록 삭제하기
         </button>
         <Link
-          href="/"
+          href="/intake"
           onClick={onClose}
           className="flex items-center gap-2.5 text-[#d5d9de] transition-colors hover:text-white"
         >
@@ -201,7 +201,7 @@ export function Sidebar({
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-              className="safe-top absolute inset-y-0 left-0 flex w-[84vw] max-w-[300px] flex-col bg-ink-900 shadow-2xl"
+              className="absolute inset-y-0 left-0 flex w-[84vw] max-w-[300px] flex-col bg-ink-900 pt-[var(--safe-t)] pb-[var(--safe-b)] shadow-2xl"
             >
               <div className="flex justify-end px-3 pt-3">
                 <button

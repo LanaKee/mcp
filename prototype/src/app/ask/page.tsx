@@ -50,15 +50,17 @@ export default function AskPage() {
   }
 
   return (
-    <main className="safe-top safe-bottom flex min-h-dvh items-center justify-center px-5 py-12 sm:px-6 sm:py-16">
+    <main className="flex min-h-dvh justify-center px-5 pt-[max(3rem,var(--safe-t))] pb-[max(3rem,var(--safe-b))] sm:items-center sm:px-6 sm:pt-[max(4rem,var(--safe-t))] sm:pb-[max(4rem,var(--safe-b))]">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: "easeOut" }}
         className="w-full max-w-[640px]"
       >
-        <h1 className="text-[26px] font-bold tracking-tight sm:text-[34px]">무엇이 궁금한가요?</h1>
-        <p className="mt-2 text-[14px] text-muted sm:text-[15px]">경북의 여러 데이터를 연결해 질문에 답합니다</p>
+        <h1 className="text-[19px] font-bold tracking-tight sm:text-[34px]">무엇이 궁금한가요?</h1>
+        <p className="mt-1.5 text-[12.5px] text-muted sm:mt-2 sm:text-[15px]">
+          경북의 여러 데이터를 연결해 질문에 답합니다
+        </p>
 
         {ready && personaLabel(persona) ? (
           <p className="mt-3 inline-flex rounded-full border border-ink-700 bg-ink-850 px-3 py-1 text-xs text-muted">
@@ -66,7 +68,7 @@ export default function AskPage() {
           </p>
         ) : null}
 
-        <div className="relative mt-6 rounded-2xl border border-ink-700 bg-ink-850/80 p-4 pb-16 sm:mt-8 sm:rounded-3xl sm:p-6 transition-colors focus-within:border-mint-600/60">
+        <div className="relative mt-7 rounded-2xl border border-ink-700 bg-ink-850/80 p-4 pb-16 transition-colors focus-within:border-mint-600/60 sm:mt-8 sm:rounded-3xl sm:p-6">
           <textarea
             ref={inputRef}
             value={value}
@@ -79,7 +81,7 @@ export default function AskPage() {
             }}
             rows={3}
             placeholder={placeholder}
-            className="w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-[#565b63]"
+            className="w-full resize-none bg-transparent text-base leading-6 outline-none placeholder:text-[#565b63] sm:leading-7"
           />
           <motion.button
             type="button"
@@ -88,13 +90,13 @@ export default function AskPage() {
             whileTap={{ scale: 0.94 }}
             disabled={value.trim().length === 0}
             aria-label="질문 보내기"
-            className="absolute right-4 bottom-4 grid h-10 w-10 sm:right-5 sm:bottom-5 place-items-center rounded-xl bg-mint-400 text-ink-950 transition-opacity disabled:opacity-35"
+            className="absolute right-4 bottom-4 grid h-10 w-10 place-items-center rounded-full bg-mint-400 text-ink-950 transition-opacity disabled:opacity-35 sm:right-5 sm:bottom-5"
           >
             <ArrowUp size={18} strokeWidth={2.6} />
           </motion.button>
         </div>
 
-        <p className="mt-6 text-[13px] font-semibold sm:mt-8">추천 질문</p>
+        <p className="mt-5 text-[13px] font-semibold sm:mt-8">추천 질문</p>
         <div className="mt-3 flex flex-wrap gap-2 sm:gap-3">
           {(questions.length > 0
             ? questions.slice(0, 6).map((item) => item.question)

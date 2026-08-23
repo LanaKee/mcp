@@ -45,47 +45,51 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
+    <div className="space-y-5">
+      {/* 사용자의 말은 초록 말풍선, 시각과 도구는 그 아래 오른쪽에 둔다.
+          목업의 배치이기도 하고, 시각이 답변 머리글에 있으면 그 시각이
+          질문 시각인지 답변 시각인지 읽는 사람이 알 수 없다. */}
+      <div className="flex flex-col items-end gap-1.5">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-[85%] rounded-2xl bg-ink-800 px-4 py-3 text-[13.5px] leading-6 whitespace-pre-wrap sm:max-w-[70%] sm:px-5 sm:py-4"
+          className="max-w-[85%] rounded-2xl bg-mint-400 px-4 py-3 text-[13.5px] leading-6 whitespace-pre-wrap text-ink-950 sm:max-w-[70%] sm:px-5 sm:py-3.5"
         >
           {turn.question}
         </motion.div>
+
+        <div className="flex items-center gap-2 pr-1 text-[11px] text-muted">
+          {relativeTime(turn.createdAt)}
+          <PencilSimple size={13} className="opacity-60" />
+          <button
+            type="button"
+            aria-label="요약 복사"
+            onClick={() => {
+              if (!turn.reply) return;
+              navigator.clipboard?.writeText(turn.reply.view.summary).then(
+                () => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                },
+                () => undefined
+              );
+            }}
+          >
+            <Copy size={13} className={copied ? "text-mint-400" : "opacity-60"} />
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2.5 sm:gap-3">
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-mint-400 text-ink-950 sm:h-9 sm:w-9">
-          <Ghost size={17} weight="fill" />
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-mint-400 text-ink-950">
+          <Ghost size={19} weight="fill" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-bold">G : TEXFLOW</span>
-            <span className="text-[11.5px] text-muted">{connectedLabel(turn)}</span>
-            <span className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-muted">
-              {relativeTime(turn.createdAt)}
-              <PencilSimple size={13} className="opacity-60" />
-              <button
-                type="button"
-                aria-label="요약 복사"
-                onClick={() => {
-                  if (!turn.reply) return;
-                  navigator.clipboard?.writeText(turn.reply.view.summary).then(
-                    () => {
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1500);
-                    },
-                    () => undefined
-                  );
-                }}
-              >
-                <Copy size={13} className={copied ? "text-mint-400" : "opacity-60"} />
-              </button>
-            </span>
-          </div>
+          <p className="text-[13px] leading-4 font-bold">G : TEXFLOW</p>
+          <p className="mt-0.5 truncate text-[11.5px] leading-4 text-muted">
+            {connectedLabel(turn)}
+          </p>
 
           <div className="mt-3">
             {turn.status === "pending" ? (

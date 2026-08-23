@@ -46,6 +46,16 @@ function ChatScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const running = useRef(new Set<string>());
   const bottom = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  // 한 줄로 시작해 내용만큼만 늘어난다. 고정 높이를 두면 좁은 화면에서
+  // 쓰지도 않는 두 번째 줄이 대화 영역을 계속 갉아먹는다.
+  useEffect(() => {
+    const node = input.current;
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.height = `${Math.min(node.scrollHeight, 128)}px`;
+  }, [draft]);
 
   useEffect(() => {
     // `?q=`로 들어오면 링크 하나로 질문이 시작된다. 대화는 여전히 브라우저에만 남는다.
@@ -234,7 +244,7 @@ function ChatScreen() {
         }}
       />
 
-      <main className="safe-top flex min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 md:py-6 md:pr-6 md:pl-0">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden px-3 pt-[max(0.75rem,var(--safe-t))] pb-3 md:pt-6 md:pb-6 md:pr-6 md:pl-0">
         <div className="mb-3 flex items-center gap-4 text-muted">
           <button
             type="button"
@@ -244,11 +254,10 @@ function ChatScreen() {
           >
             <List size={20} />
           </button>
-          <span className="text-[13px] font-bold text-[#d5d9de] md:hidden">G : TEXFLOW</span>
           <button
             type="button"
             aria-label="새 대화"
-            className="ml-auto"
+            className="ml-auto hidden md:block"
             onClick={() => router.push("/ask")}
           >
             <PencilSimple size={18} />
@@ -256,6 +265,7 @@ function ChatScreen() {
           <button
             type="button"
             aria-label="대화 공유"
+            className="hidden md:block"
             onClick={() => {
               if (typeof window !== "undefined") {
                 void navigator.clipboard?.writeText(window.location.href);
@@ -266,7 +276,7 @@ function ChatScreen() {
           </button>
         </div>
 
-        <section className="safe-bottom flex min-h-0 flex-1 flex-col rounded-2xl bg-panel/45 p-3 md:rounded-3xl md:p-7">
+        <section className="flex min-h-0 flex-1 flex-col pb-[max(0.75rem,var(--safe-b))] md:rounded-3xl md:bg-panel/45 md:p-7">
           <div className="min-h-0 flex-1 space-y-8 overflow-y-auto md:space-y-10 md:pr-2">
             <AnimatePresence initial={false}>
               {active && active.turns.length > 0 ? (
@@ -294,8 +304,19 @@ function ChatScreen() {
             <div ref={bottom} />
           </div>
 
-          <div className="relative mt-4 rounded-2xl border border-ink-700 bg-ink-850/70 px-4 pt-3.5 pb-12 md:mt-6 md:px-5 md:pt-4">
+          {/* 목업의 입력 바는 알약 하나에 +, 입력, 마이크, 녹음이 한 줄로 놓인다.
+              여러 줄을 쓰는 경우는 드물어서, 필요할 때만 높이가 늘어난다. */}
+          <div className="mt-4 flex items-end gap-2 rounded-3xl border border-ink-700 bg-ink-850/70 px-3 py-2.5 transition-colors focus-within:border-mint-600/50 md:mt-6 md:gap-3 md:px-4 md:py-3">
+            <button
+              type="button"
+              aria-label="첨부"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-white"
+            >
+              <Plus size={18} />
+            </button>
+
             <textarea
+              ref={input}
               value={draft}
               onChange={(event) => setDraft(event.target.value.slice(0, 400))}
               onKeyDown={(event) => {
@@ -304,27 +325,34 @@ function ChatScreen() {
                   send();
                 }
               }}
-              rows={2}
+              rows={1}
               placeholder="지자체 데이터에 대해 물어보세요"
-              className="w-full resize-none bg-transparent text-[13.5px] leading-6 outline-none placeholder:text-[#575c64]"
+              className="max-h-32 min-h-[36px] flex-1 resize-none self-center bg-transparent py-2 text-[13.5px] leading-5 outline-none placeholder:text-[#575c64]"
             />
-            <div className="absolute bottom-3.5 left-5 text-muted">
-              <Plus size={17} />
-            </div>
-            <div className="absolute right-16 bottom-3.5 hidden items-center gap-3 text-muted sm:flex">
-              <Microphone size={16} />
-              <Waveform size={16} />
-            </div>
+
+            <button
+              type="button"
+              aria-label="음성 입력"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-white"
+            >
+              <Microphone size={17} />
+            </button>
+
+            {/* 보낼 것이 있으면 화살표, 없으면 목업처럼 녹음 버튼을 둔다.
+                같은 자리에서 모양만 바뀌므로 누를 곳을 다시 찾지 않아도 된다. */}
             <motion.button
               type="button"
               onClick={send}
               whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.94 }}
-              disabled={draft.trim().length === 0}
-              aria-label="질문 보내기"
-              className="absolute right-4 bottom-3 grid h-9 w-9 place-items-center rounded-full bg-mint-400 text-ink-950 transition-opacity disabled:opacity-35"
+              aria-label={draft.trim().length === 0 ? "음성으로 질문하기" : "질문 보내기"}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-mint-400 text-ink-950"
             >
-              <ArrowUp size={17} strokeWidth={2.6} />
+              {draft.trim().length === 0 ? (
+                <Waveform size={17} weight="bold" />
+              ) : (
+                <ArrowUp size={17} strokeWidth={2.6} />
+              )}
             </motion.button>
           </div>
         </section>

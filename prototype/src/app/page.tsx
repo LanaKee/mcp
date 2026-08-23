@@ -1,136 +1,54 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, MapPin, Sparkle, User } from "@phosphor-icons/react";
-import { usePersona } from "@/components/PersonaProvider";
-import type { Persona } from "@/lib/persona";
 
-const REGIONS = ["상주시", "포항시", "안동시", "구미시", "경주시", "울진군", "경상북도"];
-const INTERESTS = ["스마트팜 · 창업", "청년 정책", "인구 · 세수", "의정활동", "보도자료"];
-
-export default function IntakePage() {
-  const router = useRouter();
-  const { persona, setPersona } = usePersona();
-  const [draft, setDraft] = useState<Persona>(persona);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    setPersona(draft);
-    router.push("/ask");
-  }
-
+/**
+ * 첫 화면.
+ *
+ * 여기서 아무것도 묻지 않는다. 이 서비스가 무엇인지 한 줄로 말하고 넘긴다.
+ * 처음 열자마자 지역·나이·관심분야를 요구하면, 무엇을 얻게 되는지도 모르는
+ * 채로 입력부터 하게 된다.
+ */
+export default function WelcomePage() {
   return (
-    <main className="safe-top safe-bottom flex min-h-dvh items-center justify-center px-5 py-12 sm:px-6 sm:py-16">
+    <main className="flex min-h-dvh flex-col px-6 pt-[max(2.5rem,var(--safe-t))] pb-[max(2.5rem,var(--safe-b))] sm:px-8">
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: "easeOut" }}
-        className="w-full max-w-[470px]"
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="flex flex-1 flex-col items-center pt-[12vh] text-center sm:justify-center sm:pt-0"
       >
-        <h1 className="text-[24px] font-bold tracking-tight sm:text-[28px]">먼저, 당신의 상황을 알려주세요</h1>
-        <p className="mt-2 text-sm text-muted">
-          정책을 검색하는 것보다 중요한 건 &lsquo;이 정책이 나에게 해당되는가?&rsquo;입니다
-        </p>
+        <span className="rounded-full bg-mint-500 px-4 py-1.5 text-[12px] font-bold text-white">
+          G : TEXFLOW
+        </span>
 
-        <form onSubmit={submit} className="mt-9">
-          <p className="text-[13px] font-semibold">나에게 맞는 정책 브리핑을 위해 필요한 정보</p>
+        <h1 className="mt-14 text-[29px] leading-[48px] font-bold tracking-tight sm:text-[34px] sm:leading-[56px]">
+          Welcome to
+          <br />
+          G :TEXTFLOW
+        </h1>
 
-          <div className="mt-4 space-y-3">
-            <Field
-              icon={<MapPin size={14} />}
-              label="지역"
-              value={draft.region}
-              placeholder="상주시"
-              list="regions"
-              onChange={(region) => setDraft({ ...draft, region })}
-            />
-            <Field
-              icon={<User size={14} />}
-              label="나이"
-              value={draft.age}
-              placeholder="34"
-              inputMode="numeric"
-              suffix="세"
-              onChange={(age) => setDraft({ ...draft, age: age.replace(/[^0-9]/gu, "").slice(0, 3) })}
-            />
-            <Field
-              icon={<Sparkle size={14} />}
-              label="관심분야"
-              value={draft.interest}
-              placeholder="스마트팜 · 창업"
-              list="interests"
-              onChange={(interest) => setDraft({ ...draft, interest })}
-            />
-          </div>
-
-          <datalist id="regions">
-            {REGIONS.map((region) => (
-              <option key={region} value={region} />
-            ))}
-          </datalist>
-          <datalist id="interests">
-            {INTERESTS.map((interest) => (
-              <option key={interest} value={interest} />
-            ))}
-          </datalist>
-
-          <motion.button
-            type="submit"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.985 }}
-            className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-mint-400 py-4 sm:mt-10 text-[15px] font-bold text-ink-950 transition-colors hover:bg-mint-500"
-          >
-            맞춤 브리핑 시작하기
-            <ArrowRight size={17} />
-          </motion.button>
-        </form>
-
-        <p className="mt-4 text-xs text-[#5f646c]">
-          개인정보를 저장하지 않고 현재 대화의 맥락으로만 활용합니다.
+        <p className="mt-6 max-w-[280px] text-[14px] leading-7 text-muted sm:max-w-[340px] sm:text-[15px]">
+          무엇이든 물어보면 당신이 원하는
+          <br />
+          답을 얻을 수 있을 거예요
         </p>
       </motion.div>
-    </main>
-  );
-}
 
-function Field({
-  icon,
-  label,
-  value,
-  placeholder,
-  onChange,
-  list,
-  inputMode,
-  suffix
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  list?: string;
-  inputMode?: "numeric" | "text";
-  suffix?: string;
-}) {
-  return (
-    <label className="flex items-center gap-3 rounded-2xl border border-ink-700 bg-ink-850 px-4 py-4 sm:gap-4 sm:px-5 transition-colors focus-within:border-mint-600/70">
-      <span className="flex w-[70px] shrink-0 items-center gap-1.5 text-[11px] whitespace-nowrap text-muted">
-        {icon}
-        {label}
-      </span>
-      <span className="flex flex-1 items-baseline gap-1">
-        <input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          list={list}
-          inputMode={inputMode}
-          className="w-full bg-transparent text-base font-semibold outline-none placeholder:font-normal placeholder:text-[#4d5158]"
-        />
-        {suffix && value ? <span className="text-[15px] font-semibold">{suffix}</span> : null}
-      </span>
-    </label>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
+        className="mx-auto w-full max-w-[470px]"
+      >
+        <Link
+          href="/intake"
+          className="grid w-full place-items-center rounded-2xl bg-mint-500 py-4 text-[15px] font-bold text-white transition-colors hover:bg-mint-600"
+        >
+          시작하기
+        </Link>
+      </motion.div>
+    </main>
   );
 }
