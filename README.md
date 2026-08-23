@@ -611,29 +611,6 @@ evals/                    대표 평가 질문
 docs/                     설계·도구·데이터 사전·변경 기록
 ```
 
-## 현재 한계
-
-- 2020·2022·2024 업무계획 본문 재수집은 이번 범위 밖이다. 향후 별도 승인된
-  source replacement 또는 OCR 결정 없이는 검색 coverage를 주장하지 않는다.
-- 보도자료는 도가 발표한 서술형 announcement이며 관측된 통계가 아니다. 본문의
-  수치는 발표 시점의 계획이므로 `verify_claim_with_data`의 근거로 쓸 수 없고,
-  `mentioned_regions`는 본문에 시군 이름이 등장했다는 뜻일 뿐 관할을 뜻하지 않는다.
-- golden은 5개 local PDF의 6페이지만 다루며 실제 반복 footer 표본은 없어 합성 unit test로만 검증한다.
-- 기본 임베딩은 의미 모델이 아닌 lexical feature hash이며 pgvector ANN을 사용하지 않는다.
-- 샘플의 숫자와 정책/회의 내용은 공식 사실이 아닙니다.
-- demo와 공식, 또는 서로 다른 금액 의미/회계 기준/grain/단위를 가로지르는 증감률은
-  계산하지 않는다. demo 값은 claim 검증이나 공공문서 근거로 사용할 수 없다.
-- 공식 지방세 합계는 2024년 기준 현재 22개 시·군 전체를 포괄하고, 기존 CSV 기간을
-  합쳐 46개 지역-연도다. 다년 homogeneous series는 여전히 경산·구미·봉화·청도 등
-  일부 지역에만 있으므로 한 점뿐인 지역은 증감률을 계산하지 않는다.
-- 영천 비과세·감면 720행은 금액/건수 열 의미가 검증되지 않아 적재하지 않았다.
-- 김천 주소 단위 일반건축물 시가표준액 40,694행은 일반 분석·검색·embedding에서 제외했다.
-- 인구와 지방세가 반대 방향으로 변했다는 사실만으로 인과관계를 주장하지 않습니다.
-- token은 단일 shared secret이며 tenant/role 권한 모델은 없다.
-- rate limit은 process-local이므로 여러 replica에서는 공용 Redis/게이트웨이가 필요하다.
-- TLS 인증서와 secret rotation은 reverse proxy/배포 플랫폼 책임이다.
-- stale 41,282건은 안전 보존 중이며 실제 purge와 물리 공간 회수는 운영자 승인/점검이 필요하다.
-
 상세 내용은 [아키텍처](docs/architecture.md),
 [데이터 사전](docs/data-dictionary.md), [MCP 도구 명세](docs/mcp-tools.md)를 참고하세요.
 
