@@ -86,7 +86,7 @@ export function TurnView({ turn }: { turn: ChatTurn }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] leading-4 font-bold">G : TEXFLOW</p>
+          <p className="text-[13px] leading-4 font-bold">G-BAP</p>
           <p className="mt-0.5 truncate text-[11.5px] leading-4 text-muted">
             {connectedLabel(turn)}
           </p>

@@ -20,7 +20,7 @@ export default function WelcomePage() {
         className="flex flex-1 flex-col items-center pt-[12vh] text-center sm:justify-center sm:pt-0"
       >
         <span className="rounded-full bg-mint-500 px-4 py-1.5 text-[12px] font-bold text-white">
-          G : TEXFLOW
+          G-BAP
         </span>
 
         <h1 className="mt-14 text-[29px] leading-[48px] font-bold tracking-tight sm:text-[34px] sm:leading-[56px]">

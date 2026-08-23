@@ -1,7 +1,8 @@
-# 경북 데이터 나침반
+# G-BAP (Gyeongbuk Behind-the-scenes Access Platform)
 
 경상북도와 시·군의 인구·지방세·정책·의회 데이터를 **목적별 MCP 도구**로
 조회하고, 결론·근거·출처·한계를 함께 보여 주는 해커톤용 vertical slice입니다.
+(구 프로젝트명: 경북 데이터 나침반 / G:TEXFLOW)
 
 > [!IMPORTANT]
 > 운영 데이터와 기본 조회는 `official_observed`만 사용한다. 결과를 사용할 때도
@@ -29,6 +30,59 @@
 - 한글 FTS/trigram과 저장 임베딩을 결합하는 PostgreSQL hybrid repository
 - feature flag 기반 PostgreSQL MCP repository, readiness, redacted 도구 감사 로그
 - Vitest 기반 도메인·검색·ETL·도구·HTTP 테스트
+
+## 벤치마크: 근거 계층이 실제로 만드는 차이
+
+"그냥 ChatGPT/RAG에 물어보면 되는 것 아닌가?"에 답하기 위해, **같은 모델·같은 질문**에
+데이터 계층 접근 여부만 바꿔서 측정했습니다. 채점은 LLM 심판 없이 결정론적 코드로만
+하고, 정답은 실행 시점에 PostgreSQL에서 직접 조회합니다. 방법론 전체는
+[`benchmark/README.md`](benchmark/README.md)에 있습니다.
+
+### 1) Vanilla LLM vs MCP(G-BAP) — 22문항 · 6범주, 3개 모델
+
+| 모델 | 정확도 (vanilla → MCP) | 환각률·답변대비 (vanilla → MCP) | 출처검증 가능 비율 (vanilla → MCP) |
+| --- | ---: | ---: | ---: |
+| `claude-sonnet-5` | 50.0% → **81.8%** (+31.8p) | 50.0% → **16.7%** | 0.0% → **80.0%** |
+| `gpt-4o-mini` | 27.3% → **72.7%** (+45.5p) | 33.3% → **22.2%** | 0.0% → **56.8%** |
+| `gpt-5.6-luna` | 36.4% → **81.8%** (+45.5p) | 63.6% → **11.8%** | 0.0% → **65.9%** |
+
+- 정확도는 유효 실행 3개 모델 전부에서 MCP arm이 더 높습니다.
+- vanilla의 출처 검증 가능 비율은 **모든 모델에서 0%**입니다. 출처를 안 대서가 아니라,
+  대는 출처가 실재하는 행에 대응하지 않기 때문입니다.
+- `abstention`(자료가 실제로 없는 질문) 범주는 답하지 않는 것이 정답이며, MCP arm은
+  세 모델 모두 부재 인지 정확도 100%를 기록합니다.
+- 전체 결과는 [`benchmark/reports/COMPARISON.md`](benchmark/reports/COMPARISON.md).
+
+### 2) 무가공 RAG vs 정규화 데이터 계층(G-BAP) — 10문항 차별성 실험
+
+동일 모델(`gpt-5.6-luna`)에 (a) 원본 파일 446개·25.8만 chunk를 단순 lexical
+retrieval로 넘긴 arm과, (b) 정규화·metadata·provenance·coverage를 갖춘 G-BAP 도구
+arm을 비교했습니다.
+
+| 지표 | Raw Retrieval (RAG) | G-BAP (구조화 계층) |
+| --- | ---: | ---: |
+| 정확도 | 60.0% | **90.0%** |
+| 답변 시도율 | 50.0% | **70.0%** |
+| 환각률 (답변 대비) | 40.0% | **14.3%** |
+| 부재 인지 정확도 | 100.0% | 100.0% |
+| 출처 검증 가능 비율 | 0.0% | **56.3%** |
+
+원본 문서를 그대로 검색에 넣어도 어느 정도는 맞히지만(60%), 단위 정규화·품질
+검증·출처 테이블까지 갖춘 계층은 정확도를 90%까지 올리고 환각을 1/3 이하로
+줄입니다. 전체 결과는
+[`raw-rag-vs-mcp-gpt-5.6-luna-gyeongbuk-v2/report.md`](benchmark/reports/raw-rag-vs-mcp-gpt-5.6-luna-gyeongbuk-v2/report.md).
+
+### 재현
+
+```bash
+pnpm benchmark:compare:dry-run   # API 호출 없이 채점기·문항 전제만 검증
+pnpm benchmark:compare           # vanilla vs MCP 전체 비교
+pnpm benchmark:raw-rag           # 무가공 RAG vs 구조화 계층 비교
+```
+
+> 문항 22개 중 일부 모델은 temperature를 고정할 수 없어 표본이 크지 않습니다. 모델 간
+> 절대 순위 비교가 아니라 각 모델 **내부**의 vanilla → MCP 변화량을 보는 지표입니다.
+> `common_knowledge` 범주(대조군)는 일부러 vanilla가 이길 수 있게 설계했습니다.
 
 ## 빠른 시작
 
@@ -97,10 +151,10 @@ pnpm db:schema
 ```json
 {
   "mcpServers": {
-    "gyeongbuk-public-ai": {
+    "g-bap": {
       "command": "node",
       "args": [
-        "/absolute/path/to/gyeongbuk-public-ai/services/mcp-server/dist/index.js",
+        "/absolute/path/to/g-bap/services/mcp-server/dist/index.js",
         "--stdio"
       ]
     }
@@ -137,7 +191,7 @@ node services/mcp-server/dist/index.js --http
 ```json
 {
   "mcpServers": {
-    "gyeongbuk-public-ai": {
+    "g-bap": {
       "type": "http",
       "url": "https://<host>/mcp",
       "headers": { "Authorization": "Bearer <HTTP_AUTH_TOKEN>" }
