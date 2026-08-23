@@ -41,7 +41,17 @@ pnpm build
 pnpm start
 ```
 
-브라우저에서 <http://localhost:8787>을 엽니다.
+화면은 `prototype/`의 Next.js 앱이며 8787이 자기 경로(`/mcp`, `/health`, `/ready`,
+`/api/*`)를 뺀 나머지를 그리로 넘긴다. 두 개를 함께 띄운다.
+
+```bash
+pnpm --filter @gb/prototype dev                # 3100
+PROTOTYPE_ORIGIN=http://127.0.0.1:3100 pnpm start   # 8787
+```
+
+브라우저에서 <http://localhost:8787>을 엽니다. `PROTOTYPE_ORIGIN`을 비우면 화면
+경로는 404가 되고 MCP와 API만 남는다.
+
 `DATA_REPOSITORY=auto`가 기본이며 `DATABASE_URL`이 없거나 PostgreSQL이 준비되지
 않으면 시작에 실패한다. 명시적 메모리 모드는 빈 저장소로 시작한다. `.env`는 서버가 자동으로 읽는다. 로컬 HTTP
 인증 기본은 `HTTP_AUTH_MODE=off`이며 외부에 노출해서는 안 된다.
@@ -532,7 +542,7 @@ pnpm pdf:evaluate
 ## 저장소 구조
 
 ```text
-apps/web/                 정적 반응형 데모 UI
+prototype/                Next.js 화면(8787이 여기로 넘긴다)
 services/mcp-server/      MCP 서버(stdio · Streamable HTTP) + HTTP API
 packages/domain/          Zod 입력, 공통 타입, 분석·초안 로직
 packages/retrieval/       한글 lexical/hybrid 검색

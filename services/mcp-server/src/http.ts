@@ -1,11 +1,10 @@
-import { createReadStream } from "node:fs";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse
 } from "node:http";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { representativeQuestions } from "./questions.js";
 import { runAgent, type Planner } from "./agent.js";
@@ -28,19 +27,34 @@ import {
   McpSessionManager
 } from "./mcp-http.js";
 import { executeTool, type ToolRegistry } from "./tools.js";
+import {
+  loadPrototypeProxyConfig,
+  proxyToPrototype
+} from "./prototype-proxy.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
-const webCandidates = [
-  resolve(moduleDirectory, "../../../apps/web/dist"),
-  resolve(moduleDirectory, "../../../apps/web/src")
-];
-const staticFiles: Record<string, string> = {
-  "/": "index.html",
-  "/index.html": "index.html",
-  "/app.js": "app.js",
-  "/styles.css": "styles.css"
-};
 export const MCP_ENDPOINT = "/mcp";
+
+/**
+ * 이 서버가 스스로 답하는 경로.
+ *
+ * 나머지는 전부 프로토타입 화면으로 넘어간다. 예전에는 `/api/`로 시작하면
+ * 무조건 이 서버 것으로 보고 모르는 경로를 401이나 404로 돌려보냈는데,
+ * 그러면 화면 쪽의 `/api/chat` 같은 경로가 여기서 막힌다. 목록을 적어 두면
+ * 무엇이 서버 것이고 무엇이 화면 것인지가 코드에 남는다.
+ */
+const SERVER_API_PATHS = new Set([
+  "/api/admin/storage",
+  "/api/benchmark",
+  "/api/questions",
+  "/api/agent"
+]);
+
+function isServerApiPath(pathname: string, registry: ToolRegistry): boolean {
+  return (
+    SERVER_API_PATHS.has(pathname) || toolName(pathname, registry) !== undefined
+  );
+}
 const expensiveTools = new Set([
   "search_council_records",
   "search_press_releases",
@@ -114,6 +128,11 @@ export interface HttpAppOptions {
    * graceful shutdown; omitting it builds one from the environment.
    */
   mcpSessions?: McpSessionManager;
+  /**
+   * 화면을 서비스하는 곳. 이 서버가 답하지 않는 경로는 전부 여기로 넘어간다.
+   * 생략하면 PROTOTYPE_ORIGIN에서 읽고, 그것도 없으면 프록시하지 않는다.
+   */
+  prototypeOrigin?: string | null;
   /**
    * Plans which datasets and tools answer a question. Defaults to the
    * deterministic planner so the server never depends on a third-party model
@@ -284,18 +303,6 @@ async function jsonBody(
     throw new HttpError(400, "invalid_json_shape", "JSON body must be an object.");
   }
   return parsed as Record<string, unknown>;
-}
-
-async function webDirectory(): Promise<string | null> {
-  for (const candidate of webCandidates) {
-    try {
-      await access(resolve(candidate, "index.html"));
-      return candidate;
-    } catch {
-      // Continue to the source fallback during local development.
-    }
-  }
-  return null;
 }
 
 function toolName(pathname: string, registry: ToolRegistry): string | undefined {
@@ -518,6 +525,20 @@ export function createHttpApp(
   const mcpSessions =
     options.mcpSessions ?? new McpSessionManager(loadMcpHttpConfig());
   const planner = options.planner ?? new HeuristicPlanner();
+  const prototypeOrigin =
+    options.prototypeOrigin !== undefined
+      ? options.prototypeOrigin
+      : loadPrototypeProxyConfig().origin;
+  // token 모드는 데이터 경로에 토큰을 요구하려고 켜는 것이다. 그런데 화면은
+  // 브라우저가 여는 것이라 헤더를 붙일 수 없어 프록시 경로는 무인증이 된다.
+  // 프로토타입의 /api/chat도 그 경로로 같이 열리므로, 토큰을 요구하면서
+  // 화면을 얹는 조합은 요구를 스스로 무르는 셈이다. 시작하지 않는다.
+  if (prototypeOrigin && config.authMode === "token") {
+    throw new Error(
+      "PROTOTYPE_ORIGIN cannot be used with HTTP_AUTH_MODE=token: proxied screen " +
+        "routes (including the prototype's own data APIs) would bypass the token."
+    );
+  }
   const server = createServer(async (request, response) => {
     const requestId = correlationId(request.headers["x-request-id"]);
     try {
@@ -586,7 +607,7 @@ export function createHttpApp(
         return;
       }
 
-      if (url.pathname.startsWith("/api/")) {
+      if (isServerApiPath(url.pathname, registry)) {
         if (!(await rateLimit(request, response, requestId, group, config, limiter))) return;
         if (!isAuthorized(request.headers, config)) {
           throw new HttpError(401, "unauthorized", "Authentication required.", {
@@ -679,24 +700,25 @@ export function createHttpApp(
         return json(response, 200, result, requestId);
       }
 
-      const file = staticFiles[url.pathname];
-      if (file) {
-        if (request.method !== "GET") throw methodNotAllowed("GET");
-        const directory = await webDirectory();
-        if (!directory) {
-          throw new HttpError(404, "not_found", "Resource not found.");
-        }
-        const type =
-          extname(file) === ".css"
-            ? "text/css; charset=utf-8"
-            : extname(file) === ".js"
-              ? "text/javascript; charset=utf-8"
-              : "text/html; charset=utf-8";
-        response.writeHead(
-          200,
-          responseHeaders(requestId, { "content-type": type })
-        );
-        return createReadStream(resolve(directory, file)).pipe(response);
+      // 남은 것은 화면이다. 여기까지 왔다는 것은 이 서버가 답할 경로가
+      // 아니라는 뜻이므로, 프로토타입이 있으면 그쪽으로 넘긴다.
+      if (prototypeOrigin) {
+        return proxyToPrototype(prototypeOrigin, request, response, (error) => {
+          logUnexpected(error, requestId);
+          if (response.headersSent) {
+            response.destroy();
+            return;
+          }
+          errorJson(
+            response,
+            new HttpError(
+              502,
+              "prototype_unavailable",
+              `Prototype at ${prototypeOrigin} did not respond. Start it with "pnpm --filter @gb/prototype dev".`
+            ),
+            requestId
+          );
+        });
       }
 
       throw new HttpError(404, "not_found", "Resource not found.");
