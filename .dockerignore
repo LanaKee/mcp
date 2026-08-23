@@ -8,3 +8,7 @@ node_modules
 data/generated
 coverage
 
+.next
+.next-verify
+prototype/.next
+prototype/.next-verify

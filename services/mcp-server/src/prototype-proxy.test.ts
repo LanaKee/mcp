@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDemoData } from "./data-store.js";
 import { createHttpApp } from "./http.js";
 import { loadHttpSecurityConfig } from "./http-security.js";
@@ -181,29 +181,40 @@ describe("proxyToPrototype", () => {
 });
 
 describe("createHttpApp와 프록시", () => {
-  it("token 모드에서 화면을 얹으려 하면 시작하지 않는다", async () => {
-    const store = await loadDemoData();
-    const registry = createToolRegistry(new InMemoryDataRepository(store));
-    const security = loadHttpSecurityConfig({
+  const tokenSecurity = () =>
+    loadHttpSecurityConfig({
       HTTP_AUTH_MODE: "token",
       HTTP_AUTH_TOKEN: "0123456789abcdefABCDEF-ghijklmnopqrstuvwxyz_9876543210"
     });
 
+  it("token 모드에서도 화면을 얹을 수 있고, 무엇이 열리는지 경고한다", async () => {
+    const store = await loadDemoData();
+    const registry = createToolRegistry(new InMemoryDataRepository(store));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
     expect(() =>
-      createHttpApp(registry, { security, prototypeOrigin: "http://127.0.0.1:3100" })
-    ).toThrow("HTTP_AUTH_MODE=token");
+      createHttpApp(registry, {
+        security: tokenSecurity(),
+        prototypeOrigin: "http://127.0.0.1:3100"
+      })
+    ).not.toThrow();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("without a token")
+    );
+    warn.mockRestore();
   });
 
-  it("화면 경로가 없으면 프록시를 걸지 않고도 시작한다", async () => {
+  it("화면이 없으면 경고하지 않는다", async () => {
     const store = await loadDemoData();
     const registry = createToolRegistry(new InMemoryDataRepository(store));
-    const security = loadHttpSecurityConfig({
-      HTTP_AUTH_MODE: "token",
-      HTTP_AUTH_TOKEN: "0123456789abcdefABCDEF-ghijklmnopqrstuvwxyz_9876543210"
-    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(() =>
-      createHttpApp(registry, { security, prototypeOrigin: null })
+      createHttpApp(registry, { security: tokenSecurity(), prototypeOrigin: null })
     ).not.toThrow();
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("without a token")
+    );
+    warn.mockRestore();
   });
 });

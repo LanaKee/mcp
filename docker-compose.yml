@@ -78,6 +78,18 @@ services:
       STORAGE_WARN_EMBEDDING_ROWS: 250000
       STORAGE_WARN_EXPIRED_AUDIT_ROWS: 10000
       DATABASE_URL: postgres://gyeongbuk:gyeongbuk@postgres:5432/gyeongbuk
+      # 화면(Next.js)은 같은 컨테이너에서 127.0.0.1:3100에 뜨고, 8787이 자기
+      # 경로가 아닌 요청을 그리로 넘긴다. SKIP_PROTOTYPE=1이면 띄우지 않고
+      # 화면 경로는 404가 된다.
+      SKIP_PROTOTYPE: ${SKIP_PROTOTYPE:-}
+      PROTOTYPE_PORT: 3100
+      # 화면이 답을 만들 때 쓰는 것들. 없으면 화면은 뜨지만 질문에 답하지
+      # 못한다. MCP_SERVER_URL은 OpenAI 서버가 직접 붙는 곳이라 반드시
+      # 공개 주소여야 한다(컨테이너 안 주소는 소용없다).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      MCP_SERVER_URL: ${MCP_SERVER_URL:-}
+      MCP_BASE_URL: http://127.0.0.1:8787
+      MCP_AUTH_TOKEN: ${HTTP_AUTH_TOKEN}
       # Set to redis://redis:6379 (and run with --profile scale) once
       # scaling mcp-server to multiple replicas so rate limits are shared
       # instead of being enforced independently per instance.

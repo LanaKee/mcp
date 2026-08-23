@@ -529,14 +529,16 @@ export function createHttpApp(
     options.prototypeOrigin !== undefined
       ? options.prototypeOrigin
       : loadPrototypeProxyConfig().origin;
-  // token 모드는 데이터 경로에 토큰을 요구하려고 켜는 것이다. 그런데 화면은
-  // 브라우저가 여는 것이라 헤더를 붙일 수 없어 프록시 경로는 무인증이 된다.
-  // 프로토타입의 /api/chat도 그 경로로 같이 열리므로, 토큰을 요구하면서
-  // 화면을 얹는 조합은 요구를 스스로 무르는 셈이다. 시작하지 않는다.
+  // token 모드는 이 서버의 데이터 경로(`/mcp`, `/api/*`)에 토큰을 요구한다.
+  // 화면은 브라우저가 여는 것이라 헤더를 붙일 수 없으므로 프록시 경로는
+  // 무인증일 수밖에 없다. 공개 데모라면 그것이 의도지만, 프로토타입이 자기
+  // `/api/chat`을 함께 열어 둔다는 사실은 눈에 보여야 한다. 시작을 막지는
+  // 않되 무엇이 열리는지 이름을 대고 지나간다.
   if (prototypeOrigin && config.authMode === "token") {
-    throw new Error(
-      "PROTOTYPE_ORIGIN cannot be used with HTTP_AUTH_MODE=token: proxied screen " +
-        "routes (including the prototype's own data APIs) would bypass the token."
+    console.warn(
+      `[http] HTTP_AUTH_MODE=token, but screen routes proxied to ${prototypeOrigin} ` +
+        "are served without a token (browsers cannot send one). The prototype's own " +
+        "/api/chat is public too. Set SKIP_PROTOTYPE=1 to serve only /mcp and /api/*."
     );
   }
   const server = createServer(async (request, response) => {
