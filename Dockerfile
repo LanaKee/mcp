@@ -1,4 +1,4 @@
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json vitest.config.ts ./
@@ -13,7 +13,7 @@ RUN pnpm --filter "!@gb/prototype" -r --sort --if-present run build
 # 실제로 쓰는 모듈만 추려 자기 자신을 실행할 수 있는 한 벌이 필요하다.
 RUN NEXT_STANDALONE=1 pnpm --filter @gb/prototype run build
 
-FROM node:24-alpine
+FROM node:26-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
